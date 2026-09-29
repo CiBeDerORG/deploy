@@ -1,0 +1,58 @@
+services:
+  opencode:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+      extra_hosts:
+        - "host.docker.internal:host-gateway"
+
+      args:
+        OPENCODE_CACHE_BUST: "${OPENCODE_CACHE_BUST:-manual}"
+
+        # 仅在 build 阶段存在，不传入运行时 environment。
+        HTTP_PROXY: "${BUILD_HTTP_PROXY:-}"
+        HTTPS_PROXY: "${BUILD_HTTPS_PROXY:-}"
+        NO_PROXY: "${BUILD_NO_PROXY:-127.0.0.1,localhost}"
+
+    image: "opencode-local:latest"
+
+    container_name: opencode
+    restart: unless-stopped
+    init: true
+
+    working_dir: /workspace
+
+    command:
+      - "serve"
+      - "--hostname"
+      - "0.0.0.0"
+      - "--port"
+      - "${OPENCODE_PORT:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 OPENCODE_PORT}"
+
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      OPENCODE_PORT: "${OPENCODE_PORT:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 OPENCODE_PORT}"
+      MYAI_IP: "${MYAI_IP:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 MYAI_IP}"
+      # OpenCode V2 serve 当前 Basic Auth 用户名固定为 opencode。
+      OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:?请在 <SOFTWARE_ROOT>/deploy/.secrets 中设置 OPENCODE_SERVER_PASSWORD}"
+
+    ports:
+      - "${OPENCODE_PORT:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 OPENCODE_PORT}:${OPENCODE_PORT:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 OPENCODE_PORT}"
+
+    volumes:
+      - ../config:/root/.config/opencode
+      - ../data:/root/.local/share/opencode
+      - ../state:/root/.local/state/opencode
+      - ../workspace:/workspace
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS --max-time 5 -u \"opencode:${OPENCODE_SERVER_PASSWORD}\" http://127.0.0.1:${OPENCODE_PORT}/api/health >/dev/null"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

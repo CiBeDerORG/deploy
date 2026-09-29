@@ -1,0 +1,53 @@
+services:
+  easytier:
+    image: easytier/easytier:latest
+    pull_policy: always
+
+    container_name: easytier
+    hostname: easytier
+    restart: unless-stopped
+    network_mode: host
+
+    # cloud: 一个容器同时运行 Web Console + Core
+    # intranet: 同一个容器只运行 Core，并连接远端 Config Server
+    privileged: ${EASYTIER_PRIVILEGED:-false}
+
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+    volumes:
+      - /etc/machine-id:/etc/machine-id:ro
+      - ../data/core:/config
+      - ../data/web:/data
+      - ./bash/cloud.sh:/opt/easytier/cloud.sh:ro
+      - ./bash/intranet.sh:/opt/easytier/intranet.sh:ro
+
+    entrypoint:
+      - "/sbin/tini"
+      - "-g"
+      - "--"
+
+    command:
+      - "sh"
+      - "/opt/easytier/${EASYTIER_ROLE:-cloud}.sh"
+
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      EASYTIER_PORT: "${EASYTIER_PORT:-7005}"
+      EASYTIER_RPC_PORT: "${EASYTIER_RPC_PORT:-7006}"
+      EASYTIER_WEB_PORT: "${EASYTIER_WEB_PORT:-7007}"
+      EASYTIER_CONFIG_PORT: "${EASYTIER_CONFIG_PORT:-7008}"
+      EASYTIER_WEB_API_HOST: "${EASYTIER_WEB_API_HOST:-}"
+      EASYTIER_CONFIG_SERVER: "${EASYTIER_CONFIG_SERVER:-}"
+      EASYTIER_CORE_CONFIG_DIR: "/config"
+      EASYTIER_WEB_DATA_DIR: "/data"
+      EASYTIER_MACHINE_ID_FILE: "/etc/machine-id"
+
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535

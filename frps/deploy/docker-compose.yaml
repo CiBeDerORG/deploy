@@ -1,0 +1,45 @@
+services:
+  frps:
+    image: "ghcr.io/cibeder/frps:dev-multi-latest"
+    pull_policy: always
+
+    container_name: frps
+    restart: unless-stopped
+    init: true
+    read_only: true
+
+    command:
+      - "-c"
+      - "/run/secrets/frps_config"
+
+    secrets:
+      - frps_config
+
+    environment:
+      FRPS_DASHBOARD_USER: "${FRPS_DASHBOARD_USER:?请在 <SOFTWARE_ROOT>/deploy/.secrets 中设置 FRPS_DASHBOARD_USER}"
+      FRPS_DASHBOARD_PASSWORD: "${FRPS_DASHBOARD_PASSWORD:?请在 <SOFTWARE_ROOT>/deploy/.secrets 中设置 FRPS_DASHBOARD_PASSWORD}"
+
+    ports:
+      - "7000:7000" # FRPS_BIND_PORT
+      - "7001:7001" # FRPS_DASHBOARD_PORT
+
+      # BEGIN FRPS_PROXY_PORTS
+      - "3389:3389"
+      - "7100-7800:7100-7800"
+      # END FRPS_PROXY_PORTS
+
+      - "9080:80"
+      - "9443:443"
+    volumes:
+      - ../data:/var/lib/frp
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:7001/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+secrets:
+  frps_config:
+    file: ../config/frps.toml

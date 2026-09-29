@@ -1,0 +1,27 @@
+bindAddr = "0.0.0.0"
+bindPort = 7000
+
+auth.method = "token"
+
+clientManagement.enabled = true
+clientManagement.storePath = "/var/lib/frp/clients.json"
+
+# Web 管理后台
+webServer.addr = "0.0.0.0"
+webServer.port = 7001
+webServer.user = "{{ .Envs.FRPS_DASHBOARD_USER }}"
+webServer.password = "{{ .Envs.FRPS_DASHBOARD_PASSWORD }}"
+
+# HTTP / HTTPS vhost
+vhostHTTPPort = 80
+vhostHTTPSPort = 443
+
+# BEGIN FRPS_PROXY_PORTS
+allowPorts = [
+    { single = 3389 },
+    { start = 7100, end = 7800 },
+]
+# END FRPS_PROXY_PORTS
+
+log.to = "console"
+log.level = "info"

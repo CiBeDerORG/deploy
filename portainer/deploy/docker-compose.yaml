@@ -1,0 +1,27 @@
+name: portainer
+
+services:
+  portainer:
+    image: "portainer/portainer-ce:lts"
+    container_name: portainer
+    restart: unless-stopped
+
+    command:
+      - "--admin-password-file"
+      - "/run/secrets/portainer_admin_password"
+
+    ports:
+      - "${PORTAINER_HTTP_PORT:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 PORTAINER_HTTP_PORT}:9000"
+      # Edge Agent Tunnel（需要时取消注释）
+      # - "${PORTAINER_EDGE_PORT:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 PORTAINER_EDGE_PORT}:${PORTAINER_EDGE_CONTAINER_PORT:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 PORTAINER_EDGE_CONTAINER_PORT}"
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../data:/data
+
+    secrets:
+      - portainer_admin_password
+
+secrets:
+  portainer_admin_password:
+    environment: "PORTAINER_ADMIN_PASSWORD"

@@ -1,0 +1,43 @@
+name: Shell Check
+
+on:
+  push:
+    paths:
+      - "**/*.sh"
+      - ".github/workflows/shell-check.yml"
+  pull_request:
+    paths:
+      - "**/*.sh"
+      - ".github/workflows/shell-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  shell-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Bash syntax check
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            echo "bash -n $file"
+            bash -n "$file"
+          done < <(find . -type f -name '*.sh' -print0)
+
+      - name: ShellCheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' files < <(find . -type f -name '*.sh' -print0)
+          shellcheck --severity=error "${files[@]}"
