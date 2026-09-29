@@ -162,8 +162,10 @@ check_runtime() {
 
 runner_curl() {
     if [ -n "$GITHUB_RUNNER_PROXY" ]; then
+        echo "[GitHub Runner] curl proxy: $GITHUB_RUNNER_PROXY" >&2
         curl --proxy "$GITHUB_RUNNER_PROXY" "$@"
     else
+        echo "[GitHub Runner] curl proxy: direct" >&2
         curl "$@"
     fi
 }
