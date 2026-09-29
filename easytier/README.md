@@ -205,20 +205,66 @@ easytier/openwrt/install.sh
 sh install.sh --config-server udp://<公网服务器IP>:7008/admin
 ```
 
+再次执行同一命令即可升级。脚本会先下载并验证新版本，然后停止旧 Core、原子替换二进制、启动并检查；如果新版本启动失败，会尝试恢复旧二进制。
+
+脚本默认：
+
+```text
+RPC Portal     127.0.0.1:7006
+TUN 名称约定    tun0
+Listener 约定   7005/TCP + 7005/UDP
+Config Server   云端 :7008
+```
+
+**注意：Web Config Server 模式下，Listener 和 `dev_name` 属于 Web 下发的网络实例配置。安装脚本不会通过 Core 启动参数强行覆盖 Web 配置。**
+
+因此 OpenWrt 对应节点在 Web Console 中应设置：
+
+```text
+dev_name = tun0
+
+Listener:
+tcp://0.0.0.0:7005
+udp://0.0.0.0:7005
+```
+
+如果 Web 中使用其它 TUN 名或 Listener 端口，安装时同步指定：
+
+```bash
+sh install.sh \
+  --config-server udp://<公网服务器IP>:7008/admin \
+  --tun-name <实际TUN名称> \
+  --port <实际Listener端口>
+```
+
 脚本会：
 
-- 自动识别 EasyTier 官方支持的 Linux CPU 架构。
+- 自动识别 EasyTier 官方 Linux release 架构。
 - 安装 `curl` / `unzip`，缺少 TUN 时尝试安装 `kmod-tun`。
-- 安装 `easytier-core` 和 `easytier-cli`。
+- 下载并验证 `easytier-core` / `easytier-cli`。
 - 创建并持久化 `/etc/easytier/machine-id`。
 - 将 Web 下发的 TOML 保存到 `/etc/easytier/config/`。
 - 写入 `/etc/config/easytier`。
 - 创建 `/etc/init.d/easytier` procd 服务并设置开机自启。
+- 默认创建 EasyTier 防火墙 zone，允许 `EasyTier -> LAN` 和 `LAN -> EasyTier` 转发。
+- 默认**不**向 WAN 开放 7005，避免无必要的公网暴露。
+- 支持 `udp://`、`tcp://`、`ws://`、`wss://` Config Server 地址。
+- 升级失败时尝试回滚旧二进制。
 
-重新执行即可更新版本，原有 Config Server、machine-id 和 Web 配置继续保留：
+需要让公网主动连接这台 OpenWrt 的 7005/TCP+UDP 时：
 
 ```bash
-sh install.sh
+sh install.sh \
+  --config-server udp://<公网服务器IP>:7008/admin \
+  --open-wan-listener
+```
+
+不希望脚本修改 OpenWrt 防火墙时：
+
+```bash
+sh install.sh \
+  --config-server udp://<公网服务器IP>:7008/admin \
+  --no-firewall
 ```
 
 OpenWrt 常用命令：
@@ -227,6 +273,7 @@ OpenWrt 常用命令：
 /etc/init.d/easytier status
 /etc/init.d/easytier restart
 logread -e easytier
+easytier-cli -p 127.0.0.1:7006 node
 ```
 
 ## 查看 Docker 状态
