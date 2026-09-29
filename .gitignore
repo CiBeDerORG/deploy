@@ -1,0 +1,11 @@
+**/.env
+**/.env.local
+**/.env.panel
+frp/frps.panel.json
+**/data/
+**/logs/
+**/state/
+**/workspace/
+.idea
+**/.secrets/
+**/.secrets
