@@ -26,6 +26,9 @@ NEW_CLI=""
 NEW_VERSION=""
 CORE_BAK=""
 CLI_BAK=""
+REPLACE_ACTIVE=0
+HAD_CORE=0
+HAD_CLI=0
 
 usage() {
     cat <<'USAGE'
@@ -72,12 +75,25 @@ log() { printf '%s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-cleanup() {
+cleanup_files() {
     [ -z "$TMP_DIR" ] || rm -rf "$TMP_DIR"
-    [ -z "$CORE_BAK" ] || [ ! -f "$CORE_BAK" ] || rm -f "$CORE_BAK"
-    [ -z "$CLI_BAK" ] || [ ! -f "$CLI_BAK" ] || rm -f "$CLI_BAK"
 }
-trap cleanup EXIT INT TERM
+
+on_exit() {
+    rc=$?
+    trap - EXIT INT TERM
+
+    if [ "$rc" -ne 0 ] && [ "$REPLACE_ACTIVE" = "1" ]; then
+        rollback_binaries || true
+    fi
+
+    cleanup_files
+    exit "$rc"
+}
+
+trap on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -416,42 +432,42 @@ replace_binaries() {
 
     CORE_BAK="$CORE_BIN.bak"
     CLI_BAK="$CLI_BIN.bak"
+    HAD_CORE=0
+    HAD_CLI=0
+    [ ! -e "$CORE_BIN" ] || HAD_CORE=1
+    [ ! -e "$CLI_BIN" ] || HAD_CLI=1
 
     rm -f "$CORE_BAK" "$CLI_BAK"
+    REPLACE_ACTIVE=1
 
-    [ ! -e "$CORE_BIN" ] || mv "$CORE_BIN" "$CORE_BAK"
-    [ ! -e "$CLI_BIN" ] || mv "$CLI_BIN" "$CLI_BAK"
+    [ "$HAD_CORE" = "0" ] || mv "$CORE_BIN" "$CORE_BAK"
+    [ "$HAD_CLI" = "0" ] || mv "$CLI_BIN" "$CLI_BAK"
 
-    if ! mv "$core_new" "$CORE_BIN"; then
-        [ ! -e "$CORE_BAK" ] || mv "$CORE_BAK" "$CORE_BIN"
-        [ ! -e "$CLI_BAK" ] || mv "$CLI_BAK" "$CLI_BIN"
-        fail "替换 easytier-core 失败"
-    fi
-
-    if ! mv "$cli_new" "$CLI_BIN"; then
-        rm -f "$CORE_BIN"
-        [ ! -e "$CORE_BAK" ] || mv "$CORE_BAK" "$CORE_BIN"
-        [ ! -e "$CLI_BAK" ] || mv "$CLI_BAK" "$CLI_BIN"
-        fail "替换 easytier-cli 失败"
-    fi
-
+    mv "$core_new" "$CORE_BIN"
+    mv "$cli_new" "$CLI_BIN"
     chmod 0755 "$CORE_BIN" "$CLI_BIN"
 }
 
 rollback_binaries() {
-    warn "新版本启动失败，回滚旧 EasyTier 二进制..."
+    warn "安装/更新失败，回滚 EasyTier 二进制..."
 
-    [ ! -e "$CORE_BAK" ] || {
+    if [ "$HAD_CORE" = "1" ] && [ -e "$CORE_BAK" ]; then
         rm -f "$CORE_BIN"
         mv "$CORE_BAK" "$CORE_BIN"
-    }
+    elif [ "$HAD_CORE" = "0" ]; then
+        rm -f "$CORE_BIN"
+    fi
 
-    [ ! -e "$CLI_BAK" ] || {
+    if [ "$HAD_CLI" = "1" ] && [ -e "$CLI_BAK" ]; then
         rm -f "$CLI_BIN"
         mv "$CLI_BAK" "$CLI_BIN"
-    }
+    elif [ "$HAD_CLI" = "0" ]; then
+        rm -f "$CLI_BIN"
+    fi
 
-    if [ -x "$INIT_FILE" ] && [ -x "$CORE_BIN" ]; then
+    REPLACE_ACTIVE=0
+
+    if [ "$HAD_CORE" = "1" ] && [ -x "$INIT_FILE" ] && [ -x "$CORE_BIN" ]; then
         "$INIT_FILE" start >/dev/null 2>&1 || true
     fi
 }
@@ -508,9 +524,12 @@ if ! start_and_verify; then
 fi
 
 printf '%s\n' "$NEW_VERSION" > "$VERSION_FILE"
+REPLACE_ACTIVE=0
 rm -f "$CORE_BAK" "$CLI_BAK"
 CORE_BAK=""
 CLI_BAK=""
+HAD_CORE=0
+HAD_CLI=0
 
 log ""
 log "=================================================="
