@@ -214,13 +214,20 @@ detect_arch() {
 }
 
 latest_version() {
-    json="$(curl -fsSL https://api.github.com/repos/EasyTier/EasyTier/releases/latest)" ||
-        fail "无法获取 EasyTier 最新版本"
+    # stdout 仅返回版本号，日志写到 stderr，避免污染 ver="$(latest_version)"。
+    log "查询 GitHub API 获取 EasyTier 最新版本（连接超时 15 秒，单次请求最长 30 秒，最多重试 3 次）..." >&2
+    # 使用输出文件，让 curl 重试时丢弃上一次请求的部分响应。
+    curl -fsSL --connect-timeout 15 --max-time 30 --retry 3 --retry-delay 2 \
+        https://api.github.com/repos/EasyTier/EasyTier/releases/latest \
+        -o "$TMP_DIR/latest-release.json" ||
+        fail "GitHub API 请求失败，无法获取 EasyTier 最新版本；可用 --version 指定版本"
 
-    printf '%s\n' "$json" |
-        grep '"tag_name"' |
+    latest_tag="$(grep '"tag_name"' "$TMP_DIR/latest-release.json" |
         head -n 1 |
-        sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/'
+        sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+    [ -n "$latest_tag" ] || fail "GitHub API 响应中没有有效的 tag_name；可用 --version 指定版本"
+    log "EasyTier 最新版本: $latest_tag" >&2
+    printf '%s\n' "$latest_tag"
 }
 
 prepare_identity() {
@@ -232,7 +239,8 @@ prepare_identity() {
     if [ -s /etc/machine-id ]; then
         tr -cd 'A-Za-z0-9._-' < /etc/machine-id > "$MACHINE_ID_FILE"
     elif [ -r /proc/sys/kernel/random/uuid ]; then
-        tr -d '-\r\n' < /proc/sys/kernel/random/uuid > "$MACHINE_ID_FILE"
+        # 将连字符放在字符集末尾，避免 BusyBox tr 将其解析成选项。
+        tr -d '\r\n-' < /proc/sys/kernel/random/uuid > "$MACHINE_ID_FILE"
     else
         printf '%s' "$(date +%s)-$(uname -n)-$$" | md5sum | awk '{print $1}' > "$MACHINE_ID_FILE"
     fi
@@ -247,6 +255,7 @@ saved_config_server() {
 
 download_release() {
     arch="$(detect_arch)"
+    TMP_DIR="$(mktemp -d /tmp/easytier-openwrt.XXXXXX)"
 
     if [ -n "$VERSION" ]; then
         ver="$VERSION"
@@ -260,7 +269,6 @@ download_release() {
     base="https://github.com/EasyTier/EasyTier/releases/download/$ver/easytier-linux-${arch}-${ver}.zip"
     url="${GH_PROXY}${base}"
 
-    TMP_DIR="$(mktemp -d /tmp/easytier-openwrt.XXXXXX)"
     log "下载 EasyTier $ver ($arch)..."
     curl -fL --retry 3 --connect-timeout 15 "$url" -o "$TMP_DIR/easytier.zip"
     unzip -oq "$TMP_DIR/easytier.zip" -d "$TMP_DIR"
@@ -277,6 +285,11 @@ download_release() {
 }
 
 write_uci() {
+    # UCI set 要求配置包文件已存在；touch 保留已有配置内容。
+    mkdir -p "$(dirname "$UCI_FILE")"
+    touch "$UCI_FILE"
+    chmod 600 "$UCI_FILE"
+
     uci -q delete easytier.main || true
     uci set easytier.main=easytier
     uci set easytier.main.enabled='1'
@@ -289,7 +302,6 @@ write_uci() {
     uci set easytier.main.config_dir="$CONFIG_DIR"
     uci set easytier.main.machine_id_file="$MACHINE_ID_FILE"
     uci commit easytier
-    chmod 600 "$UCI_FILE"
 }
 
 write_service() {
@@ -353,6 +365,7 @@ configure_firewall() {
     uci set firewall.easytierzone.input='ACCEPT'
     uci set firewall.easytierzone.output='ACCEPT'
     uci set firewall.easytierzone.forward='ACCEPT'
+    uci set firewall.easytierzone.masq='1'
     uci set firewall.easytierzone.mtu_fix='1'
     uci add_list firewall.easytierzone.device="$TUN_NAME"
 
