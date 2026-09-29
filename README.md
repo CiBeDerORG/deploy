@@ -321,9 +321,18 @@ GITHUB_RUNNER_NAME=
 GITHUB_RUNNER_LABELS=
 GITHUB_RUNNER_GROUP=
 GITHUB_RUNNER_USER=github-runner
+GITHUB_RUNNER_PROXY=
 ```
 
 Runner 版本固定为 `latest`，工作目录固定为 `_work`，无需写入 `.env`。
+
+如果服务器访问 GitHub 较慢，可只给 Runner 下载配置代理：
+
+```dotenv
+GITHUB_RUNNER_PROXY=http://127.0.0.1:7890
+```
+
+也支持例如 `socks5h://127.0.0.1:7890`。该代理只用于 Runner 安装脚本访问 GitHub API 和下载 Runner，不设置全局 `HTTP_PROXY` / `HTTPS_PROXY`。
 
 首次注册时在 `.secrets` 中填写：
 

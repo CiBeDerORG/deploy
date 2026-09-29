@@ -46,6 +46,7 @@ GITHUB_RUNNER_NAME=
 GITHUB_RUNNER_LABELS=
 GITHUB_RUNNER_GROUP=
 GITHUB_RUNNER_USER=github-runner
+GITHUB_RUNNER_PROXY=
 ```
 
 说明：
@@ -53,6 +54,7 @@ GITHUB_RUNNER_USER=github-runner
 - `GITHUB_RUNNER_NAME` 留空时默认使用当前主机名。
 - `GITHUB_RUNNER_LABELS` 可填写逗号分隔的自定义 labels。
 - `GITHUB_RUNNER_GROUP` 主要用于组织级 Runner。
+- `GITHUB_RUNNER_PROXY` 仅用于安装/更新时访问 GitHub API 和下载 actions/runner；留空时直连。
 - Runner 版本固定为 `latest`，安装/更新时自动获取 actions/runner 最新版本。
 - Runner 工作目录固定为 `_work`。
 - 当前支持 Linux `x64` 和 `arm64`。
@@ -63,6 +65,20 @@ GITHUB_RUNNER_USER=github-runner
 `Settings -> Actions -> Runners -> New self-hosted runner`
 
 获取。
+
+如果服务器直连 GitHub 下载较慢，可在 `.env` 配置 Runner 专用代理：
+
+```dotenv
+GITHUB_RUNNER_PROXY=http://127.0.0.1:7890
+```
+
+也可以使用 curl 支持的其他代理 URL，例如：
+
+```dotenv
+GITHUB_RUNNER_PROXY=socks5h://127.0.0.1:7890
+```
+
+该变量只作用于 Runner 安装脚本中的 GitHub API 查询和 Runner 安装包下载，不会设置全局 `HTTP_PROXY` / `HTTPS_PROXY`。
 
 ## 安装
 

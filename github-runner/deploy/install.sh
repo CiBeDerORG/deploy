@@ -112,6 +112,7 @@ validate_config() {
     GITHUB_RUNNER_LABELS="${GITHUB_RUNNER_LABELS:-}"
     GITHUB_RUNNER_GROUP="${GITHUB_RUNNER_GROUP:-}"
     GITHUB_RUNNER_USER="${GITHUB_RUNNER_USER:-github-runner}"
+    GITHUB_RUNNER_PROXY="${GITHUB_RUNNER_PROXY:-}"
 
     [ -n "$GITHUB_RUNNER_URL" ] || {
         echo "GITHUB_RUNNER_URL is required in $ENV_FILE" >&2
@@ -159,6 +160,14 @@ check_runtime() {
     fi
 }
 
+runner_curl() {
+    if [ -n "$GITHUB_RUNNER_PROXY" ]; then
+        curl --proxy "$GITHUB_RUNNER_PROXY" "$@"
+    else
+        curl "$@"
+    fi
+}
+
 detect_arch() {
     case "$(uname -m)" in
         x86_64|amd64)
@@ -183,7 +192,7 @@ resolve_version() {
     fi
 
     version="$(
-        curl -fsSL \
+        runner_curl -fsSL \
             -H 'Accept: application/vnd.github+json' \
             -H 'X-GitHub-Api-Version: 2022-11-28' \
             https://api.github.com/repos/actions/runner/releases/latest \
@@ -253,7 +262,7 @@ install_runner_release() {
     download_url="https://github.com/actions/runner/releases/download/v$version/actions-runner-linux-$arch-$version.tar.gz"
 
     echo "Downloading actions/runner v$version ($arch)..."
-    curl -fL --retry 3 --retry-delay 2 -o "$archive" "$download_url"
+    runner_curl -fL --retry 3 --retry-delay 2 -o "$archive" "$download_url"
 
     mkdir -p "$RUNNER_DIR"
     tar -xzf "$archive" -C "$RUNNER_DIR"
@@ -352,6 +361,11 @@ echo " GitHub Actions Runner is ready"
 echo " URL: $GITHUB_RUNNER_URL"
 echo " Name: $GITHUB_RUNNER_NAME"
 echo " User: $GITHUB_RUNNER_USER"
+if [ -n "$GITHUB_RUNNER_PROXY" ]; then
+    echo " Proxy: $GITHUB_RUNNER_PROXY"
+else
+    echo " Proxy: direct"
+fi
 echo " Data: $RUNNER_DIR"
 echo " Work: $RUNNER_DIR/$RUNNER_WORKDIR"
 echo "=================================================="
