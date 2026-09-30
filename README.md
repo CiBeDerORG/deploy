@@ -1,85 +1,169 @@
-# deploy
+# Deploy
 
-统一管理 Linux / fnOS 上的服务部署。仓库可以放在任意目录，真正的运行文件统一同步到 `<SOFTWARE_ROOT>/<服务名>`。
+统一管理 Linux / fnOS 上的常用服务部署，并提供 EasyTier OpenWrt 原生安装脚本。
 
-## 配置文件
+仓库本身可以放在任意目录；真正运行的服务文件会由根目录 `deploy.sh` 同步到：
 
-全局配置拆成两个真实文件：
+```text
+<SOFTWARE_ROOT>/<服务名>
+```
+
+普通配置与敏感配置统一放在：
 
 ```text
 <SOFTWARE_ROOT>/deploy/.env
 <SOFTWARE_ROOT>/deploy/.secrets
 ```
 
-- `.env`：路径、端口、地址、角色、开关等普通配置。
-- `.secrets`：账号、密码、Token、密钥等敏感配置。
-- 仓库中的 `.env.example` 与 `.secrets.example` 仅作为模板。
-- 两个真实文件统一设置为 `root:root 0600`。
-- 真实 `.env` 和 `.secrets` 已加入 Git 忽略规则，不应提交到仓库。
+> `.env` / `.secrets` 是运行配置，不应提交到 Git。仓库中的 `.env.example` 与 `.secrets.example` 只是模板。
 
-初始化或同步配置：
+## 服务一览
+
+| 服务 | 默认端口 / 入口 | 部署方式 | 详细文档 |
+| --- | --- | --- | --- |
+| OpenCode V2 | `7003/TCP` | Docker Compose | [opencode/README.md](./opencode/README.md) |
+| FRPS | `7000/TCP`，后台 `7001/TCP` | Docker Compose | [frps/README.md](./frps/README.md) |
+| EasyTier | Core `7005`，RPC `7006`，Web `7007`，Config `7008/UDP` | Docker / OpenWrt | [easytier/README.md](./easytier/README.md) |
+| Portainer CE | `7004/TCP` | Docker Compose | [portainer/README.md](./portainer/README.md) |
+| GitHub Actions Runner | 无固定 Web 端口 | systemd | [github-runner/README.md](./github-runner/README.md) |
+
+## 一、运行环境
+
+Docker 服务需要：
+
+- Linux / fnOS
+- Bash
+- root 或 sudo 权限
+- Docker
+- Docker Compose v2 Plugin（命令为 `docker compose`）
+
+GitHub Runner 还需要：
+
+- systemd
+- curl
+- tar
+
+EasyTier 的 OpenWrt 节点不需要 Docker，使用独立脚本：
+
+```text
+easytier/openwrt/install.sh
+```
+
+## 二、快速开始
+
+### 1. 克隆仓库
+
+```bash
+git clone https://github.com/CiBeDerORG/deploy.git
+cd deploy
+```
+
+### 2. 初始化统一配置
 
 ```bash
 sudo bash deploy.sh env
 ```
 
-首次运行会创建缺失的真实配置。从旧版本升级时，`deploy.sh env` 会把已知敏感变量从旧 `.env` 迁移到 `.secrets`。
+默认软件根目录：
 
-### 配置解析规则
+| 系统 | 默认 SOFTWARE_ROOT |
+| --- | --- |
+| Ubuntu / 普通 Linux | `/software` |
+| fnOS | `/vol3/1000/software` |
 
-各服务安装脚本不再使用 Bash `source` 执行 `.env` 或 `.secrets`，而是只按 `KEY=VALUE` 读取并导出变量。
+如果首次部署就要使用其他目录，例如 `/srv/software`：
 
-因此密码、Token 中的特殊字符不会作为 Shell 代码执行，例如：
-
-```dotenv
-PASSWORD=abc$123&x#y
-TOKEN='abc$123&x#y'
-OTHER="a value with spaces"
+```bash
+sudo env SOFTWARE_ROOT=/srv/software bash deploy.sh env
 ```
 
-解析规则：
+初始化后会得到：
 
-- 空行和以 `#` 开头的整行注释会忽略。
-- 变量名必须符合 `[A-Za-z_][A-Za-z0-9_]*`。
-- 最外层成对的单引号或双引号会移除。
-- 引号内部和普通值中的变量引用、命令替换、反引号、`$`、`&` 等全部按字面值处理，不执行、不展开。
-- 不支持 `export KEY=VALUE`，请直接使用 `KEY=VALUE`。
+```text
+<SOFTWARE_ROOT>/deploy/.env
+<SOFTWARE_ROOT>/deploy/.secrets
+```
 
-安装脚本加载两个文件后，通过进程环境把变量传给 Docker Compose，不再让 Compose 使用 `--env-file` 二次解析敏感值。
+脚本会把这两个真实配置文件设置为：
 
-## SOFTWARE_ROOT
+```text
+root:root 0600
+```
+
+### 3. 修改配置
 
 Ubuntu 默认：
 
-```dotenv
-SOFTWARE_ROOT=/software
+```bash
+sudo nano /software/deploy/.env
+sudo nano /software/deploy/.secrets
 ```
 
 fnOS 默认：
 
-```dotenv
-SOFTWARE_ROOT=/vol3/1000/software
+```bash
+sudo nano /vol3/1000/software/deploy/.env
+sudo nano /vol3/1000/software/deploy/.secrets
 ```
 
-运行后的目录结构：
+普通配置写入 `.env`，例如端口、路径、地址、角色、开关。
 
-```text
-<SOFTWARE_ROOT>/
-├── deploy/
-│   ├── .env
-│   └── .secrets
-├── opencode/
-├── frps/
-├── easytier/
-├── portainer/
-└── github-runner/
-```
+敏感配置写入 `.secrets`，例如密码、Token、密钥。
 
-## deploy.sh
+### 4. 安装服务
 
-常用命令：
+查看可安装服务：
 
 ```bash
+bash deploy.sh list
+```
+
+安装：
+
+```bash
+sudo bash deploy.sh opencode
+sudo bash deploy.sh frps
+sudo bash deploy.sh easytier
+sudo bash deploy.sh portainer
+sudo bash deploy.sh github-runner
+```
+
+也可以显式写 `install`：
+
+```bash
+sudo bash deploy.sh frps install
+```
+
+### 5. 更新
+
+先拉取仓库：
+
+```bash
+git pull
+```
+
+同步新增配置项：
+
+```bash
+sudo bash deploy.sh env
+```
+
+再更新目标服务：
+
+```bash
+sudo bash deploy.sh <服务名> update
+```
+
+例如：
+
+```bash
+sudo bash deploy.sh easytier update
+```
+
+## 三、deploy.sh 命令
+
+```text
+bash deploy.sh
 bash deploy.sh --help
 bash deploy.sh list
 sudo bash deploy.sh env
@@ -90,17 +174,49 @@ sudo bash deploy.sh <服务名> update
 sudo bash deploy.sh <服务名> sync
 ```
 
-当前服务：
+含义：
 
-| 服务 | 安装命令 | 运行目录 |
-| --- | --- | --- |
-| OpenCode | `sudo bash deploy.sh opencode` | `<SOFTWARE_ROOT>/opencode` |
-| FRPS | `sudo bash deploy.sh frps` | `<SOFTWARE_ROOT>/frps` |
-| EasyTier | `sudo bash deploy.sh easytier` | `<SOFTWARE_ROOT>/easytier` |
-| Portainer | `sudo bash deploy.sh portainer` | `<SOFTWARE_ROOT>/portainer` |
-| GitHub Runner | `sudo bash deploy.sh github-runner` | `<SOFTWARE_ROOT>/github-runner` |
+| 命令 | 作用 |
+| --- | --- |
+| `deploy.sh` | 交互选择服务 |
+| `deploy.sh list` | 列出当前可部署服务 |
+| `deploy.sh env` | 初始化、迁移并补齐统一配置 |
+| `deploy.sh <服务>` | 同步文件并安装 |
+| `deploy.sh <服务> install` | 与上一条相同 |
+| `deploy.sh <服务> update` | 同步最新文件后执行服务更新脚本 |
+| `deploy.sh <服务> sync` | 只同步仓库文件，不启动或更新服务 |
 
-根 `deploy.sh` 会把服务目录同步到 `<SOFTWARE_ROOT>/<服务名>`，同时保留：
+## 四、目录结构
+
+典型运行目录：
+
+```text
+<SOFTWARE_ROOT>/
+├── deploy/
+│   ├── .env
+│   └── .secrets
+├── opencode/
+│   ├── config/
+│   ├── data/
+│   ├── state/
+│   ├── workspace/
+│   └── deploy/
+├── frps/
+│   ├── config/
+│   ├── data/
+│   └── deploy/
+├── easytier/
+│   ├── data/
+│   └── deploy/
+├── portainer/
+│   ├── data/
+│   └── deploy/
+└── github-runner/
+    ├── data/
+    └── deploy/
+```
+
+根 `deploy.sh` 同步服务目录时会保留运行数据，重点包括：
 
 ```text
 deploy/.env
@@ -111,9 +227,13 @@ workspace/
 backup/
 ```
 
-## 主要环境变量
+因此仓库更新不会主动覆盖服务的持久化数据。
 
-普通配置位于 `.env`：
+## 五、统一配置
+
+### .env
+
+默认模板：
 
 ```dotenv
 SOFTWARE_ROOT=/software
@@ -130,7 +250,9 @@ EASYTIER_WEB_PORT=7007
 EASYTIER_CONFIG_PORT=7008
 ```
 
-敏感配置位于 `.secrets`：
+### .secrets
+
+默认模板：
 
 ```dotenv
 OPENCODE_SERVER_PASSWORD=
@@ -143,9 +265,33 @@ PORTAINER_ADMIN_PASSWORD=
 GITHUB_RUNNER_TOKEN=
 ```
 
-## FRPS
+### 配置解析规则
 
-普通配置：
+服务安装脚本不会直接 `source .env` 或 `source .secrets`。
+
+脚本只把文件按 `KEY=VALUE` 读取，再导出成当前进程环境，因此密码里的特殊字符不会被当作 Shell 命令执行。
+
+例如：
+
+```dotenv
+PASSWORD=abc$123&x#y
+TOKEN='abc$123&x#y'
+OTHER="a value with spaces"
+```
+
+规则：
+
+- 空行和以 `#` 开头的整行注释会忽略。
+- 变量名必须符合 `[A-Za-z_][A-Za-z0-9_]*`。
+- 最外层成对的单引号或双引号会移除。
+- 值中的 `$`、`&`、反引号、命令替换、变量引用都按字面值处理。
+- 不支持 `export KEY=VALUE`，请直接使用 `KEY=VALUE`。
+
+## 六、各服务快速配置
+
+### FRPS
+
+`.env`：
 
 ```dotenv
 FRPS_BIND_PORT=7000
@@ -153,34 +299,39 @@ FRPS_DASHBOARD_PORT=7001
 FRPS_PROXY_PORTS='["3389","7100-7800"]'
 ```
 
-敏感配置：
+`.secrets`：
 
 ```dotenv
 FRPS_DASHBOARD_USER=admin
 FRPS_DASHBOARD_PASSWORD=
 ```
 
-`FRPS_PROXY_PORTS` 支持单端口和连续范围。安装脚本会同步生成：
+安装：
 
-- `frps/config/frps.toml` 中的 `allowPorts`
-- `frps/deploy/docker-compose.yaml` 中的 Docker 端口映射
+```bash
+sudo bash deploy.sh frps
+```
+
+默认后台：
+
+```text
+http://<服务器IP>:7001
+```
+
+`FRPS_PROXY_PORTS` 会同时生成 FRPS `allowPorts` 和 Docker 端口映射。
 
 固定 vhost 映射：
 
 ```text
-9080 -> 80
-9443 -> 443
+9080 -> 容器 80
+9443 -> 容器 443
 ```
 
-只重新生成 FRPS 配置、不启动容器：
+详细说明：[frps/README.md](./frps/README.md)
 
-```bash
-bash <SOFTWARE_ROOT>/frps/deploy/install.sh apply-config
-```
+### OpenCode V2
 
-## OpenCode
-
-普通配置：
+`.env`：
 
 ```dotenv
 OPENCODE_PORT=7003
@@ -188,31 +339,40 @@ MYAI_IP=203.0.113.10
 BUILD_NO_PROXY=127.0.0.1,localhost
 ```
 
-如果需要 Docker build 代理，可在真实 `.env` 中增加：
-
-```dotenv
-BUILD_HTTP_PROXY=http://172.17.0.1:7890
-BUILD_HTTPS_PROXY=http://172.17.0.1:7890
-```
-
-敏感配置：
+`.secrets`：
 
 ```dotenv
 OPENCODE_SERVER_PASSWORD=
 ```
 
-安装 / 更新：
+安装：
 
 ```bash
 sudo bash deploy.sh opencode
-sudo bash deploy.sh opencode update
 ```
 
-## EasyTier
+默认入口：
 
-Docker 部署使用一个容器，通过 `EASYTIER_ROLE` 区分公网端和内网端。
+```text
+http://<服务器IP>:7003
+```
 
-统一端口：
+Basic Auth 用户名固定为：
+
+```text
+opencode
+```
+
+详细说明：[opencode/README.md](./opencode/README.md)
+
+### EasyTier
+
+Docker 使用同一个容器，通过 `EASYTIER_ROLE` 区分：
+
+- `cloud`：Web Console + Core
+- `intranet`：只运行 Core，并连接云端 Config Server
+
+默认端口：
 
 ```dotenv
 EASYTIER_PORT=7005
@@ -221,81 +381,28 @@ EASYTIER_WEB_PORT=7007
 EASYTIER_CONFIG_PORT=7008
 ```
 
-| 变量 | 用途 |
-| --- | --- |
-| `EASYTIER_PORT` | EasyTier Core TCP/UDP Listener |
-| `EASYTIER_RPC_PORT` | 本机 Core RPC |
-| `EASYTIER_WEB_PORT` | Web Console |
-| `EASYTIER_CONFIG_PORT` | Web Config Server |
-
-### cloud 公网端
+cloud：
 
 ```dotenv
 EASYTIER_ROLE=cloud
-EASYTIER_PORT=7005
-EASYTIER_RPC_PORT=7006
-EASYTIER_WEB_PORT=7007
-EASYTIER_CONFIG_PORT=7008
 EASYTIER_PRIVILEGED=false
-EASYTIER_WEB_API_HOST=http://<公网或管理地址>:7007
+EASYTIER_WEB_API_HOST=http://<浏览器可访问地址>:7007
 EASYTIER_CONFIG_SERVER=
 ```
 
-cloud 模式在同一个容器中同时运行：
-
-```text
-easytier-web-embed
-easytier-core
-```
-
-本机 Core 使用本机 Config Server：
-
-```text
-udp://127.0.0.1:7008/admin
-```
-
-### intranet 内网端
+intranet：
 
 ```dotenv
 EASYTIER_ROLE=intranet
-EASYTIER_PORT=7005
-EASYTIER_RPC_PORT=7006
 EASYTIER_PRIVILEGED=true
 EASYTIER_CONFIG_SERVER=udp://<公网服务器IP>:7008/admin
 ```
 
-intranet 模式只运行 `easytier-core`，从公网 Web Config Server 接收配置；`EASYTIER_WEB_API_HOST` 在该角色下不使用。
+详细说明（含 OpenWrt）：[easytier/README.md](./easytier/README.md)
 
-网络名、网络密钥、虚拟 IP / DHCP、Peer、Private Mode、子网代理等继续在 EasyTier Web Console 中管理。
+### Portainer
 
-当前废弃变量：
-
-```text
-EASYTIER_MODE
-EASYTIER_PEERS
-EASYTIER_NETWORK_NAME
-EASYTIER_NETWORK_SECRET
-```
-
-`EASYTIER_PORT` 和 `EASYTIER_RPC_PORT` 当前仍在使用，并不是废弃变量。
-
-OpenWrt 使用独立安装脚本：
-
-```text
-easytier/openwrt/install.sh
-```
-
-示例：
-
-```bash
-sh install.sh --config-server udp://<公网服务器IP>:7008/admin
-```
-
-详细说明见 `easytier/README.md`。
-
-## Portainer
-
-普通配置：
+`.env`：
 
 ```dotenv
 PORTAINER_HTTP_PORT=7004
@@ -303,17 +410,31 @@ PORTAINER_EDGE_PORT=8000
 PORTAINER_EDGE_CONTAINER_PORT=8000
 ```
 
-敏感配置：
+`.secrets`：
 
 ```dotenv
 PORTAINER_ADMIN_PASSWORD=
 ```
 
-管理员密码至少需要 12 个字符。
+管理员密码至少 12 个字符。
 
-## GitHub Actions self-hosted Runner
+安装：
 
-普通配置：
+```bash
+sudo bash deploy.sh portainer
+```
+
+默认入口：
+
+```text
+http://<服务器IP>:7004
+```
+
+详细说明：[portainer/README.md](./portainer/README.md)
+
+### GitHub Actions self-hosted Runner
+
+`.env`：
 
 ```dotenv
 GITHUB_RUNNER_URL=https://github.com/<owner>/<repo>
@@ -324,17 +445,7 @@ GITHUB_RUNNER_USER=github-runner
 GITHUB_RUNNER_PROXY=
 ```
 
-Runner 版本固定为 `latest`，工作目录固定为 `_work`，无需写入 `.env`。
-
-如果服务器访问 GitHub 较慢，可只给 Runner 下载配置代理：
-
-```dotenv
-GITHUB_RUNNER_PROXY=http://127.0.0.1:7890
-```
-
-也支持例如 `socks5h://127.0.0.1:7890`。该代理只用于 Runner 安装脚本访问 GitHub API 和下载 Runner，不设置全局 `HTTP_PROXY` / `HTTPS_PROXY`。
-
-首次注册时在 `.secrets` 中填写：
+首次注册时在 `.secrets` 填写：
 
 ```dotenv
 GITHUB_RUNNER_TOKEN=<registration-token>
@@ -346,27 +457,19 @@ GITHUB_RUNNER_TOKEN=<registration-token>
 sudo bash deploy.sh github-runner
 ```
 
-注册成功后，`GITHUB_RUNNER_TOKEN` 可以从真实 `.secrets` 清空。
+注册成功后可以清空真实 `.secrets` 中的 `GITHUB_RUNNER_TOKEN`。
 
-详细说明见 `github-runner/README.md`。
+详细说明：[github-runner/README.md](./github-runner/README.md)
 
-## 更新与日志
+## 七、查看状态与日志
 
-更新仓库和指定服务：
-
-```bash
-git pull
-sudo bash deploy.sh env
-sudo bash deploy.sh <服务名> update
-```
-
-查看容器：
+Docker 容器：
 
 ```bash
 docker ps
 ```
 
-查看日志不需要手工读取 `.env` / `.secrets`：
+常用日志：
 
 ```bash
 docker logs -f frps
@@ -375,18 +478,125 @@ docker logs -f opencode
 docker logs -f portainer
 ```
 
-GitHub Runner 状态：
+GitHub Runner：
 
 ```bash
 cd <SOFTWARE_ROOT>/github-runner/data/runner
 sudo ./svc.sh status
 ```
 
-## Shell 检查
+EasyTier OpenWrt：
 
-仓库的 `.github/workflows/shell-check.yml` 会在 Shell 脚本变化时执行：
+```bash
+/etc/init.d/easytier status
+logread -e easytier
+easytier-cli -p 127.0.0.1:7006 node
+```
+
+## 八、常见问题
+
+### Docker 找不到
+
+如果出现：
+
+```text
+未检测到 Docker
+```
+
+先安装 Docker。
+
+如果出现：
+
+```text
+未检测到 Docker Compose Plugin
+```
+
+确认下面命令可正常执行：
+
+```bash
+docker compose version
+```
+
+### 端口被占用
+
+查看监听：
+
+```bash
+ss -lntup
+```
+
+再修改 `<SOFTWARE_ROOT>/deploy/.env` 对应端口。
+
+FRPS 的代理端口还必须同步修改 `FRPS_PROXY_PORTS`。
+
+### 配置新增后没有出现
+
+拉取仓库后执行：
+
+```bash
+sudo bash deploy.sh env
+```
+
+脚本会从模板补充缺失配置项，并处理仓库内已定义的旧配置迁移。
+
+### OpenCode build 代理
+
+Docker build 中不要把宿主机代理写成：
+
+```text
+http://127.0.0.1:7890
+```
+
+推荐使用：
+
+```dotenv
+BUILD_HTTP_PROXY=http://host.docker.internal:7890
+BUILD_HTTPS_PROXY=http://host.docker.internal:7890
+```
+
+同时要确保宿主机代理允许 Docker bridge 访问。
+
+### EasyTier 出现 TUN 权限错误
+
+fnOS / 某些 Linux 环境出现：
+
+```text
+rust tun error Operation not permitted
+```
+
+将：
+
+```dotenv
+EASYTIER_PRIVILEGED=true
+```
+
+然后重新部署 EasyTier。
+
+## 九、安全说明
+
+- 不要提交真实 `.env` / `.secrets`。
+- 密码、Token、密钥只放 `.secrets`。
+- `.env.example` / `.secrets.example` 只能放示例或占位值。
+- EasyTier `7007/TCP` Web 管理端建议只对可信网络开放。
+- EasyTier `7006` RPC 默认只应本机访问。
+- FRPS Dashboard 建议设置强密码并限制公网来源。
+- Portainer 直接挂载 Docker Socket，管理入口应限制访问来源。
+- GitHub Runner 注册 Token 只在首次注册时使用，注册成功后可清空。
+
+## 十、CI 检查
+
+仓库包含：
+
+```text
+.github/workflows/shell-check.yml
+.github/workflows/self-hosted-runner-check.yml
+```
+
+Shell Check 会在 Shell 脚本变化时执行：
 
 ```text
 bash -n
 ShellCheck --severity=error
 ```
+
+Self-hosted Runner Check 可用于验证已注册 Runner 的运行环境。
