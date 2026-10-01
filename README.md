@@ -369,8 +369,8 @@ opencode
 
 Docker 使用同一个容器，通过 `EASYTIER_ROLE` 区分：
 
-- `cloud`：Web Console + Core
-- `intranet`：只运行 Core，并连接云端 Config Server
+- `cloud`：管理面模式，只运行 Web Console + Config Server，不启动 Core
+- `intranet`：数据面节点，只运行 Core，并连接云端 Config Server
 
 默认端口：
 
@@ -389,6 +389,8 @@ EASYTIER_PRIVILEGED=false
 EASYTIER_WEB_API_HOST=http://<浏览器可访问地址>:7007
 EASYTIER_CONFIG_SERVER=
 ```
+
+cloud 角色不会加入 EasyTier 虚拟网络，不承担 Relay / Exit Node / 子网代理；`7005`、`7006` 在 cloud 模式不再由 EasyTier 使用。
 
 intranet：
 
@@ -577,8 +579,8 @@ EASYTIER_PRIVILEGED=true
 - 不要提交真实 `.env` / `.secrets`。
 - 密码、Token、密钥只放 `.secrets`。
 - `.env.example` / `.secrets.example` 只能放示例或占位值。
-- EasyTier `7007/TCP` Web 管理端建议只对可信网络开放。
-- EasyTier `7006` RPC 默认只应本机访问。
+- EasyTier cloud 模式只需要 Web `7007/TCP` 与 Config Server `7008/UDP`；`7007` 建议只对可信管理来源开放，`7008` 建议限制为需要接入的 Core 节点来源。
+- EasyTier cloud 模式不启动 Core，不需要开放 `7005/TCP+UDP` 和 `7006`。
 - FRPS Dashboard 建议设置强密码并限制公网来源。
 - Portainer 直接挂载 Docker Socket，管理入口应限制访问来源。
 - GitHub Runner 注册 Token 只在首次注册时使用，注册成功后可清空。
