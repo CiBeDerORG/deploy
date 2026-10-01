@@ -42,16 +42,15 @@ find_legacy_config() {
 }
 
 prepare_cloud_config() {
-    if [ -s "$CLOUD_CONFIG_FILE" ]; then
-        return 0
-    fi
-
     network_name="${EASYTIER_CLOUD_NETWORK_NAME:-}"
     network_secret="${EASYTIER_CLOUD_NETWORK_SECRET:-}"
     cloud_ipv4="${EASYTIER_CLOUD_IPV4:-}"
     source_file=""
 
-    if [ -z "$network_name" ] || [ -z "$network_secret" ] || [ -z "$cloud_ipv4" ]; then
+    # 每次启动都重新生成安全配置，确保端口和 no-relay 标志不会被旧文件或手工修改覆盖。
+    if [ -s "$CLOUD_CONFIG_FILE" ]; then
+        source_file="$CLOUD_CONFIG_FILE"
+    elif [ -z "$network_name" ] || [ -z "$network_secret" ] || [ -z "$cloud_ipv4" ]; then
         source_file="$(find_legacy_config || true)"
     fi
 
@@ -121,7 +120,9 @@ EOF
     chmod 0600 "$tmp"
     mv "$tmp" "$CLOUD_CONFIG_FILE"
 
-    if [ -n "$source_file" ]; then
+    if [ "$source_file" = "$CLOUD_CONFIG_FILE" ]; then
+        echo "[EasyTier] 已重新生成并锁定 cloud Core 安全配置"
+    elif [ -n "$source_file" ]; then
         echo "[EasyTier] 已从旧 Core 配置迁移 cloud 网络身份: $source_file"
     else
         echo "[EasyTier] 已从 .env/.secrets 生成 cloud Core 安全配置"
