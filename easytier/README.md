@@ -1,6 +1,6 @@
 # EasyTier
 
-这个目录使用统一的 **Web-managed Core** 模式部署 EasyTier。
+这个目录使用统一的 **Web-managed** 模式部署 EasyTier，并把云端管理面与实际组网数据面分开。
 
 Docker 部署现在只使用 **一个容器**。同一份 Compose 通过 `EASYTIER_ROLE` 区分两种角色：
 
