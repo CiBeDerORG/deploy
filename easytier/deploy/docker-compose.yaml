@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
     network_mode: host
 
-    # cloud: 一个容器同时运行 Web Console + Core
+    # cloud: 一个容器仅运行 Web Console + Config Server，不启动 Core
     # intranet: 同一个容器只运行 Core，并连接远端 Config Server
     privileged: ${EASYTIER_PRIVILEGED:-false}
 
