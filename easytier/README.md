@@ -4,8 +4,10 @@
 
 Docker 部署现在只使用 **一个容器**。同一份 Compose 通过 `EASYTIER_ROLE` 区分两种角色：
 
-- `cloud`：一个容器同时运行 `easytier-web-embed` + `easytier-core`。
-- `intranet`：一个容器只运行 `easytier-core`，连接云端 Web Config Server。
+- `cloud`：**管理面模式**，只运行 `easytier-web-embed`，提供 Web Console + Config Server；**不启动 `easytier-core`**。
+- `intranet`：数据面节点，只运行 `easytier-core`，连接云端 Web Config Server。
+
+这样 cloud 主机本身不会加入 EasyTier 虚拟网络，也不会成为 EasyTier Relay、Exit Node 或子网代理。需要组网的 fnOS / OpenWrt / Linux 节点继续作为独立 Core 节点运行。
 
 OpenWrt 不使用 Docker，继续由 `easytier/openwrt/install.sh` 安装原生 Core。
 
@@ -27,8 +29,8 @@ easytier/deploy/
 
 | 用途 | 端口 | 监听范围 |
 |---|---:|---|
-| EasyTier Core TCP/UDP | 7005 | `0.0.0.0` |
-| EasyTier RPC | 7006 | 默认仅 `127.0.0.1` |
+| EasyTier Core TCP/UDP | 7005 | intranet / OpenWrt 等 Core 节点使用；cloud 不监听 |
+| EasyTier RPC | 7006 | Core 节点默认仅 `127.0.0.1`；cloud 不监听 |
 | Web Console | 7007 | cloud 模式 |
 | Web Config Server | 7008/UDP | cloud 模式；异地节点接入时需可达 |
 
@@ -47,8 +49,6 @@ udp://0.0.0.0:7005
 
 ```dotenv
 EASYTIER_ROLE=cloud
-EASYTIER_PORT=7005
-EASYTIER_RPC_PORT=7006
 EASYTIER_WEB_PORT=7007
 EASYTIER_CONFIG_PORT=7008
 EASYTIER_PRIVILEGED=false
@@ -68,25 +68,32 @@ sh /opt/easytier/cloud.sh
 easytier/deploy/bash/cloud.sh
 ```
 
-`cloud.sh` 在同一个容器中启动：
+`cloud.sh` 现在只启动：
 
 ```text
 easytier-web-embed
-+
-easytier-core
 ```
 
-其中 Web Config Server 监听 `EASYTIER_CONFIG_PORT`，本机 Core 使用：
+它提供两个控制面入口：
 
 ```text
---config-server udp://127.0.0.1:7008/admin
---config-dir /config
---machine-id <宿主机 /etc/machine-id>
---listeners tcp://0.0.0.0:7005,udp://0.0.0.0:7005
---rpc-portal 7006
+Web Console   :7007/TCP
+Config Server :7008/UDP
 ```
 
-网络名、网络密钥、虚拟 IP / DHCP、Peer、Public Server、Private Mode、子网代理等由 Web Console 下发。Listener 由部署层固定为 TCP/UDP 7005，RPC 固定监听本机 127.0.0.1:7006。
+**cloud 模式不再启动 `easytier-core`。**
+
+因此：
+
+- 云服务器不会再获得 EasyTier 虚拟 IP（例如旧配置中的 `10.10.10.1` 将不再存在于云服务器上）。
+- 云服务器不再监听 EasyTier Core 的 `7005/TCP+UDP`。
+- 云服务器不再提供 Core RPC `7006`。
+- 云服务器不承担 EasyTier Relay 数据中继。
+- 云服务器不能作为 EasyTier Exit Node。
+- 云服务器不会通过 EasyTier 导出本机子网。
+- Web Console 与 Config Server 仍然正常工作，远端 Core 继续从这里接收配置。
+
+这属于**管理面 / 数据面分离**：云端负责配置管理，实际组网流量由各 Core 节点之间直接建立连接。若节点之间无法直接连通，需要另行提供符合自身网络与服务商要求的数据中继方案，不再由这个 cloud 角色承担。
 
 ## 内网 Docker 模式
 
@@ -143,13 +150,13 @@ EASYTIER_PRIVILEGED=true
 
 ## 持久化
 
-Core 的 Web 下发配置：
+intranet Core 的 Web 下发配置：
 
 ```text
 <SOFTWARE_ROOT>/easytier/data/core/
 ```
 
-cloud 模式的 Web 数据库：
+cloud 模式本身不运行 Core；cloud 的 Web 数据库：
 
 ```text
 <SOFTWARE_ROOT>/easytier/data/web/et.db
@@ -292,28 +299,35 @@ docker compose \
   logs -f easytier
 ```
 
-cloud 模式的 Web 和 Core 都在同一个 `easytier` 容器日志中。
+cloud 模式日志中只有 Web Console / Config Server；不会再出现 cloud Core 日志。
 
 ## 网络与安全
 
-cloud 模式中，本机 Core 通过：
+cloud 模式只运行管理面：
 
 ```text
-udp://127.0.0.1:7008/admin
+7007/TCP  Web Console
+7008/UDP  Config Server
 ```
 
-访问同容器里的 Config Server。
-
-如果只有云服务器自己使用 Web 管理，则 Config Server 端口无需暴露公网。
-
-如果还有异地 OpenWrt / fnOS / Linux 节点使用：
+不再运行：
 
 ```text
-udp://公网服务器:7008/admin
+7005/TCP+UDP  EasyTier Core Listener
+7006          Core RPC
 ```
 
-那么云服务器防火墙和安全组必须允许这个 UDP 端口从这些节点访问，建议限制可信来源。
+因此云端安全组建议：
 
-`7007/TCP`（Web）只建议对可信管理网络开放；`7006`（RPC）默认只监听 `127.0.0.1`，无需开放公网。
+- `7007/TCP` 只允许可信管理来源访问。
+- `7008/UDP` 只允许需要接入 Config Server 的 EasyTier Core 节点访问，能限制来源时尽量限制。
+- cloud 角色不需要因为 EasyTier 再开放 `7005/TCP`、`7005/UDP` 或 `7006`。
+- 不要把 Web Console / Config Server 当作通用代理、VPN 出口或流量转发服务使用。
 
-云端作为可被其他节点主动连接的 EasyTier 节点时，放行 `7005/TCP` 和 `7005/UDP`；异地节点连接 Web Config Server 时放行 `7008/UDP`。
+内网 Docker / OpenWrt Core 节点仍可使用：
+
+```text
+udp://<云服务器地址>:7008/admin
+```
+
+连接云端 Config Server。组网数据是否能 P2P 直连，取决于各 Core 节点的网络环境与 EasyTier 配置；cloud 管理节点不会再作为失败后的数据 Relay 兜底。
