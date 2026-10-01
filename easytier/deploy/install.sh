@@ -231,16 +231,7 @@ validate_cloud_core_source() {
     local legacy_found=false
     local file
 
-    if { [ -n "$name" ] && [ -z "$secret" ]; } || { [ -z "$name" ] && [ -n "$secret" ]; }; then
-        echo "EASYTIER_CLOUD_NETWORK_NAME 与 EASYTIER_CLOUD_NETWORK_SECRET 必须同时设置，或同时留空使用旧 Core 配置自动迁移。" >&2
-        exit 1
-    fi
-
     if [ -s "$static_config" ]; then
-        return 0
-    fi
-
-    if [ -n "$name" ] && [ -n "$secret" ]; then
         return 0
     fi
 
@@ -251,12 +242,18 @@ validate_cloud_core_source() {
         fi
     done
 
-    if [ "$legacy_found" != "true" ]; then
-        echo "cloud P2P 协调 Core 缺少网络身份配置。" >&2
-        echo "没有找到旧 data/core/*.toml，也没有设置 EASYTIER_CLOUD_NETWORK_NAME / EASYTIER_CLOUD_NETWORK_SECRET。" >&2
-        echo "请先补充配置后再部署。" >&2
-        exit 1
+    if [ "$legacy_found" = "true" ]; then
+        return 0
     fi
+
+    if [ -n "$name" ] && [ -n "$secret" ]; then
+        return 0
+    fi
+
+    echo "cloud P2P 协调 Core 缺少网络身份配置。" >&2
+    echo "没有找到已有 data/cloud-core/cloud.toml 或旧 data/core/*.toml。" >&2
+    echo "新部署请同时设置 EASYTIER_CLOUD_NETWORK_NAME 与 EASYTIER_CLOUD_NETWORK_SECRET。" >&2
+    exit 1
 }
 
 prepare_data_dirs() {
