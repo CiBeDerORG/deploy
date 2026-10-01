@@ -295,6 +295,9 @@ else
     echo " EasyTier 单容器安装"
 fi
 echo " 角色: $EASYTIER_ROLE"
+if [ "$EASYTIER_ROLE" = "cloud" ]; then
+    echo " 模式: management-only（仅 Web Console + Config Server，不启动 cloud Core）"
+fi
 echo " 时间: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "=================================================="
 
@@ -323,17 +326,18 @@ echo "=================================================="
 echo " EasyTier 启动成功"
 echo " 容器状态:     $STATUS"
 echo " 角色:         $EASYTIER_ROLE"
-echo " Core 特权:    ${EASYTIER_PRIVILEGED:-false}"
-echo " EasyTier:     $EASYTIER_PORT (TCP/UDP)"
-echo " RPC:          127.0.0.1:$EASYTIER_RPC_PORT"
-echo " Core 配置:    $BASE_DIR/data/core"
-
 if [ "$EASYTIER_ROLE" = "cloud" ]; then
     echo " Web 地址:     $EASYTIER_WEB_API_HOST"
     echo " Web 端口:     $EASYTIER_WEB_PORT"
-    echo " Config Server: udp://127.0.0.1:$EASYTIER_CONFIG_PORT/admin"
+    echo " Config Server: udp://0.0.0.0:$EASYTIER_CONFIG_PORT/admin"
     echo " Web 数据:     $BASE_DIR/data/web"
+    echo " Cloud Core:   disabled"
+    echo " Relay:        disabled（云端不运行 Core）"
 else
+    echo " Core 特权:    ${EASYTIER_PRIVILEGED:-false}"
+    echo " EasyTier:     $EASYTIER_PORT (TCP/UDP)"
+    echo " RPC:          127.0.0.1:$EASYTIER_RPC_PORT"
+    echo " Core 配置:    $BASE_DIR/data/core"
     echo " Config Server: $EASYTIER_CONFIG_SERVER"
 fi
 
@@ -341,12 +345,13 @@ echo "=================================================="
 
 echo
 if [ "$EASYTIER_ROLE" = "cloud" ]; then
-    echo "cloud.sh 在同一个容器中同时运行："
-    echo "- easytier-web-embed"
-    echo "- easytier-core"
+    echo "cloud.sh 只运行 easytier-web-embed："
+    echo "- 提供 Web Console"
+    echo "- 提供 Config Server"
+    echo "- 不启动 easytier-core"
     echo
-    echo "网络名、密钥、虚拟 IP/DHCP、Peer、Private Mode 等继续由 Web Console 下发。"
-    echo "Listener 端口由部署层固定为 TCP/UDP $EASYTIER_PORT，RPC 固定为本机 $EASYTIER_RPC_PORT。"
+    echo "因此云服务器本身不加入 EasyTier 虚拟网络，也不会作为 Relay / Exit Node / 子网代理转发数据。"
+    echo "内网节点仍通过 Config Server 接收 Web Console 下发的配置。"
 else
     echo "intranet.sh 只运行 easytier-core，并从远端 Web Config Server 接收配置。"
 fi
