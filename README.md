@@ -262,6 +262,8 @@ FRPS_DASHBOARD_PASSWORD=
 
 PORTAINER_ADMIN_PASSWORD=
 
+EASYTIER_CLOUD_NETWORK_SECRET=
+
 GITHUB_RUNNER_TOKEN=
 ```
 
@@ -369,7 +371,7 @@ opencode
 
 Docker 使用同一个容器，通过 `EASYTIER_ROLE` 区分：
 
-- `cloud`：管理面模式，只运行 Web Console + Config Server，不启动 Core
+- `cloud`：Web Console + Config Server + no-relay P2P 协调 Core
 - `intranet`：数据面节点，只运行 Core，并连接云端 Config Server
 
 默认端口：
@@ -388,9 +390,19 @@ EASYTIER_ROLE=cloud
 EASYTIER_PRIVILEGED=false
 EASYTIER_WEB_API_HOST=http://<浏览器可访问地址>:7007
 EASYTIER_CONFIG_SERVER=
+
+# 旧部署通常可从 data/core/*.toml 自动迁移；新部署可显式设置
+EASYTIER_CLOUD_NETWORK_NAME=
+EASYTIER_CLOUD_IPV4=
 ```
 
-cloud 角色不会加入 EasyTier 虚拟网络，不承担 Relay / Exit Node / 子网代理；`7005`、`7006` 在 cloud 模式不再由 EasyTier 使用。
+cloud Core 的网络密钥放在 `.secrets`：
+
+```dotenv
+EASYTIER_CLOUD_NETWORK_SECRET=
+```
+
+cloud Core 保留 `7005/TCP+UDP` 用于 Peer 连接、节点发现与 P2P 打洞协调，并固定禁止数据 Relay、Exit Node 和 UPnP。它使用独立静态配置，不接受 Web Console 对自身安全参数的覆盖。
 
 intranet：
 
@@ -579,8 +591,9 @@ EASYTIER_PRIVILEGED=true
 - 不要提交真实 `.env` / `.secrets`。
 - 密码、Token、密钥只放 `.secrets`。
 - `.env.example` / `.secrets.example` 只能放示例或占位值。
-- EasyTier cloud 模式只需要 Web `7007/TCP` 与 Config Server `7008/UDP`；`7007` 建议只对可信管理来源开放，`7008` 建议限制为需要接入的 Core 节点来源。
-- EasyTier cloud 模式不启动 Core，不需要开放 `7005/TCP+UDP` 和 `7006`。
+- EasyTier cloud 模式使用 `7005/TCP+UDP` 作为 no-relay P2P 协调 Core，`7007/TCP` 为 Web，`7008/UDP` 为 Config Server。
+- `7007` 建议只对可信管理来源开放；`7008` 建议限制为需要接入的 Core 节点来源；`7006` RPC 只应本机访问。
+- cloud Core 固定禁止数据 Relay / Exit Node；如果 P2P 打洞失败，本部署不会自动用云端中继业务数据。
 - FRPS Dashboard 建议设置强密码并限制公网来源。
 - Portainer 直接挂载 Docker Socket，管理入口应限制访问来源。
 - GitHub Runner 注册 Token 只在首次注册时使用，注册成功后可清空。
