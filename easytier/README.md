@@ -1,13 +1,13 @@
 # EasyTier
 
-这个目录使用统一的 **Web-managed** 模式部署 EasyTier，并把云端管理面与实际组网数据面分开。
+这个目录使用统一的 **Web-managed + cloud P2P coordinator** 模式部署 EasyTier。
 
-Docker 部署现在只使用 **一个容器**。同一份 Compose 通过 `EASYTIER_ROLE` 区分两种角色：
+Docker 部署只使用 **一个容器**。同一份 Compose 通过 `EASYTIER_ROLE` 区分两种角色：
 
-- `cloud`：**管理面模式**，只运行 `easytier-web-embed`，提供 Web Console + Config Server；**不启动 `easytier-core`**。
+- `cloud`：同时运行 `easytier-web-embed` 和一个**受限的 cloud Core**。Web 负责管理其他节点；cloud Core 只负责节点接入、Peer RPC 与 P2P 打洞协调，禁止业务数据 Relay 和 Exit Node。
 - `intranet`：数据面节点，只运行 `easytier-core`，连接云端 Web Config Server。
 
-这样 cloud 主机本身不会加入 EasyTier 虚拟网络，也不会成为 EasyTier Relay、Exit Node 或子网代理。需要组网的 fnOS / OpenWrt / Linux 节点继续作为独立 Core 节点运行。
+cloud Core 使用独立静态配置，不连接 Web Config Server，因此 Web 页面不能把它重新配置成 Relay / Exit Node。fnOS / OpenWrt / Linux 等节点仍继续由云端 Web 管理。
 
 OpenWrt 不使用 Docker，继续由 `easytier/openwrt/install.sh` 安装原生 Core。
 
@@ -29,8 +29,8 @@ easytier/deploy/
 
 | 用途 | 端口 | 监听范围 |
 |---|---:|---|
-| EasyTier Core TCP/UDP | 7005 | intranet / OpenWrt 等 Core 节点使用；cloud 不监听 |
-| EasyTier RPC | 7006 | Core 节点默认仅 `127.0.0.1`；cloud 不监听 |
+| EasyTier Core TCP/UDP | 7005 | cloud P2P 协调 Core 与其他 Core 节点使用 |
+| EasyTier RPC | 7006 | cloud / intranet Core 默认仅 `127.0.0.1` |
 | Web Console | 7007 | cloud 模式 |
 | Web Config Server | 7008/UDP | cloud 模式；异地节点接入时需可达 |
 
@@ -45,55 +45,109 @@ udp://0.0.0.0:7005
 
 ## 云端模式
 
-云服务器配置：
+云端同时提供：
+
+```text
+7005/TCP+UDP  cloud P2P 协调 Core
+7006          Core RPC（仅本机）
+7007/TCP      Web Console
+7008/UDP      Web Config Server
+```
+
+推荐配置：
 
 ```dotenv
 EASYTIER_ROLE=cloud
-EASYTIER_WEB_PORT=7007
-EASYTIER_CONFIG_PORT=7008
 EASYTIER_PRIVILEGED=false
 EASYTIER_WEB_API_HOST=http://<浏览器可访问地址>:7007
 EASYTIER_CONFIG_SERVER=
+
+# 可选：升级旧部署时通常无需填写，会从 data/core/*.toml 自动迁移
+EASYTIER_CLOUD_NETWORK_NAME=
+EASYTIER_CLOUD_IPV4=
 ```
 
-容器执行：
+网络密钥属于敏感配置，放在 `.secrets`：
+
+```dotenv
+EASYTIER_CLOUD_NETWORK_SECRET=
+```
+
+### cloud Core 的安全模式
+
+`cloud.sh` 会为 cloud Core 生成独立配置：
 
 ```text
-sh /opt/easytier/cloud.sh
+<SOFTWARE_ROOT>/easytier/data/cloud-core/cloud.toml
 ```
 
-宿主机脚本位置：
+首次升级时，如果这个文件还不存在，会尝试从旧：
 
 ```text
-easytier/deploy/bash/cloud.sh
+<SOFTWARE_ROOT>/easytier/data/core/*.toml
 ```
 
-`cloud.sh` 现在只启动：
+自动读取原来的 `network_name`、`network_secret` 和 `ipv4`。因此已有部署通常可以继续保留原来的云端虚拟 IP，例如 `10.10.10.1`。
+
+如果是全新部署，没有旧 Core 配置，则必须显式填写：
+
+```dotenv
+EASYTIER_CLOUD_NETWORK_NAME=<与组网节点一致的网络名>
+EASYTIER_CLOUD_IPV4=10.10.10.1/24
+```
+
+以及：
+
+```dotenv
+EASYTIER_CLOUD_NETWORK_SECRET=<与组网节点一致的网络密钥>
+```
+
+生成的 cloud Core 固定启用：
+
+```toml
+[flags]
+enable_exit_node = false
+private_mode = true
+relay_all_peer_rpc = true
+relay_network_whitelist = ""
+disable_relay_data = true
+disable_upnp = true
+enable_udp_broadcast_relay = false
+```
+
+含义：
+
+- `relay_all_peer_rpc = true`：允许转发 Peer RPC，帮助其他节点发现彼此并协商 P2P。
+- `disable_relay_data = true`：禁止 cloud Core 转发业务数据。
+- 空 `relay_network_whitelist`：进一步阻止 TUN 数据经过该节点中继。
+- `enable_exit_node = false`：禁止成为 Internet Exit Node。
+- `private_mode = true`：限制不同网络密钥的外部网络接入。
+- `disable_upnp = true`：云服务器不尝试通过 UPnP 自动开放额外端口。
+
+cloud Core **故意不使用 `--config-server`**。这是为了避免 Web Console 后续下发配置，把 Relay / Exit Node 等能力重新打开。Web Console 仍正常管理 fnOS / OpenWrt / 其他 Core，只是 cloud Core 自身改为本地静态安全配置。
+
+### P2P 工作方式
+
+其他节点仍应把云端 `7005` 配置为可连接的 Peer / Public Server。流程是：
 
 ```text
-easytier-web-embed
+FNOS/OpenWrt
+     │
+     ├── 连接 cloud Core :7005
+     │       └── Peer RPC / 节点发现 / P2P 协商
+     │
+     └──────────── P2P 直连另一节点
 ```
 
-它提供两个控制面入口：
+P2P 成功后，业务数据直接在节点之间传输，不经过 cloud Core。
+
+如果 P2P 打洞失败，因为 cloud Core 已禁止数据 Relay，不会自动退回：
 
 ```text
-Web Console   :7007/TCP
-Config Server :7008/UDP
+节点 A -> cloud Relay -> 节点 B
 ```
 
-**cloud 模式不再启动 `easytier-core`。**
-
-因此：
-
-- 云服务器不会再获得 EasyTier 虚拟 IP（例如旧配置中的 `10.10.10.1` 将不再存在于云服务器上）。
-- 云服务器不再监听 EasyTier Core 的 `7005/TCP+UDP`。
-- 云服务器不再提供 Core RPC `7006`。
-- 云服务器不承担 EasyTier Relay 数据中继。
-- 云服务器不能作为 EasyTier Exit Node。
-- 云服务器不会通过 EasyTier 导出本机子网。
-- Web Console 与 Config Server 仍然正常工作，远端 Core 继续从这里接收配置。
-
-这属于**管理面 / 数据面分离**：云端负责配置管理，实际组网流量由各 Core 节点之间直接建立连接。若节点之间无法直接连通，需要另行提供符合自身网络与服务商要求的数据中继方案，不再由这个 cloud 角色承担。
+这种情况下两端会通信失败，而不是让云服务器承担业务流量中继。
 
 ## 内网 Docker 模式
 
@@ -194,7 +248,7 @@ easytier-node
 easytier
 ```
 
-现有 `data/core` 和 `data/web` 不会删除。
+现有 `data/core` 和 `data/web` 不会删除；首次启用 no-relay cloud Core 时会新增 `data/cloud-core/cloud.toml`。
 
 ## OpenWrt 安装
 
@@ -299,35 +353,32 @@ docker compose \
   logs -f easytier
 ```
 
-cloud 模式日志中只有 Web Console / Config Server；不会再出现 cloud Core 日志。
+cloud 模式的 Web Console、Config Server 与 cloud Core 都在同一个 `easytier` 容器日志中。启动时会明确打印 `Relay: disabled`、`ExitNode: disabled` 和 `Peer RPC: enabled for P2P coordination`。
 
 ## 网络与安全
 
-cloud 模式只运行管理面：
+cloud 模式需要：
 
 ```text
-7007/TCP  Web Console
-7008/UDP  Config Server
+7005/TCP+UDP  EasyTier P2P 协调 Core
+7007/TCP      Web Console
+7008/UDP      Config Server
 ```
 
-不再运行：
+`7006` RPC 只监听本机，无需开放公网。
 
-```text
-7005/TCP+UDP  EasyTier Core Listener
-7006          Core RPC
-```
-
-因此云端安全组建议：
+安全建议：
 
 - `7007/TCP` 只允许可信管理来源访问。
-- `7008/UDP` 只允许需要接入 Config Server 的 EasyTier Core 节点访问，能限制来源时尽量限制。
-- cloud 角色不需要因为 EasyTier 再开放 `7005/TCP`、`7005/UDP` 或 `7006`。
-- 不要把 Web Console / Config Server 当作通用代理、VPN 出口或流量转发服务使用。
+- `7008/UDP` 只允许需要接入 Config Server 的 Core 节点访问，能限制来源时尽量限制。
+- `7005/TCP+UDP` 仅用于 EasyTier Peer 连接与 P2P 协调。
+- cloud Core 固定禁止数据 Relay 与 Exit Node，不应启用 SOCKS5、VPN Portal、端口转发或子网代理。
+- cloud Core 的 `data/cloud-core/cloud.toml` 是安全边界，不通过 Web Console 修改。
 
-内网 Docker / OpenWrt Core 节点仍可使用：
+内网 Docker / OpenWrt Core 节点仍使用：
 
 ```text
 udp://<云服务器地址>:7008/admin
 ```
 
-连接云端 Config Server。组网数据是否能 P2P 直连，取决于各 Core 节点的网络环境与 EasyTier 配置；cloud 管理节点不会再作为失败后的数据 Relay 兜底。
+连接云端 Config Server。实际业务流量优先走节点间 P2P；如果 P2P 无法建立，本部署不会使用 cloud Core 作为业务数据 Relay 兜底。
