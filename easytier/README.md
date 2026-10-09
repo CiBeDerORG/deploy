@@ -44,11 +44,10 @@ EASYTIER_RPC_PORT=7006
 EASYTIER_WEB_PORT=7007
 EASYTIER_CONFIG_PORT=7008
 EASYTIER_WEB_API_HOST=http://<公网服务器IP>:7007
-EASYTIER_CLOUD_CONFIG_USER=admin
 EASYTIER_CONFIG_SERVER=
 ```
 
-`EASYTIER_CLOUD_CONFIG_USER` 是 **Web 管理账号**，并不是 EasyTier 网络名。默认值为 `admin`；如果要让云端 Core 出现在别的 Web 账号下，请改为该账号名（只接受英文字母、数字、点、下划线、连字符）。云端 Core 会自行连接：
+云端 Core 沿用现有的 `/admin` Config Server 路径，不需要额外的 `EASYTIER_CLOUD_CONFIG_USER` 变量。其启动参数：
 
 ```text
 --config-server udp://127.0.0.1:7008/admin
@@ -61,7 +60,7 @@ EASYTIER_CONFIG_SERVER=
 
 ### Web 首次配置云端 Core
 
-1. 浏览器打开 `http://<公网IP>:7007`，登录 `EASYTIER_CLOUD_CONFIG_USER` 所指定的账号。
+1. 浏览器打开 `http://<公网IP>:7007`，使用现有 Web 管理账号登录，并查看云端 Core 是否已出现在设备列表。
 2. 在机器列表找到这台云服务器，为其添加/编辑一个网络实例。网络名、密钥必须与 fnOS、OpenWrt 等现有节点一致。
 3. 云端实例设置虚拟 IP（例如 `10.10.10.1/24`），添加 `tcp://0.0.0.0:7005`、`udp://0.0.0.0:7005` Listener，并保存启动。
 4. 如果云端只做 P2P 协调，在**云端 Core 的网络实例**里配置 `disable_relay_data=true`（禁用业务数据 Relay）、`relay_all_peer_rpc=true`（保留 Peer RPC 协调）、`enable_exit_node=false`，建议 `private_mode=true`、`disable_upnp=true`、禁用出口节点和子网代理。

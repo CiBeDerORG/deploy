@@ -196,14 +196,6 @@ validate_config() {
                 ;;
         esac
 
-        EASYTIER_CLOUD_CONFIG_USER="${EASYTIER_CLOUD_CONFIG_USER:-admin}"
-        case "$EASYTIER_CLOUD_CONFIG_USER" in
-            ''|*[!a-zA-Z0-9._-]*)
-                echo "EASYTIER_CLOUD_CONFIG_USER 只能包含英文、数字、点、下划线和连字符。" >&2
-                exit 1
-                ;;
-        esac
-
         if [ "$EASYTIER_WEB_PORT" -eq "$EASYTIER_CONFIG_PORT" ] ||
            [ "$EASYTIER_PORT" -eq "$EASYTIER_WEB_PORT" ] ||
            [ "$EASYTIER_PORT" -eq "$EASYTIER_CONFIG_PORT" ] ||
@@ -342,7 +334,7 @@ if [ "$EASYTIER_ROLE" = "cloud" ]; then
     echo " RPC:          127.0.0.1:$EASYTIER_RPC_PORT"
     echo " Cloud Core 配置: $BASE_DIR/data/cloud-managed-core"
     echo " Web 数据:       $BASE_DIR/data/web"
-    echo " Cloud Config:   udp://127.0.0.1:$EASYTIER_CONFIG_PORT/${EASYTIER_CLOUD_CONFIG_USER:-admin}"
+    echo " Cloud Config:   udp://127.0.0.1:$EASYTIER_CONFIG_PORT/admin"
     echo " 注意:           在 Web 中配置 7005 监听及 disable_relay_data=true"
 else
     echo " Core 特权:    ${EASYTIER_PRIVILEGED:-false}"

@@ -5,19 +5,11 @@ set -eu
 CLOUD_CONFIG_DIR="${EASYTIER_CLOUD_MANAGED_CONFIG_DIR:-/cloud-managed-core}"
 WEB_DATA_DIR="${EASYTIER_WEB_DATA_DIR:-/data}"
 MACHINE_ID_FILE="${EASYTIER_MACHINE_ID_FILE:-/etc/machine-id}"
-CLOUD_CONFIG_USER="${EASYTIER_CLOUD_CONFIG_USER:-admin}"
 
 : "${EASYTIER_RPC_PORT:?EASYTIER_RPC_PORT 未设置}"
 : "${EASYTIER_WEB_PORT:?EASYTIER_WEB_PORT 未设置}"
 : "${EASYTIER_CONFIG_PORT:?EASYTIER_CONFIG_PORT 未设置}"
 : "${EASYTIER_WEB_API_HOST:?EASYTIER_WEB_API_HOST 未设置}"
-
-case "$CLOUD_CONFIG_USER" in
-    ''|*[!a-zA-Z0-9._-]*)
-        echo "EASYTIER_CLOUD_CONFIG_USER 只能包含英文、数字、点、下划线和连字符" >&2
-        exit 1
-        ;;
-esac
 
 [ -s "$MACHINE_ID_FILE" ] || {
     echo "machine-id 不存在或为空: $MACHINE_ID_FILE" >&2
@@ -30,7 +22,7 @@ MACHINE_ID="$(tr -cd 'A-Za-z0-9._-' < "$MACHINE_ID_FILE")"
     echo "无法读取有效 machine-id" >&2
     exit 1
 }
-CLOUD_CONFIG_SERVER="udp://127.0.0.1:${EASYTIER_CONFIG_PORT}/$CLOUD_CONFIG_USER"
+CLOUD_CONFIG_SERVER="udp://127.0.0.1:${EASYTIER_CONFIG_PORT}/admin"
 WEB_PID=""
 CORE_PID=""
 
