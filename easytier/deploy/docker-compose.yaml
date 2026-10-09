@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
     network_mode: host
 
-    # cloud: 一个容器运行 Web Console + Config Server + 受限 Core（只做 P2P 协调，不做数据 Relay）
+    # cloud: 一个容器运行 Web Console + Config Server + 由本机 Web 管理的 Core
     # intranet: 同一个容器只运行 Core，并连接远端 Config Server
     privileged: ${EASYTIER_PRIVILEGED:-false}
 
@@ -22,7 +22,7 @@ services:
     volumes:
       - /etc/machine-id:/etc/machine-id:ro
       - ../data/core:/config
-      - ../data/cloud-core:/cloud-core
+      - ../data/cloud-managed-core:/cloud-managed-core
       - ../data/web:/data
       - ./bash/cloud.sh:/opt/easytier/cloud.sh:ro
       - ./bash/intranet.sh:/opt/easytier/intranet.sh:ro
@@ -45,10 +45,8 @@ services:
       EASYTIER_WEB_API_HOST: "${EASYTIER_WEB_API_HOST:-}"
       EASYTIER_CONFIG_SERVER: "${EASYTIER_CONFIG_SERVER:-}"
       EASYTIER_CORE_CONFIG_DIR: "/config"
-      EASYTIER_CLOUD_CONFIG_DIR: "/cloud-core"
-      EASYTIER_CLOUD_NETWORK_NAME: "${EASYTIER_CLOUD_NETWORK_NAME:-}"
-      EASYTIER_CLOUD_NETWORK_SECRET: "${EASYTIER_CLOUD_NETWORK_SECRET:-}"
-      EASYTIER_CLOUD_IPV4: "${EASYTIER_CLOUD_IPV4:-}"
+      EASYTIER_CLOUD_MANAGED_CONFIG_DIR: "/cloud-managed-core"
+      EASYTIER_CLOUD_CONFIG_USER: "${EASYTIER_CLOUD_CONFIG_USER:-admin}"
       EASYTIER_WEB_DATA_DIR: "/data"
       EASYTIER_MACHINE_ID_FILE: "/etc/machine-id"
 

@@ -196,6 +196,14 @@ validate_config() {
                 ;;
         esac
 
+        EASYTIER_CLOUD_CONFIG_USER="${EASYTIER_CLOUD_CONFIG_USER:-admin}"
+        case "$EASYTIER_CLOUD_CONFIG_USER" in
+            ''|*[!a-zA-Z0-9._-]*)
+                echo "EASYTIER_CLOUD_CONFIG_USER 只能包含英文、数字、点、下划线和连字符。" >&2
+                exit 1
+                ;;
+        esac
+
         if [ "$EASYTIER_WEB_PORT" -eq "$EASYTIER_CONFIG_PORT" ] ||
            [ "$EASYTIER_PORT" -eq "$EASYTIER_WEB_PORT" ] ||
            [ "$EASYTIER_PORT" -eq "$EASYTIER_CONFIG_PORT" ] ||
@@ -222,42 +230,8 @@ validate_config() {
     fi
 }
 
-validate_cloud_core_source() {
-    [ "$EASYTIER_ROLE" = "cloud" ] || return 0
-
-    local name="${EASYTIER_CLOUD_NETWORK_NAME:-}"
-    local secret="${EASYTIER_CLOUD_NETWORK_SECRET:-}"
-    local static_config="$BASE_DIR/data/cloud-core/cloud.toml"
-    local legacy_found=false
-    local file
-
-    if [ -s "$static_config" ]; then
-        return 0
-    fi
-
-    for file in "$BASE_DIR"/data/core/*.toml; do
-        if [ -f "$file" ]; then
-            legacy_found=true
-            break
-        fi
-    done
-
-    if [ "$legacy_found" = "true" ]; then
-        return 0
-    fi
-
-    if [ -n "$name" ] && [ -n "$secret" ]; then
-        return 0
-    fi
-
-    echo "cloud P2P 协调 Core 缺少网络身份配置。" >&2
-    echo "没有找到已有 data/cloud-core/cloud.toml 或旧 data/core/*.toml。" >&2
-    echo "新部署请同时设置 EASYTIER_CLOUD_NETWORK_NAME 与 EASYTIER_CLOUD_NETWORK_SECRET。" >&2
-    exit 1
-}
-
 prepare_data_dirs() {
-    mkdir -p "$BASE_DIR/data/core" "$BASE_DIR/data/cloud-core" "$BASE_DIR/data/web"
+    mkdir -p "$BASE_DIR/data/core" "$BASE_DIR/data/cloud-managed-core" "$BASE_DIR/data/web"
 }
 
 cleanup_legacy_containers() {
@@ -319,7 +293,6 @@ check_runtime
 prepare_env
 validate_config
 prepare_data_dirs
-validate_cloud_core_source
 
 cd "$DEPLOY_DIR"
 
@@ -331,7 +304,7 @@ else
 fi
 echo " 角色: $EASYTIER_ROLE"
 if [ "$EASYTIER_ROLE" = "cloud" ]; then
-    echo " 模式: p2p-coordinator（Web + Config Server + no-relay cloud Core）"
+    echo " 模式: Web + Config Server + Web-managed cloud Core"
 fi
 echo " 时间: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "=================================================="
@@ -367,11 +340,10 @@ if [ "$EASYTIER_ROLE" = "cloud" ]; then
     echo " Config Server: udp://0.0.0.0:$EASYTIER_CONFIG_PORT/admin"
     echo " EasyTier:     $EASYTIER_PORT (TCP/UDP)"
     echo " RPC:          127.0.0.1:$EASYTIER_RPC_PORT"
-    echo " Cloud 配置:   $BASE_DIR/data/cloud-core/cloud.toml"
-    echo " Web 数据:     $BASE_DIR/data/web"
-    echo " Relay:        disabled"
-    echo " Exit Node:    disabled"
-    echo " Peer RPC:     enabled（用于 P2P 协调）"
+    echo " Cloud Core 配置: $BASE_DIR/data/cloud-managed-core"
+    echo " Web 数据:       $BASE_DIR/data/web"
+    echo " Cloud Config:   udp://127.0.0.1:$EASYTIER_CONFIG_PORT/${EASYTIER_CLOUD_CONFIG_USER:-admin}"
+    echo " 注意:           在 Web 中配置 7005 监听及 disable_relay_data=true"
 else
     echo " Core 特权:    ${EASYTIER_PRIVILEGED:-false}"
     echo " EasyTier:     $EASYTIER_PORT (TCP/UDP)"
@@ -386,11 +358,11 @@ echo
 if [ "$EASYTIER_ROLE" = "cloud" ]; then
     echo "cloud.sh 同时运行："
     echo "- easytier-web-embed：提供 Web Console + Config Server"
-    echo "- easytier-core：静态 no-relay P2P 协调节点"
+    echo "- easytier-core：通过本机 Config Server 接受 Web 配置"
     echo
-    echo "cloud Core 保留节点发现 / Peer RPC / P2P 打洞能力，但禁用数据 Relay、Exit Node 和 UPnP。"
-    echo "为避免 Web 下发配置重新打开 Relay，cloud Core 使用独立静态配置，不连接 Web Config Server。"
-    echo "fnOS / OpenWrt 等内网节点仍继续由 Web Console 管理。"
+    echo "云端 Core 的网络名、密钥、IP 与 flags 都由 Web 配置。"
+    echo "重要：必须在 Web 中设置 disable_relay_data=true 和关闭 Exit Node。"
+    echo "升级旧静态模式后，请在 Web 中重新配置云端实例；旧配置不会自动导入。"
 else
     echo "intranet.sh 只运行 easytier-core，并从远端 Web Config Server 接收配置。"
 fi
