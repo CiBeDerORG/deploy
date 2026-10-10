@@ -25,6 +25,7 @@
 | FRPS | `7000/TCP`，后台 `7001/TCP` | Docker Compose | [frps/README.md](./frps/README.md) |
 | EasyTier | Core `7005`，RPC `7006`，Web `7007`，Config `7008/UDP` | Docker / OpenWrt | [easytier/README.md](./easytier/README.md) |
 | Portainer CE | `7004/TCP` | Docker Compose | [portainer/README.md](./portainer/README.md) |
+| FlatNas | `23000/TCP` | Docker Compose | [flatnas/README.md](./flatnas/README.md) |
 | GitHub Actions Runner | 无固定 Web 端口 | systemd | [github-runner/README.md](./github-runner/README.md) |
 
 ## 一、运行环境
@@ -125,6 +126,7 @@ sudo bash deploy.sh opencode
 sudo bash deploy.sh frps
 sudo bash deploy.sh easytier
 sudo bash deploy.sh portainer
+sudo bash deploy.sh flatnas
 sudo bash deploy.sh github-runner
 ```
 
@@ -211,6 +213,9 @@ sudo bash deploy.sh <服务名> sync
 ├── portainer/
 │   ├── data/
 │   └── deploy/
+├── flatnas/
+│   ├── data/ doc/ music/ PC/ APP/
+│   └── deploy/
 └── github-runner/
     ├── data/
     └── deploy/
@@ -243,6 +248,7 @@ FRPS_BIND_PORT=7000
 FRPS_DASHBOARD_PORT=7001
 OPENCODE_PORT=7003
 PORTAINER_HTTP_PORT=7004
+FLATNAS_HTTP_PORT=23000
 
 EASYTIER_PORT=7005
 EASYTIER_RPC_PORT=7006
@@ -261,6 +267,8 @@ FRPS_DASHBOARD_USER=admin
 FRPS_DASHBOARD_PASSWORD=
 
 PORTAINER_ADMIN_PASSWORD=
+
+FLATNAS_PROXY_URL=
 
 GITHUB_RUNNER_TOKEN=
 ```
@@ -440,6 +448,24 @@ http://<服务器IP>:7004
 
 详细说明：[portainer/README.md](./portainer/README.md)
 
+### FlatNas
+
+使用官方镜像 `qdnas/flatnas:latest`，默认访问地址为 `http://<设备IP>:23000`。
+
+`.env`：
+
+```dotenv
+FLATNAS_HTTP_PORT=23000
+FLATNAS_BIND_IP=0.0.0.0
+FLATNAS_DOCKER_SOCKET=false
+```
+
+可选代理 `FLATNAS_PROXY_URL` 放在 `.secrets`。默认不挂载 Docker Socket，需要使用 FlatNas 的 Docker 管理功能时再设置 `FLATNAS_DOCKER_SOCKET=true`。首次登录请立即修改官方默认密码 `admin`。
+
+安装：`sudo bash deploy.sh flatnas`；更新：`sudo bash deploy.sh flatnas update`。
+
+详细说明：[flatnas/README.md](./flatnas/README.md)
+
 ### GitHub Actions self-hosted Runner
 
 `.env`：
@@ -484,6 +510,7 @@ docker logs -f frps
 docker logs -f easytier
 docker logs -f opencode
 docker logs -f portainer
+docker logs -f flatnas
 ```
 
 GitHub Runner：
@@ -590,6 +617,7 @@ EASYTIER_PRIVILEGED=true
 - 如果要求云端只协调 P2P，必须在 Web 的云端实例中设置 `disable_relay_data=true`、`relay_all_peer_rpc=true`、`enable_exit_node=false`；不再由脚本强制保证。
 - FRPS Dashboard 建议设置强密码并限制公网来源。
 - Portainer 直接挂载 Docker Socket，管理入口应限制访问来源。
+- FlatNas 默认不挂载 Docker Socket；如需开启 Docker 管理，必须限制访问来源并修改默认管理密码。
 - GitHub Runner 注册 Token 只在首次注册时使用，注册成功后可清空。
 
 ## 十、CI 检查

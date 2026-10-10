@@ -1,0 +1,5 @@
+# Only merged when FLATNAS_DOCKER_SOCKET=true; grants the app powerful host Docker access.
+services:
+  flatnas:
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
