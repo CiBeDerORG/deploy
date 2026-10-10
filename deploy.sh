@@ -253,6 +253,23 @@ EOF_EASYTIER_PORTS
     fi
 }
 
+migrate_flatnas_default_port() {
+    local line value
+    line="$(run_root grep -E '^FLATNAS_HTTP_PORT=' "$GLOBAL_ENV" 2>/dev/null | tail -n 1 || true)"
+    [ -n "$line" ] || return 0
+    value="${line#*=}"
+    if [ "$value" = "23000" ]; then
+        run_root sed -i '/^FLATNAS_HTTP_PORT=23000$/d' "$GLOBAL_ENV"
+        if run_root grep -q '^EASYTIER_CONFIG_PORT=' "$GLOBAL_ENV"; then
+            run_root sed -i '/^EASYTIER_CONFIG_PORT=/a FLATNAS_HTTP_PORT=7009' "$GLOBAL_ENV"
+        else
+            run_root sh -c 'printf "\nFLATNAS_HTTP_PORT=7009\n" >> "$1"' sh "$GLOBAL_ENV"
+        fi
+        echo "已迁移 FlatNas 旧默认端口：23000 -> 7009（如已部署，请执行 flatnas update）"
+        GLOBAL_ENV_UPDATED=1
+    fi
+}
+
 migrate_sensitive_env_keys() {
     local key line value secret_line secret_value
     for key in "${SENSITIVE_ENV_KEYS[@]}"; do
@@ -299,6 +316,7 @@ ensure_global_env() {
     sync_template_keys "$GLOBAL_ENV_EXAMPLE" "$GLOBAL_ENV" ".env"
     sync_template_keys "$GLOBAL_SECRETS_EXAMPLE" "$GLOBAL_SECRETS" ".secrets"
     migrate_easytier_default_ports
+    migrate_flatnas_default_port
     migrate_sensitive_env_keys
     remove_deprecated_env_keys
     run_root chown root:root "$GLOBAL_ENV" "$GLOBAL_SECRETS"

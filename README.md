@@ -25,7 +25,7 @@
 | FRPS | `7000/TCP`，后台 `7001/TCP` | Docker Compose | [frps/README.md](./frps/README.md) |
 | EasyTier | Core `7005`，RPC `7006`，Web `7007`，Config `7008/UDP` | Docker / OpenWrt | [easytier/README.md](./easytier/README.md) |
 | Portainer CE | `7004/TCP` | Docker Compose | [portainer/README.md](./portainer/README.md) |
-| FlatNas | `23000/TCP` | Docker Compose | [flatnas/README.md](./flatnas/README.md) |
+| FlatNas | `7009/TCP` | Docker Compose | [flatnas/README.md](./flatnas/README.md) |
 | GitHub Actions Runner | 无固定 Web 端口 | systemd | [github-runner/README.md](./github-runner/README.md) |
 
 ## 一、运行环境
@@ -248,12 +248,12 @@ FRPS_BIND_PORT=7000
 FRPS_DASHBOARD_PORT=7001
 OPENCODE_PORT=7003
 PORTAINER_HTTP_PORT=7004
-FLATNAS_HTTP_PORT=23000
 
 EASYTIER_PORT=7005
 EASYTIER_RPC_PORT=7006
 EASYTIER_WEB_PORT=7007
 EASYTIER_CONFIG_PORT=7008
+FLATNAS_HTTP_PORT=7009
 ```
 
 ### .secrets
@@ -450,12 +450,12 @@ http://<服务器IP>:7004
 
 ### FlatNas
 
-使用官方镜像 `qdnas/flatnas:latest`，默认访问地址为 `http://<设备IP>:23000`。
+使用官方镜像 `qdnas/flatnas:latest`，默认访问地址为 `http://<设备IP>:7009`。
 
 `.env`：
 
 ```dotenv
-FLATNAS_HTTP_PORT=23000
+FLATNAS_HTTP_PORT=7009
 FLATNAS_BIND_IP=0.0.0.0
 FLATNAS_DOCKER_SOCKET=false
 ```

@@ -2,7 +2,7 @@
 
 [FlatNas 官网](https://flatnas.top/) · [上游项目](https://github.com/Garry-QD/FlatNas) · [官方镜像](https://hub.docker.com/r/qdnas/flatnas)
 
-基于上游官方 Docker 镜像 `qdnas/flatnas:latest` 部署个人导航页与 NAS 仪表盘。服务监听容器内 `3000/TCP`；本仓库默认映射宿主机 `23000/TCP`。不在服务器上重新构建上游源码。
+基于上游官方 Docker 镜像 `qdnas/flatnas:latest` 部署个人导航页与 NAS 仪表盘。服务监听容器内 `3000/TCP`；本仓库默认映射宿主机 `7009/TCP`。不在服务器上重新构建上游源码。
 
 ## 快速部署
 
@@ -19,7 +19,7 @@ fnOS 默认统一配置位置为 `/vol3/1000/software/deploy/.env`。如果仓�
 普通配置位于统一 `.env`：
 
 ```dotenv
-FLATNAS_HTTP_PORT=23000
+FLATNAS_HTTP_PORT=7009
 FLATNAS_BIND_IP=0.0.0.0
 FLATNAS_DOCKER_SOCKET=false
 ```
@@ -30,7 +30,7 @@ FLATNAS_DOCKER_SOCKET=false
 FLATNAS_PROXY_URL=
 ```
 
-安装后访问 `http://<设备局域网IP>:23000`，并立即修改上游默认管理密码（`admin`）。`FLATNAS_BIND_IP=127.0.0.1` 可以仅允许本机/反向代理访问；需要从 EasyTier 或局域网访问时，请绑定相应可达的地址并使用防火墙控制来源。
+安装后访问 `http://<设备局域网IP>:7009`，并立即修改上游默认管理密码（`admin`）。`FLATNAS_BIND_IP=127.0.0.1` 可以仅允许本机/反向代理访问；需要从 EasyTier 或局域网访问时，请绑定相应可达的地址并使用防火墙控制来源。
 
 ## 数据与挂载
 
@@ -61,6 +61,8 @@ FLATNAS_DOCKER_SOCKET=true
 ## 可选后端代理
 
 `FLATNAS_PROXY_URL` 对应上游 `PROXY_URL` 环境变量，支持 `http://`、`https://`、`socks5://`、`socks5h://`。如果代理由同一宿主机上的另一个 Docker 容器提供，应使用 FlatNas 容器可访问的地址；`127.0.0.1` 指的是 FlatNas 容器自身，不是宿主机或其他容器。未配置时保持空白。
+
+从早期仓库更新时，`sudo bash deploy.sh env` 会将模板旧默认值 `23000` 迁移为 `7009`；如果此前已部署 FlatNas，还需执行 `flatnas update` 才会应用新端口。若你需要固定使用旧端口，可以在迁移之后自行修改统一 `.env`。
 
 ## 更新、状态和日志
 
