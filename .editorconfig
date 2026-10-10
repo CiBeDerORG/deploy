@@ -1,0 +1,10 @@
+root = true
+
+# Keep source files, dotenv templates and comments consistent across IDEs.
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.md]
+trim_trailing_whitespace = false
