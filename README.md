@@ -27,7 +27,7 @@
 | Portainer CE | `7004/TCP` | Docker Compose | [portainer/README.md](./portainer/README.md) |
 | FlatNas | `7009/TCP` | Docker Compose | [flatnas/README.md](./flatnas/README.md) |
 | Sub2API | `7010/TCP` | Docker Compose（含 PostgreSQL、Redis） | [sub2api/README.md](./sub2api/README.md) |
-| Mihomo | 代理 `7011/TCP`、API `7012/TCP`（默认仅回环） | Docker Compose | [mihomo/README.md](./mihomo/README.md) |
+| Mihomo | 本机代理 `7011/TCP`、Web UI / API `7012/TCP`（新安装开放 IPv4，须限制来源） | Docker Compose | [mihomo/README.md](./mihomo/README.md) |
 | GitHub Actions Runner | 无固定 Web 端口 | systemd | [github-runner/README.md](./github-runner/README.md) |
 
 ## 一、运行环境
@@ -489,7 +489,7 @@ FLATNAS_DOCKER_SOCKET=false
 
 ### Mihomo
 
-默认本机监听的代理端口 `7011` 和 API 端口 `7012`，不启用 TUN；详细说明：[mihomo/README.md](./mihomo/README.md)。
+代理端口 `7011` 默认只供本机使用；Web 管理和控制 API 共用 `7012`，新安装模板可在局域网访问 `http://<NAS局域网IP>:7012/ui/`，必须限制可信来源并使用 `.secrets` 中的 `MIHOMO_API_SECRET`。**旧版真实 .env 不会被自动覆盖**，需将 `MIHOMO_API_BIND_IP` 从 `127.0.0.1` 手动改成 NAS 的实际局域网 IPv4（或按防火墙策略使用 `0.0.0.0`）再更新服务。不启用 TUN；详细说明：[mihomo/README.md](./mihomo/README.md)。
 
 安装：`sudo bash deploy.sh mihomo`；更新：`sudo bash deploy.sh mihomo update`。
 
@@ -647,7 +647,7 @@ EASYTIER_PRIVILEGED=true
 - FRPS Dashboard 建议设置强密码并限制公网来源。
 - Portainer 直接挂载 Docker Socket，管理入口应限制访问来源。
 - Sub2API 的 PostgreSQL / Redis 不对外发布，管理员入口在公网须通过 HTTPS 和访问控制保护。
-- Mihomo 默认只监听宿主机回环地址；开放代理前必须启用认证并限制来源，API 密钥只放 .secrets。
+- Mihomo 代理端口默认只监听宿主机回环地址；新安装的 Web 管理 / API 端口 7012 可监听所有 IPv4，需用 NAS 防火墙限制管理来源、禁止公网端口映射；API 密钥只放 .secrets。已有 .env 的旧监听值不会自动更改。
 - FlatNas 默认不挂载 Docker Socket；如需开启 Docker 管理，必须限制访问来源并修改默认管理密码。
 - GitHub Runner 注册 Token 只在首次注册时使用，注册成功后可清空。
 
