@@ -63,12 +63,14 @@ state="$(docker inspect --format '{{.State.Status}}' mihomo 2>/dev/null || true)
 echo "Mihomo 已启动，混合代理：$MIHOMO_PROXY_BIND_IP:$MIHOMO_MIXED_PORT；控制接口：$MIHOMO_API_BIND_IP:$MIHOMO_API_PORT"
 if [ "$MIHOMO_API_BIND_IP" = "0.0.0.0" ]; then
     echo "Web 管理入口：http://<NAS局域网IP>:$MIHOMO_API_PORT/ui/"
-    echo "警告：7012 控制 API 现监听全部 IPv4；必须在 NAS 防火墙限制可信局域网/管理设备，禁止公网端口映射。"
+    echo "警告：7012 控制 API 监听全部 IPv4 网卡！建议将 MIHOMO_API_BIND_IP 改成 NAS 指定的局域网 IP。"
+    echo "请在 NAS 防火墙仅放行可信管理设备/IP，严禁公网端口映射。"
 elif [ "$MIHOMO_API_BIND_IP" = "127.0.0.1" ]; then
     echo "Web 管理入口（仅宿主机）：http://127.0.0.1:$MIHOMO_API_PORT/ui/"
     echo "需要从电脑访问 NAS Web 管理时，在统一 .env 将 MIHOMO_API_BIND_IP 改为 NAS 局域网 IP，再运行 mihomo update。"
 else
     echo "Web 管理入口：http://$MIHOMO_API_BIND_IP:$MIHOMO_API_PORT/ui/"
+    echo "提示：绑定 NAS 局域网 IP 并不限制客户端来源，仍需 NAS 防火墙允许名单。"
 fi
 echo "若面板提示连接核心：API 地址为上述入口去掉 /ui/，密钥在 $SECRETS_FILE 的 MIHOMO_API_SECRET 中。"
 echo "配置路径：$BASE_DIR/data/config.yaml；默认未启用 TUN/host 网络。"
