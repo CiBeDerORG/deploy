@@ -1,0 +1,81 @@
+name: sub2api
+services:
+  sub2api:
+    image: weishaw/sub2api:latest
+    container_name: sub2api
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "${SUB2API_BIND_IP:-0.0.0.0}:${SUB2API_HTTP_PORT:?SUB2API_HTTP_PORT 未设置}:8080"
+    volumes:
+      - ../data/app:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      AUTO_SETUP: "true"
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "8080"
+      SERVER_MODE: "release"
+      DATABASE_HOST: "postgres"
+      DATABASE_PORT: "5432"
+      DATABASE_USER: "sub2api"
+      DATABASE_PASSWORD: "${SUB2API_POSTGRES_PASSWORD:?数据库密码未设置}"
+      DATABASE_DBNAME: "sub2api"
+      DATABASE_SSLMODE: "disable"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${SUB2API_REDIS_PASSWORD:?Redis 密码未设置}"
+      ADMIN_EMAIL: "${SUB2API_ADMIN_EMAIL:-}"
+      ADMIN_PASSWORD: "${SUB2API_ADMIN_PASSWORD:-}"
+      JWT_SECRET: "${SUB2API_JWT_SECRET:?JWT 密钥未设置}"
+      TOTP_ENCRYPTION_KEY: "${SUB2API_TOTP_ENCRYPTION_KEY:?TOTP 密钥未设置}"
+      UPDATE_PROXY_URL: "${SUB2API_UPDATE_PROXY_URL:-}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: sub2api-postgres
+    restart: unless-stopped
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_USER: sub2api
+      POSTGRES_PASSWORD: "${SUB2API_POSTGRES_PASSWORD:?数据库密码未设置}"
+      POSTGRES_DB: sub2api
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - ../data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sub2api -d sub2api && psql -U sub2api -d sub2api -Atqc 'SELECT 1' >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 60s
+
+  redis:
+    image: redis:8-alpine
+    container_name: sub2api-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes", "--appendfsync", "everysec", "--requirepass", "${SUB2API_REDIS_PASSWORD:?Redis 密码未设置}"]
+    environment:
+      REDISCLI_AUTH: "${SUB2API_REDIS_PASSWORD:?Redis 密码未设置}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - ../data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s

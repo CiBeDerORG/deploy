@@ -1,0 +1,19 @@
+name: mihomo
+services:
+  mihomo:
+    image: metacubex/mihomo:latest
+    container_name: mihomo
+    restart: unless-stopped
+    command: ["-d", "/root/.config/mihomo", "-f", "/root/.config/mihomo/config.yaml"]
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      # Mihomo 官方 CLI 环境变量覆盖控制 API 密钥，不需写入 config.yaml。
+      CLASH_OVERRIDE_SECRET: "${MIHOMO_API_SECRET:?API 密钥未设置}"
+    ports:
+      # Default loopback-only to avoid exposing an open proxy or management API.
+      - "${MIHOMO_PROXY_BIND_IP:-127.0.0.1}:${MIHOMO_MIXED_PORT:?代理端口未设置}:7890/tcp"
+      - "${MIHOMO_API_BIND_IP:-127.0.0.1}:${MIHOMO_API_PORT:?API 端口未设置}:9090/tcp"
+    volumes:
+      - ../data:/root/.config/mihomo
+    security_opt:
+      - no-new-privileges:true
