@@ -1,85 +1,81 @@
-# Mihomo
+# Mihomo · MetaCubeXD All-in-One（官方完整版）
 
-使用 [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) 官方内核和 [MetaCubeXD](https://github.com/MetaCubeX/metacubexd) Web 面板；普通 Docker bridge 模式，不启用 TUN、不接管宿主机网络。
+本模块取代旧版独立内核 + 静态面板，使用官方镜像
+[ghcr.io/metacubex/metacubexd-server](https://github.com/MetaCubeX/metacubexd)。
+完整服务包含 Web、控制 Agent、内置 Mihomo 内核，支持网页导入订阅 URL、
+编辑 YAML/Profiles、订阅刷新与内核管理。镜像自带 Web 资源，不再设置
+`external-ui-url` 下载静态页面。
 
-## NAS 安装和访问
+官方参考：[README / All-in-One](https://github.com/MetaCubeX/metacubexd#3-all-in-one-server-docker)
+与 [官方 Compose](https://github.com/MetaCubeX/metacubexd/blob/main/docs/docker-compose.yml)。
 
-在 `deploy` 仓库根目录执行：
+## 安装及访问
 
-```bash
-sudo env SOFTWARE_ROOT=/vol3/1000/software bash deploy.sh env
-sudo env SOFTWARE_ROOT=/vol3/1000/software bash deploy.sh mihomo
-```
+从 deploy 根目录运行 `sudo bash deploy.sh env`，再执行 `sudo bash deploy.sh mihomo`。
 
-统一普通配置位于 `/vol3/1000/software/deploy/.env`，**代理端口与 Web 端口分开配置**：
+| .env 变量 | 默认 | 含义 |
+| --- | --- | --- |
+| MIHOMO_MIXED_PORT | 7011 | NAS 本机代理，容器内 7890 |
+| MIHOMO_API_PORT | 7012 | Web/Agent，**不是旧版内核 API** |
+| MIHOMO_CORE_API_PORT | 7013 | 内核 API，容器内 9090 |
+| MIHOMO_PROXY_BIND_IP | 127.0.0.1 | 代理默认不发布到 NAS 局域网 |
+| MIHOMO_API_BIND_IP | 0.0.0.0 | Web 可以在 LAN/EasyTier 访问（需网络访问控制） |
+| MIHOMO_CORE_API_BIND_IP | 0.0.0.0 | 浏览器直连内核 API；需网络访问控制 |
+| MIHOMO_WEB_ORIGIN | 留空 | 自定义 Web 浏览器来源，如 http://10.10.10.2:7012，不带路径 |
 
-```dotenv
-SOFTWARE_ROOT=/vol3/1000/software
-MIHOMO_MIXED_PORT=7011
-MIHOMO_PROXY_BIND_IP=127.0.0.1
-MIHOMO_API_PORT=7012
-MIHOMO_API_BIND_IP=0.0.0.0
-```
+打开 **http://10.10.10.2:7012/**，不再使用旧版的 `/ui/`。
+若面板要求连接内核，填写 **http://10.10.10.2:7013**，Secret
+为原来的 MIHOMO_API_SECRET。因为 7012 与 7013 是不同源，首次生成的
+`deploy-web-cors` merge Profile 会将主机 IPv4 地址（包含被系统报告出来的
+EasyTier 地址）和 MIHOMO_WEB_ORIGIN 作为准确 CORS 来源；不使用通配符。
+如果访问域名或网络发生变化，须在 Web 中更新这个 overlay 并重新激活，
+或在首次部署前设好 MIHOMO_WEB_ORIGIN。
 
-- **代理端口 7011**：只发布至 NAS 宿主机的 `127.0.0.1`，不会因为开启 Web 而自动对其他设备开放代理。
-- **Web/API 端口 7012**：发布到 NAS 全部 IPv4 网卡。在其他电脑或手机浏览器打开 `http://<NAS_IP>:7012/ui/`。如面板要求连接内核，API 地址是 `http://<NAS_IP>:7012`（不含 `/ui/`）。
-- Web 与控制 API 同端口。API 操作需要单独的 `MIHOMO_API_SECRET`，并非代理用户名/密码；建议使用强随机密钥；留空首次安装会随机生成。安装器不会对手动设置的密钥施加额外的长度或字符集限制。
-- `0.0.0.0` 是监听全部宿主机 IPv4 网卡，**不等于必然能从公网访问**，实际可达范围仍取决于 NAS 所在网络和防火墙。如果通过公网使用，建议额外使用 HTTPS 或可信专用网络。
+.secrets 包含 MIHOMO_API_SECRET（沿用旧值，现注入官方 CLASH_SECRET），以及
+新增的 MIHOMO_CONTROL_TOKEN（注入官方 CONTROL_TOKEN，留空自动生成）。
+**CONTROL_TOKEN 会由官方服务提供给浏览器，不能当作网页登录认证。**
+没有旧配置的全新安装才用 MIHOMO_PROXY_USER / MIHOMO_PROXY_PASSWORD
+生成代理认证。自定义非空凭据按项目 AGENTS.md 原样保留，不添加 hex 或长度限制。
 
-**已有安装**：`deploy.sh env` 不会覆盖现有 `.env`，若其中仍为 `MIHOMO_API_BIND_IP=127.0.0.1`，请手动改成 `0.0.0.0`，然后在仓库根目录执行：
+## 旧版迁移与持久化
 
-```bash
-git pull origin main
-sudo nano /vol3/1000/software/deploy/.env
-sudo env SOFTWARE_ROOT=/vol3/1000/software bash deploy.sh mihomo update
-```
+若发现旧版的 `<SOFTWARE_ROOT>/mihomo/data/config.yaml` 且完整版数据尚未初始化，
+安装器会保留旧文件，同时首次创建：
 
-## 管理密钥
+- `mihomo/data/backup/pre-all-in-one/config.yaml`：独立只读权限备份；
+- `mihomo/data/all-in-one/profiles/deploy-initial.yaml`：旧配置的副本，保留认证、节点及规则；
+- `mihomo/data/all-in-one/profiles/deploy-web-cors.yaml`：跨 Profile 使用的浏览器来源 overlay；
+- `mihomo/data/all-in-one/active.yaml`：Agent 首次运行配置；
+- `mihomo/data/all-in-one/profiles/index.json` 与 `state.json`：Agent Profile 元数据。
 
-统一敏感配置位于 `/vol3/1000/software/deploy/.secrets`：
+只在副本中删除旧 `external-ui` 和 `external-ui-url` 两个配置项，
+不改动原来的 config.yaml，也不重新生成旧账号密码。新的 Agent 将管理并注入
+`external-controller`、`secret`、`mixed-port`。现有完整版本的 Profiles 与
+active.yaml 更新时不覆写。旧配置的认证以旧 config.yaml 为准而不是另取
+.secrets 密码。网页版导入新订阅后记得激活对应 Profile。
 
-```dotenv
-# 留空首次安装自动生成并持久化
-MIHOMO_API_SECRET=
-MIHOMO_PROXY_USER=deploy
-MIHOMO_PROXY_PASSWORD=
-```
+需要 SSH 手工编辑时请编辑 `data/all-in-one/profiles/<id>.yaml` 的配置源，
+不要编辑可能由 Agent 自动重新生成的 `active.yaml`。已有自定义 Profile 由
+官方 Agent 管理，不会在每次部署脚本更新时重置。
 
-通过 NAS SSH 查看 Web 管理所需的 API 密钥：
+切换使用相同容器名 `mihomo`，因此旧容器会有短暂重建中断；
+拉取和预检新镜像安排在重建旧容器之前。**如镜像下载失败，旧容器不变。**
+若新容器在切换后失败，原始 config.yaml、备份及完整数据仍在，但
+安装器不会擅自执行未经测试的自动回滚。建议切换前备份整个 mihomo/data。
 
-```bash
-sudo grep '^MIHOMO_API_SECRET=' /vol3/1000/software/deploy/.secrets
-```
+## 安全和网络
 
-代理账号和密码与 Web API 密钥是两套凭据。`MIHOMO_PROXY_PASSWORD` 可以使用普通自定义密码（含空格及 YAML 标点），无需 hex 格式；脚本会无损转义后写入初始配置。留空才会自动生成。后续如果需要轮换代理密码，请同步修改 `.secrets` 与 `mihomo/data/config.yaml`，已有配置不会被安装器自动覆盖。
+普通 Docker bridge 模式；不启用 TUN / host / NET_ADMIN / privileged，
+也不挂载 Docker Socket，不接管 fnOS 或 EasyTier 网络。
+官方的 CONTROL_TOKEN **不是 UI 登录口令**；7012 和 7013 均须通过 NAS 防火墙、
+受信任私网或带身份验证的反向代理限制来源，严禁无保护映射公网。
 
-## 节点、订阅及持久化
+保留内部 Docker `proxy-net` 和同名容器，业务容器原有
+`mihomo:7890` 代理地址不变；首次使用可执行
+`sudo bash deploy.sh proxy connect sub2api`，目标容器重建后需要重新连接。
+接入 Docker 网络不会自动改变该应用的 HTTP_PROXY/HTTPS_PROXY。
 
-首次安装从 `deploy/config.example.yaml` 生成 `<SOFTWARE_ROOT>/mihomo/data/config.yaml` 并附加代理认证，更新不会覆盖用户配置。MetaCubeXD 面板资源由内核根据 `external-ui-url` 下载到持久化的 `data/ui/`。NAS 无法下载时，先检查 `docker logs mihomo`，必要时将官方构建好的静态资源放入 `data/ui/`（含 `index.html`）。
-
-初始规则 `MATCH,DIRECT` 只用于部署验证，不会自动提供额外代理线路。添加节点、订阅、代理组和规则请修改 `data/config.yaml`，再执行：
-
-```bash
-sudo env SOFTWARE_ROOT=/vol3/1000/software bash deploy.sh mihomo update
-```
-
-API 密钥通过官方 `CLASH_OVERRIDE_SECRET` 注入；初始代理密码写入 `data/config.yaml`，轮换代理密码时应同步修改 `.secrets` 和 `config.yaml`。
-
-其他 Docker 容器的 `127.0.0.1` 不等于 NAS 宿主机回环地址。如 Sub2API 需要经 Mihomo 出站，应单独配置共享 Docker 网络，使其通过 `mihomo:7890` 并携带代理认证连接；**无需为容器互访把宿主机代理端口 7011 改成 0.0.0.0**。
-
-## 其他 Docker 容器动态接入代理网络
-
-安装和更新 Mihomo 时自动创建并复用 **`proxy-net` 内部 bridge 网络**，Mihomo 由自己的 Compose 声明固定接入；不会开启 TUN、host 网络，也不会向 NAS 全网发布代理端口 7011。其他容器**不需要编辑原来的 Compose**，可以随时选择加入或断开（在 deploy 仓库根目录执行）：
-
-```bash
-sudo bash deploy.sh proxy status
-sudo bash deploy.sh proxy connect sub2api
-sudo bash deploy.sh proxy status sub2api
-sudo bash deploy.sh proxy disconnect sub2api
-```
-
-fnOS 上也可以显式设置 `SOFTWARE_ROOT=/vol3/1000/software`，快捷命令本身只操作 Docker 网络，不修改运行配置或容器的其他网络。
-
-接入后，容器内部使用 `http://mihomo:7890`，并配置实际代理用户名/密码（首次安装生成并存放在 `/vol3/1000/software/deploy/.secrets`；认证最终以 Mihomo 的 `data/config.yaml` 为准）。**接入网络只解决互通，不会自动修改应用的 HTTP_PROXY/HTTPS_PROXY，也不会接管全流量或启用 TUN。** 数据库/Redis 无需接入。
-
-操作针对已经存在的容器，支持重复 connect/disconnect 而不报错；禁止通过快捷命令断开 Mihomo 自身。通过 `docker compose up --force-recreate` 或其他方式**删除重建**目标业务容器后，原来的临时网络连接会丢失，需要再次执行 connect；普通容器重启通常保留。Mihomo 自身的连接由 Compose 管理，更新重建时会恢复。不会自动删除或重建目标容器。网络如果已存在但不是本机 internal bridge，脚本会拒绝接管，以避免碰到同名的现有用户网络。
+更新：`sudo bash deploy.sh mihomo update`。检查：
+`docker logs --tail=100 mihomo`；
+Web 健康接口是 `http://127.0.0.1:7012/api/control/health`，
+7013 的 `/version` 需要携带 MIHOMO_API_SECRET。

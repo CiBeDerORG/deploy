@@ -27,9 +27,12 @@ jobs:
       SUB2API_TOTP_ENCRYPTION_KEY: "test-totp-secret"
       MIHOMO_MIXED_PORT: "7011"
       MIHOMO_API_PORT: "7012"
+      MIHOMO_CORE_API_PORT: "7013"
       MIHOMO_PROXY_BIND_IP: "127.0.0.1"
       MIHOMO_API_BIND_IP: "0.0.0.0"
+      MIHOMO_CORE_API_BIND_IP: "0.0.0.0"
       MIHOMO_API_SECRET: "test-api-secret"
+      MIHOMO_CONTROL_TOKEN: "test-agent-token"
 
     steps:
       - name: Checkout
@@ -66,18 +69,31 @@ jobs:
           mihomo = m['services']['mihomo']
           assert not mihomo.get('privileged') and mihomo.get('network_mode') != 'host'
           ports = {p['published']: p for p in mihomo['ports']}
-          assert set(ports) == {'7011', '7012'}, ports
-          assert ports['7011']['host_ip'] == '127.0.0.1', ports
-          assert ports['7012']['host_ip'] == '0.0.0.0', ports
+          assert set(ports) == {'7011', '7012', '7013'}, ports
+          assert ports['7011']['host_ip'] == '127.0.0.1' and ports['7011']['target'] == 7890, ports
+          assert ports['7012']['host_ip'] == '0.0.0.0' and ports['7012']['target'] == 8080, ports
+          assert ports['7013']['host_ip'] == '0.0.0.0' and ports['7013']['target'] == 9090, ports
           template = Path('.env.example').read_text()
           assert 'MIHOMO_PROXY_BIND_IP=127.0.0.1' in template
           assert 'MIHOMO_API_BIND_IP=0.0.0.0' in template
-          config = Path('mihomo/deploy/config.example.yaml').read_text()
-          assert 'external-controller: 0.0.0.0:9090' in config
-          assert 'external-ui: /root/.config/mihomo/ui' in config
-          assert 'metacubexd/archive/refs/heads/gh-pages.zip' in config
-          assert mihomo['environment']['CLASH_OVERRIDE_SECRET'] == 'test-api-secret'
-          assert mihomo['volumes'], 'Mihomo config must be persisted'
+          config = Path('mihomo/deploy/profile.example.yaml').read_text()
+          assert 'tun:' in config and 'enable: false' in config
+          assert 'external-ui-url' not in config
+          assert mihomo['image'] == 'ghcr.io/metacubex/metacubexd-server:latest'
+          assert mihomo['environment']['CLASH_SECRET'] == 'test-api-secret'
+          assert mihomo['environment']['CONTROL_TOKEN'] == 'test-agent-token'
+          assert mihomo['environment']['CONTROL_PORT'] == '8080'
+          assert mihomo['environment']['CLASH_API_PORT'] == '9090'
+          assert mihomo['environment']['MIXED_PORT'] == '7890'
+          assert mihomo['environment']['DATA_DIR'] == '/data'
+          assert any(v['target'] == '/data' for v in mihomo['volumes']), 'Agent data must persist'
+          assert mihomo['healthcheck'], 'Web/Agent healthcheck required'
+          install = Path('mihomo/deploy/install.sh').read_text()
+          assert 'external-ui-url' in install and 'sed ' in install
+          assert 'docker exec mihomo node -e' in install
+          assert 'docker compose' in install
+          assert 'MIHOMO_CONTROL_TOKEN=' in Path('.secrets.example').read_text()
+          assert 'MIHOMO_CORE_API_PORT=7013' in template
           assert set(mihomo['networks']) == {'default', 'proxy-net'}
           assert m['networks']['proxy-net']['external'] is True
           assert m['networks']['proxy-net']['name'] == 'proxy-net'

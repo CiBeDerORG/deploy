@@ -46,6 +46,10 @@ jobs:
         shell: bash
         run: bash mihomo/tests/password-config.sh
 
+      - name: MetaCubeXD All-in-One and migration regression
+        shell: bash
+        run: bash mihomo/tests/all-in-one.sh
+
       - name: Sub2API upstream admin password policy regression
         shell: bash
         run: bash sub2api/tests/password-policy.sh
