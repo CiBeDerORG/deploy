@@ -16,7 +16,7 @@ load_global_config
 MIHOMO_MIXED_PORT="${MIHOMO_MIXED_PORT:-7011}"
 MIHOMO_API_PORT="${MIHOMO_API_PORT:-7012}"
 MIHOMO_PROXY_BIND_IP="${MIHOMO_PROXY_BIND_IP:-127.0.0.1}"
-MIHOMO_API_BIND_IP="${MIHOMO_API_BIND_IP:-127.0.0.1}"
+MIHOMO_API_BIND_IP="${MIHOMO_API_BIND_IP:-0.0.0.0}"
 validate_port MIHOMO_MIXED_PORT "$MIHOMO_MIXED_PORT"
 validate_port MIHOMO_API_PORT "$MIHOMO_API_PORT"
 [ "$MIHOMO_MIXED_PORT" != "$MIHOMO_API_PORT" ] || fail "Mihomo 代理和 API 端口不能相同"
@@ -63,11 +63,11 @@ state="$(docker inspect --format '{{.State.Status}}' mihomo 2>/dev/null || true)
 echo "Mihomo 已启动，混合代理：$MIHOMO_PROXY_BIND_IP:$MIHOMO_MIXED_PORT；控制接口：$MIHOMO_API_BIND_IP:$MIHOMO_API_PORT"
 if [ "$MIHOMO_API_BIND_IP" = "0.0.0.0" ]; then
     echo "Web 管理入口：http://<NAS局域网IP>:$MIHOMO_API_PORT/ui/"
-    echo "警告：7012 控制 API 监听全部 IPv4 网卡！建议将 MIHOMO_API_BIND_IP 改成 NAS 指定的局域网 IP。"
-    echo "请在 NAS 防火墙仅放行可信管理设备/IP，严禁公网端口映射。"
+    echo "Web 面板对 NAS 可达的 IPv4 网络开放；7012 同时承载控制 API，操作需要 MIHOMO_API_SECRET。"
+    echo "如 NAS 可从公网到达，请确保 API 密钥保密，并按需限制公网访问。"
 elif [ "$MIHOMO_API_BIND_IP" = "127.0.0.1" ]; then
     echo "Web 管理入口（仅宿主机）：http://127.0.0.1:$MIHOMO_API_PORT/ui/"
-    echo "需要从电脑访问 NAS Web 管理时，在统一 .env 将 MIHOMO_API_BIND_IP 改为 NAS 局域网 IP，再运行 mihomo update。"
+    echo "若需要其他设备直接打开 Web 页面，把统一 .env 的 MIHOMO_API_BIND_IP 改为 0.0.0.0，再运行 mihomo update。"
 else
     echo "Web 管理入口：http://$MIHOMO_API_BIND_IP:$MIHOMO_API_PORT/ui/"
     echo "提示：绑定 NAS 局域网 IP 并不限制客户端来源，仍需 NAS 防火墙允许名单。"
