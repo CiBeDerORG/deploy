@@ -16,7 +16,7 @@ legacy_profile_copy() {
     sed '/^external-ui[[:space:]]*:/d; /^external-ui-url[[:space:]]*:/d' "$1" > "$2"
 }
 initialize_aio() {
-    local data="$1" template="$2" web_port="$3" web_origin="$4"
+    local data="$1" template="$2" web_port="$3"
     local final="$data/all-in-one" old="$data/config.yaml" staging backup auth
     mkdir -p "$data"
     chmod 0700 "$data"
@@ -56,7 +56,7 @@ initialize_aio() {
         echo "已创建全新初始 Profile。"
     fi
 
-    cors_yaml "$web_port" "$web_origin" > "$staging/profiles/deploy-web-cors.yaml"
+    cors_yaml "$web_port" > "$staging/profiles/deploy-web-cors.yaml"
     authentication_stanza "$staging/profiles/deploy-initial.yaml" > "$staging/profiles/deploy-proxy-auth.yaml"
     if [ ! -s "$staging/profiles/deploy-proxy-auth.yaml" ]; then
         rm -f "$staging/profiles/deploy-proxy-auth.yaml"

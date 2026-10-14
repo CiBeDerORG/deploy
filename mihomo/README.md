@@ -17,11 +17,10 @@
 | MIHOMO_API_BIND_IP | 0.0.0.0 | — | 7012 支持可信 LAN / EasyTier |
 | MIHOMO_CORE_API_BIND_IP | 0.0.0.0 | — | 7013 供浏览器直连，需限制来源 |
 
-首次安装可在 `.env` 里设 `MIHOMO_WEB_ORIGIN=http://10.10.10.2:7012`
-指定准确的浏览器来源（无路径），否则尝试从 NAS 网卡发现 IPv4 地址。
+Web 和内核 API 使用不同端口。安装时从 NAS 当前 IPv4 网卡自动生成 Mihomo 原生的 `external-controller-cors`，不增加额外的 Web Origin 环境变量。使用自定义域名等特殊来源时，直接在对应 Profile YAML 内修改官方字段。
 新版管理页是 **http://10.10.10.2:7012/**，不是旧的 `/ui/`。
 面板需要连接内核时填 **http://10.10.10.2:7013** 和原来的 `MIHOMO_API_SECRET`。
-默认跨端口 CORS 使用准确的浏览器来源，不设置 `*`。
+默认跨端口 CORS 使用当前 NAS IPv4 对应的浏览器来源，不设置 `*`。
 
 ## 配置与安装
 
@@ -58,7 +57,7 @@ sudo bash deploy.sh mihomo update
 - 新版实际持久化目录：`mihomo/data/all-in-one/`；官方 Agent 管理
   `profiles/index.json`、`profiles/state.json`、各个 `profiles/*.yaml` 和
   `active.yaml`。
-- 首次初始化创建全局 Web CORS 与原代理认证 overlay，防止在网页导入/启用
+- 首次初始化生成原生 Web CORS 与原代理认证 overlay，防止在网页导入/启用
   新订阅 Profile 后丢失代理认证。已有的完整版 Profile/active.yaml 在更新时不覆盖。
 - 网页添加订阅、编辑 YAML、切换配置均走官方管理功能；SSH 修改时应编辑
   `profiles/<ID>.yaml`，不要直接改自动生成的 `active.yaml`。
