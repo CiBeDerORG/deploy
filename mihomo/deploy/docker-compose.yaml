@@ -10,9 +10,9 @@ services:
       # Mihomo 官方 CLI 环境变量覆盖控制 API 密钥，不需写入 config.yaml。
       CLASH_OVERRIDE_SECRET: "${MIHOMO_API_SECRET:?API 密钥未设置}"
     ports:
-      # Default loopback-only to avoid exposing an open proxy or management API.
+      # Keep the HTTP/SOCKS proxy local; publish the Web UI/controller for browser access.
       - "${MIHOMO_PROXY_BIND_IP:-127.0.0.1}:${MIHOMO_MIXED_PORT:?代理端口未设置}:7890/tcp"
-      - "${MIHOMO_API_BIND_IP:-127.0.0.1}:${MIHOMO_API_PORT:?API 端口未设置}:9090/tcp"
+      - "${MIHOMO_API_BIND_IP:-0.0.0.0}:${MIHOMO_API_PORT:?API 端口未设置}:9090/tcp"
     volumes:
       - ../data:/root/.config/mihomo
     security_opt:
