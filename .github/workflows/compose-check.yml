@@ -1,0 +1,70 @@
+name: Deployment Compose Check
+
+on:
+  push:
+    paths:
+      - "sub2api/**"
+      - "mihomo/**"
+      - ".github/workflows/compose-check.yml"
+  pull_request:
+    paths:
+      - "sub2api/**"
+      - "mihomo/**"
+      - ".github/workflows/compose-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compose-config:
+    runs-on: ubuntu-latest
+    env:
+      SUB2API_HTTP_PORT: "7010"
+      SUB2API_BIND_IP: "0.0.0.0"
+      SUB2API_POSTGRES_PASSWORD: "test-db-password"
+      SUB2API_REDIS_PASSWORD: "test-redis-password"
+      SUB2API_JWT_SECRET: "test-jwt-secret"
+      SUB2API_TOTP_ENCRYPTION_KEY: "test-totp-secret"
+      MIHOMO_MIXED_PORT: "7011"
+      MIHOMO_API_PORT: "7012"
+      MIHOMO_PROXY_BIND_IP: "127.0.0.1"
+      MIHOMO_API_BIND_IP: "127.0.0.1"
+      MIHOMO_API_SECRET: "test-api-secret"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Compose files
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f sub2api/deploy/docker-compose.yaml config --quiet
+          docker compose -f mihomo/deploy/docker-compose.yaml config --quiet
+          docker compose -f sub2api/deploy/docker-compose.yaml config --format json > /tmp/sub2api-compose.json
+          docker compose -f mihomo/deploy/docker-compose.yaml config --format json > /tmp/mihomo-compose.json
+
+      - name: Assert safe default exposure and persistence
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          s = json.loads(Path('/tmp/sub2api-compose.json').read_text())
+          m = json.loads(Path('/tmp/mihomo-compose.json').read_text())
+          assert set(s['services']) == {'sub2api', 'postgres', 'redis'}
+          assert not s['services']['postgres'].get('ports'), 'Postgres must not publish host ports'
+          assert not s['services']['redis'].get('ports'), 'Redis must not publish host ports'
+          assert s['services']['sub2api']['ports'][0]['published'] == '7010'
+          assert s['services']['postgres']['environment']['PGDATA'] == '/var/lib/postgresql/data'
+          for component in ('sub2api', 'postgres', 'redis'):
+              assert s['services'][component]['volumes'], f'{component} must persist data'
+          assert set(m['services']) == {'mihomo'}
+          mihomo = m['services']['mihomo']
+          assert not mihomo.get('privileged') and mihomo.get('network_mode') != 'host'
+          ports = {p['published']: p for p in mihomo['ports']}
+          assert set(ports) == {'7011', '7012'}, ports
+          assert all(p['host_ip'] == '127.0.0.1' for p in ports.values()), ports
+          assert mihomo['environment']['CLASH_OVERRIDE_SECRET'] == 'test-api-secret'
+          assert mihomo['volumes'], 'Mihomo config must be persisted'
+          PY

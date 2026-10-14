@@ -1,0 +1,16 @@
+# 首次安装时复制到 data/config.yaml；以后安装和更新不会覆盖。
+mixed-port: 7890
+allow-lan: true
+bind-address: "*"
+mode: rule
+log-level: info
+ipv6: false
+external-controller: 0.0.0.0:9090
+# API 密钥由统一 .secrets 中 MIHOMO_API_SECRET 注入，勿写入此文件。
+external-ui: /root/.config/mihomo/ui
+external-ui-url: https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip
+# 如需订阅或节点，请在 data/config.yaml 中自行补充，并先检查再重启。
+proxies: []
+proxy-groups: []
+rules:
+  - MATCH,DIRECT

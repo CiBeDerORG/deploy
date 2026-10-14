@@ -26,6 +26,8 @@
 | EasyTier | Core `7005`，RPC `7006`，Web `7007`，Config `7008/UDP` | Docker / OpenWrt | [easytier/README.md](./easytier/README.md) |
 | Portainer CE | `7004/TCP` | Docker Compose | [portainer/README.md](./portainer/README.md) |
 | FlatNas | `7009/TCP` | Docker Compose | [flatnas/README.md](./flatnas/README.md) |
+| Sub2API | `7010/TCP` | Docker Compose（含 PostgreSQL、Redis） | [sub2api/README.md](./sub2api/README.md) |
+| Mihomo | 代理 `7011/TCP`、API `7012/TCP`（默认仅回环） | Docker Compose | [mihomo/README.md](./mihomo/README.md) |
 | GitHub Actions Runner | 无固定 Web 端口 | systemd | [github-runner/README.md](./github-runner/README.md) |
 
 ## 一、运行环境
@@ -127,6 +129,8 @@ sudo bash deploy.sh frps
 sudo bash deploy.sh easytier
 sudo bash deploy.sh portainer
 sudo bash deploy.sh flatnas
+sudo bash deploy.sh sub2api
+sudo bash deploy.sh mihomo
 sudo bash deploy.sh github-runner
 ```
 
@@ -216,6 +220,12 @@ sudo bash deploy.sh <服务名> sync
 ├── flatnas/
 │   ├── data/ doc/ music/ PC/ APP/
 │   └── deploy/
+├── sub2api/
+│   ├── data/app/ data/postgres/ data/redis/
+│   └── deploy/
+├── mihomo/
+│   ├── data/config.yaml
+│   └── deploy/
 └── github-runner/
     ├── data/
     └── deploy/
@@ -254,6 +264,9 @@ EASYTIER_RPC_PORT=7006
 EASYTIER_WEB_PORT=7007
 EASYTIER_CONFIG_PORT=7008
 FLATNAS_HTTP_PORT=7009
+SUB2API_HTTP_PORT=7010
+MIHOMO_MIXED_PORT=7011
+MIHOMO_API_PORT=7012
 ```
 
 ### .secrets
@@ -270,6 +283,8 @@ PORTAINER_ADMIN_PASSWORD=
 
 FLATNAS_PROXY_URL=
 
+# Sub2API 数据库、Redis、管理员和持久化加密密钥：见 .secrets.example
+# Mihomo API 和代理认证：见 .secrets.example
 GITHUB_RUNNER_TOKEN=
 ```
 
@@ -466,6 +481,18 @@ FLATNAS_DOCKER_SOCKET=false
 
 详细说明：[flatnas/README.md](./flatnas/README.md)
 
+### Sub2API
+
+官方应用 + PostgreSQL + Redis 的独立 Compose 部署，Web 默认端口 `7010`，四项关键密钥首次安装自动生成并持久化；详细说明：[sub2api/README.md](./sub2api/README.md)。
+
+安装：`sudo bash deploy.sh sub2api`；更新：`sudo bash deploy.sh sub2api update`。
+
+### Mihomo
+
+默认本机监听的代理端口 `7011` 和 API 端口 `7012`，不启用 TUN；详细说明：[mihomo/README.md](./mihomo/README.md)。
+
+安装：`sudo bash deploy.sh mihomo`；更新：`sudo bash deploy.sh mihomo update`。
+
 ### GitHub Actions self-hosted Runner
 
 `.env`：
@@ -511,6 +538,8 @@ docker logs -f easytier
 docker logs -f opencode
 docker logs -f portainer
 docker logs -f flatnas
+docker logs -f sub2api
+docker logs -f mihomo
 ```
 
 GitHub Runner：
@@ -617,6 +646,8 @@ EASYTIER_PRIVILEGED=true
 - 如果要求云端只协调 P2P，必须在 Web 的云端实例中设置 `disable_relay_data=true`、`relay_all_peer_rpc=true`、`enable_exit_node=false`；不再由脚本强制保证。
 - FRPS Dashboard 建议设置强密码并限制公网来源。
 - Portainer 直接挂载 Docker Socket，管理入口应限制访问来源。
+- Sub2API 的 PostgreSQL / Redis 不对外发布，管理员入口在公网须通过 HTTPS 和访问控制保护。
+- Mihomo 默认只监听宿主机回环地址；开放代理前必须启用认证并限制来源，API 密钥只放 .secrets。
 - FlatNas 默认不挂载 Docker Socket；如需开启 Docker 管理，必须限制访问来源并修改默认管理密码。
 - GitHub Runner 注册 Token 只在首次注册时使用，注册成功后可清空。
 
