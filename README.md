@@ -27,7 +27,7 @@
 | Portainer CE | `7004/TCP` | Docker Compose | [portainer/README.md](./portainer/README.md) |
 | FlatNas | `7009/TCP` | Docker Compose | [flatnas/README.md](./flatnas/README.md) |
 | Sub2API | `7010/TCP` | Docker Compose（含 PostgreSQL、Redis） | [sub2api/README.md](./sub2api/README.md) |
-| Mihomo | 代理 `7011/TCP`（宿主机本机）、Web UI / API `7012/TCP`（默认全部 IPv4） | Docker Compose | [mihomo/README.md](./mihomo/README.md) |
+| Mihomo / MetaCubeXD 完整版 | 代理 `7011/TCP`（宿主机）、Web/Agent `7012/TCP`、内核 API `7013/TCP` | Docker Compose | [mihomo/README.md](./mihomo/README.md) |
 | GitHub Actions Runner | 无固定 Web 端口 | systemd | [github-runner/README.md](./github-runner/README.md) |
 
 ## 一、运行环境
@@ -272,6 +272,7 @@ FLATNAS_HTTP_PORT=7009
 SUB2API_HTTP_PORT=7010
 MIHOMO_MIXED_PORT=7011
 MIHOMO_API_PORT=7012
+MIHOMO_CORE_API_PORT=7013
 ```
 
 ### .secrets
@@ -492,11 +493,11 @@ FLATNAS_DOCKER_SOCKET=false
 
 安装：`sudo bash deploy.sh sub2api`；更新：`sudo bash deploy.sh sub2api update`。
 
-### Mihomo
+### Mihomo · MetaCubeXD 官方完整版
 
-Mihomo **代理端口 7011 默认仅宿主机访问**（`MIHOMO_PROXY_BIND_IP=127.0.0.1`），**Web 面板/控制 API 端口 7012 默认允许其他设备通过 NAS IP 访问**（`MIHOMO_API_BIND_IP=0.0.0.0`），浏览器入口 `http://<NAS_IP>:7012/ui/`。Web 控制 API 使用 `.secrets` 中的独立 `MIHOMO_API_SECRET`。已有真实 `.env` 不会被模板覆盖，若 7012 仍是 127.0.0.1 需手动改为 0.0.0.0 后 update。不启用 TUN；详细说明：[mihomo/README.md](./mihomo/README.md)。
+Web + Agent + 自带 Mihomo 内核，一体化提供 Web 订阅 URL 导入、Profile/YAML 编辑和内核管理。默认代理 7011 只绑定本机；Web/Agent 是 7012 的根路径（不再是 /ui/）；内核 API 独立为 7013，通过原来的 MIHOMO_API_SECRET 认证。新增 MIHOMO_CONTROL_TOKEN 用于官方 Agent 控制，不是网页登录密码；管理界面需要可信网络/防火墙保护。不会启用 TUN、host、privileged 或 Docker Socket；[安全、端口、旧版迁移详见 Mihomo 说明](./mihomo/README.md)。
 
-安装：`sudo bash deploy.sh mihomo`；更新：`sudo bash deploy.sh mihomo update`。Mihomo 自动连接内部共享网络 `proxy-net`，无需编辑其他服务 Compose，即可使用 `sudo bash deploy.sh proxy connect <容器名>` / `sudo bash deploy.sh proxy disconnect <容器名>` / `sudo bash deploy.sh proxy status [容器名]` 管理容器接入。加入网络不等于自动代理流量，应用仍需配置 `mihomo:7890` 及认证；删除重建业务容器后需重新 connect。
+安装：sudo bash deploy.sh mihomo；更新：sudo bash deploy.sh mihomo update。旧 config.yaml 原样保留并备份、复制到新 Agent Profile（副本去除旧 external-ui-url）；完整版持久化目录 mihomo/data/all-in-one。内部 proxy-net 和 mihomo:7890 保留，其他容器可使用 sudo bash deploy.sh proxy connect / disconnect / status。已存在的完整版 Profile、密码和 active.yaml 不会被安装器覆盖。
 
 ### GitHub Actions self-hosted Runner
 
@@ -652,7 +653,7 @@ EASYTIER_PRIVILEGED=true
 - FRPS Dashboard 建议设置强密码并限制公网来源。
 - Portainer 直接挂载 Docker Socket，管理入口应限制访问来源。
 - Sub2API 的 PostgreSQL / Redis 不对外发布，管理员入口在公网须通过 HTTPS 和访问控制保护。
-- Mihomo 代理 7011 默认仅监听宿主机回环地址；Web/API 7012 默认监听所有 IPv4，以便其他设备打开面板。API 操作受 .secrets 中的强密钥保护；实际公网可达性取决于 NAS 网络/防火墙，跨不可信网络建议 HTTPS 或专用网络。真实 .env 不会被模板自动覆盖。
+- MetaCubeXD 完整版：7011 代理仅宿主机回环；7012 Web/Agent 与 7013 内核 API 默认监听全部 IPv4 以便 NAS / EasyTier 管理；官方 CONTROL_TOKEN 会暴露给同源浏览器，不提供网页登录保护，必须通过防火墙或带认证的代理限制 Web 来源。内核 API 使用单独的 MIHOMO_API_SECRET。真实 .env/.secrets 不被模板覆盖。
 - FlatNas 默认不挂载 Docker Socket；如需开启 Docker 管理，必须限制访问来源并修改默认管理密码。
 - GitHub Runner 注册 Token 只在首次注册时使用，注册成功后可清空。
 

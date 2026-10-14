@@ -1,0 +1,13 @@
+# Initial local profile for official MetaCubeXD Agent.
+# The Agent injects external-controller, secret and mixed-port.
+allow-lan: true
+bind-address: "*"
+mode: rule
+log-level: info
+ipv6: false
+tun:
+  enable: false
+proxies: []
+proxy-groups: []
+rules:
+  - MATCH,DIRECT

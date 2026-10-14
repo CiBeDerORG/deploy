@@ -1,28 +1,34 @@
 name: mihomo
 services:
   mihomo:
-    image: metacubex/mihomo:latest
+    image: ghcr.io/metacubex/metacubexd-server:latest
     container_name: mihomo
     restart: unless-stopped
-    command: ["-d", "/root/.config/mihomo", "-f", "/root/.config/mihomo/config.yaml"]
     environment:
       TZ: "${TZ:-Asia/Shanghai}"
-      # Mihomo 官方 CLI 环境变量覆盖控制 API 密钥，不需写入 config.yaml。
-      CLASH_OVERRIDE_SECRET: "${MIHOMO_API_SECRET:?API 密钥未设置}"
+      CONTROL_TOKEN: "${MIHOMO_CONTROL_TOKEN:?Agent token not set}"
+      CLASH_SECRET: "${MIHOMO_API_SECRET:?Core API secret not set}"
+      CONTROL_PORT: "8080"
+      CLASH_API_PORT: "9090"
+      MIXED_PORT: "7890"
+      DATA_DIR: "/data"
     ports:
-      # Keep the HTTP/SOCKS proxy local; publish the Web UI/controller for browser access.
-      - "${MIHOMO_PROXY_BIND_IP:-127.0.0.1}:${MIHOMO_MIXED_PORT:?代理端口未设置}:7890/tcp"
-      - "${MIHOMO_API_BIND_IP:-0.0.0.0}:${MIHOMO_API_PORT:?API 端口未设置}:9090/tcp"
+      - "${MIHOMO_PROXY_BIND_IP:-127.0.0.1}:${MIHOMO_MIXED_PORT:?proxy port not set}:7890/tcp"
+      - "${MIHOMO_API_BIND_IP:-0.0.0.0}:${MIHOMO_API_PORT:?web port not set}:8080/tcp"
+      - "${MIHOMO_CORE_API_BIND_IP:-0.0.0.0}:${MIHOMO_CORE_API_PORT:?core API port not set}:9090/tcp"
     volumes:
-      - ../data:/root/.config/mihomo
+      - ../data/all-in-one:/data
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/control/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
     networks:
       - default
       - proxy-net
-
-# Dedicated internal bridge: opt-in containers can resolve mihomo:7890 without
-# publishing the proxy port on the NAS LAN. Created/verified by install.sh.
 networks:
   proxy-net:
     external: true

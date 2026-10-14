@@ -87,3 +87,33 @@ yaml_single_quote_scalar() {
     value="${value//\'/\'\'}"
     printf "'%s'" "$value"
 }
+
+# Exact trusted Web origins; additionally include host IPv4 interfaces (EasyTier).
+write_web_cors() {
+    local port="$1" custom="$2" address origin
+    local -a origins=("http://localhost:$port" "http://127.0.0.1:$port")
+    if command -v hostname >/dev/null 2>&1; then
+        for address in $(hostname -I 2>/dev/null || true); do
+            if [[ "$address" =~ ^[0-9.]+$ ]]; then origins+=("http://$address:$port"); fi
+        done
+    fi
+    if [ -n "$custom" ]; then
+        [[ "$custom" =~ ^https?://[^/[:space:]]+$ ]] ||
+            fail "MIHOMO_WEB_ORIGIN 应填写准确的浏览器来源（如 http://10.10.10.2:7012），不带路径"
+        origins+=("$custom")
+    fi
+    printf 'external-controller-cors:\n  allow-private-network: true\n  allow-origins:\n'
+    for origin in "${origins[@]}"; do
+        printf '    - %s\n' "$(yaml_single_quote_scalar "$origin")"
+    done
+}
+
+# Extract the original top-level authentication YAML block without parsing/re-encoding
+# user passwords. A generated global merge overlay preserves auth across new profiles.
+extract_legacy_authentication() {
+    awk '
+        /^authentication[[:space:]]*:/ { found=1; print; next }
+        found && /^[A-Za-z0-9_-]+[[:space:]]*:/ { exit }
+        found { print }
+    ' "$1"
+}
