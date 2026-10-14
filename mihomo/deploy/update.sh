@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-exec bash "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/install.sh" update
+HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+exec bash "$HERE/install.sh" update

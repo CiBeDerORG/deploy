@@ -1,82 +1,91 @@
-# Mihomo · MetaCubeXD All-in-One（官方完整版）
+# Mihomo · MetaCubeXD 官方完整版
 
-本模块取代旧版独立内核 + 静态面板，使用官方镜像
-[ghcr.io/metacubex/metacubexd-server](https://github.com/MetaCubeX/metacubexd)。
-完整服务包含 Web、控制 Agent、内置 Mihomo 内核，支持网页导入订阅 URL、
-编辑 YAML/Profiles、订阅刷新与内核管理。镜像自带 Web 资源，不再设置
-`external-ui-url` 下载静态页面。
+本模块从零编写部署脚本，使用官方 **MetaCubeXD All-in-One** 镜像
+`ghcr.io/metacubex/metacubexd-server:latest`，它同时提供 Web、管理 Agent 和内置 Mihomo 内核。
+不是旧版独立 Mihomo + 静态 `/ui/` 面板方案，也不再依赖 `external-ui-url` 下载网页资源。
+官方文档：[MetaCubeXD](https://github.com/MetaCubeX/metacubexd) ·
+[官方 Compose 示例](https://github.com/MetaCubeX/metacubexd/blob/main/docs/docker-compose.yml)。
 
-官方参考：[README / All-in-One](https://github.com/MetaCubeX/metacubexd#3-all-in-one-server-docker)
-与 [官方 Compose](https://github.com/MetaCubeX/metacubexd/blob/main/docs/docker-compose.yml)。
+## 固定沿用既有端口
 
-## 安装及访问
+| .env 配置 | 默认值 | 容器内部 | 用途 |
+| --- | --- | --- | --- |
+| MIHOMO_MIXED_PORT | **7011** | 7890 | HTTP/SOCKS5 代理；默认仅 NAS 本机 127.0.0.1 |
+| MIHOMO_API_PORT | **7012** | 8080 | 完整 Web + Agent（为兼容旧 .env 保留原变量名） |
+| MIHOMO_CORE_API_PORT | **7013** | 9090 | 新增的内核 Clash API |
+| MIHOMO_PROXY_BIND_IP | 127.0.0.1 | — | 7011 不向其他设备发布 |
+| MIHOMO_API_BIND_IP | 0.0.0.0 | — | 7012 支持可信 LAN / EasyTier |
+| MIHOMO_CORE_API_BIND_IP | 0.0.0.0 | — | 7013 供浏览器直连，需限制来源 |
 
-从 deploy 根目录运行 `sudo bash deploy.sh env`，再执行 `sudo bash deploy.sh mihomo`。
+首次安装可在 `.env` 里设 `MIHOMO_WEB_ORIGIN=http://10.10.10.2:7012`
+指定准确的浏览器来源（无路径），否则尝试从 NAS 网卡发现 IPv4 地址。
+新版管理页是 **http://10.10.10.2:7012/**，不是旧的 `/ui/`。
+面板需要连接内核时填 **http://10.10.10.2:7013** 和原来的 `MIHOMO_API_SECRET`。
+默认跨端口 CORS 使用准确的浏览器来源，不设置 `*`。
 
-| .env 变量 | 默认 | 含义 |
-| --- | --- | --- |
-| MIHOMO_MIXED_PORT | 7011 | NAS 本机代理，容器内 7890 |
-| MIHOMO_API_PORT | 7012 | Web/Agent，**不是旧版内核 API** |
-| MIHOMO_CORE_API_PORT | 7013 | 内核 API，容器内 9090 |
-| MIHOMO_PROXY_BIND_IP | 127.0.0.1 | 代理默认不发布到 NAS 局域网 |
-| MIHOMO_API_BIND_IP | 0.0.0.0 | Web 可以在 LAN/EasyTier 访问（需网络访问控制） |
-| MIHOMO_CORE_API_BIND_IP | 0.0.0.0 | 浏览器直连内核 API；需网络访问控制 |
-| MIHOMO_WEB_ORIGIN | 留空 | 自定义 Web 浏览器来源，如 http://10.10.10.2:7012，不带路径 |
+## 配置与安装
 
-打开 **http://10.10.10.2:7012/**，不再使用旧版的 `/ui/`。
-若面板要求连接内核，填写 **http://10.10.10.2:7013**，Secret
-为原来的 MIHOMO_API_SECRET。因为 7012 与 7013 是不同源，首次生成的
-`deploy-web-cors` merge Profile 会将主机 IPv4 地址（包含被系统报告出来的
-EasyTier 地址）和 MIHOMO_WEB_ORIGIN 作为准确 CORS 来源；不使用通配符。
-如果访问域名或网络发生变化，须在 Web 中更新这个 overlay 并重新激活，
-或在首次部署前设好 MIHOMO_WEB_ORIGIN。
+在 deploy 根目录运行：
 
-.secrets 包含 MIHOMO_API_SECRET（沿用旧值，现注入官方 CLASH_SECRET），以及
-新增的 MIHOMO_CONTROL_TOKEN（注入官方 CONTROL_TOKEN，留空自动生成）。
-**CONTROL_TOKEN 会由官方服务提供给浏览器，不能当作网页登录认证。**
-没有旧配置的全新安装才用 MIHOMO_PROXY_USER / MIHOMO_PROXY_PASSWORD
-生成代理认证。自定义非空凭据按项目 AGENTS.md 原样保留，不添加 hex 或长度限制。
+```bash
+sudo bash deploy.sh env
+sudo bash deploy.sh mihomo
+# 后续更新
+sudo bash deploy.sh mihomo update
+```
 
-## 旧版迁移与持久化
+`.secrets` 中的 `MIHOMO_API_SECRET` 继续作为官方 `CLASH_SECRET`，
+新增 `MIHOMO_CONTROL_TOKEN` 对应官方 Agent 的 `CONTROL_TOKEN`；
+两项留空才自动生成，已填写的值原样保留，不自行限定长度或字符集。
+`MIHOMO_PROXY_USER` / `MIHOMO_PROXY_PASSWORD` 仅用于**没有旧 config.yaml 的全新初始化**；
+迁移旧数据时完全沿用旧配置内的 authentication，不修改、重置或再生成旧代理密码。
 
-若发现旧版的 `<SOFTWARE_ROOT>/mihomo/data/config.yaml` 且完整版数据尚未初始化，
-安装器会保留旧文件，同时首次创建：
+**安全提醒：官方 All-in-One 会向同源浏览器提供 CONTROL_TOKEN，因此它不是网页登录密码。**
+务必只允许可信来源访问 7012/7013，可通过 NAS 防火墙、EasyTier 可信网络、
+或另设带真正登录认证的 HTTPS 反向代理保护。禁止无保护暴露至公网。
+不需要 Docker Socket、host 网络、TUN、NET_ADMIN 或 privileged；
+不接管 fnOS / EasyTier 网络。
 
-- `mihomo/data/backup/pre-all-in-one/config.yaml`：独立只读权限备份；
-- `mihomo/data/all-in-one/profiles/deploy-initial.yaml`：旧配置的副本，保留认证、节点及规则；
-- `mihomo/data/all-in-one/profiles/deploy-web-cors.yaml`：跨 Profile 使用的浏览器来源 overlay；
-- `mihomo/data/all-in-one/profiles/deploy-proxy-auth.yaml`：旧配置若有 authentication，会原样提取为全局代理认证 overlay，切换新订阅后继续生效；
-- `mihomo/data/all-in-one/active.yaml`：Agent 首次运行配置；
-- `mihomo/data/all-in-one/profiles/index.json` 与 `state.json`：Agent Profile 元数据。
+## 旧配置和完整版本的数据
 
-只在副本中删除旧 `external-ui` 和 `external-ui-url` 两个配置项，
-不改动原来的 config.yaml，也不重新生成旧账号密码。新的 Agent 将管理并注入
-`external-controller`、`secret`、`mixed-port`。现有完整版本的 Profiles 与
-active.yaml 更新时不覆写。旧配置的认证以旧 config.yaml 为准而不是另取
-.secrets 密码。网页版导入新订阅后记得激活对应 Profile。
+重写/删除的是仓库**部署源码**，不删除 NAS 上的运行数据：
+- 旧 `mihomo/data/config.yaml` 保留，并只在首次迁移复制备份到
+  `mihomo/data/backup/pre-all-in-one/config.yaml`。
+- 旧配置只在新 Profile 副本中删除已过时的 `external-ui` 与 `external-ui-url`，
+  其他节点、规则、认证不主动改写。
+- 新版实际持久化目录：`mihomo/data/all-in-one/`；官方 Agent 管理
+  `profiles/index.json`、`profiles/state.json`、各个 `profiles/*.yaml` 和
+  `active.yaml`。
+- 首次初始化创建全局 Web CORS 与原代理认证 overlay，防止在网页导入/启用
+  新订阅 Profile 后丢失代理认证。已有的完整版 Profile/active.yaml 在更新时不覆盖。
+- 网页添加订阅、编辑 YAML、切换配置均走官方管理功能；SSH 修改时应编辑
+  `profiles/<ID>.yaml`，不要直接改自动生成的 `active.yaml`。
+- 首次切换前先拉取、检查镜像并验证新配置，再替换同名 mihomo 容器。
+  切换仍会短暂停止代理；失败时旧文件和备份保留，但不会未经测试擅自回滚旧容器。
+  建议自己再额外备份整个 `mihomo/data`。
 
-需要 SSH 手工编辑时请编辑 `data/all-in-one/profiles/<id>.yaml` 的配置源，
-不要编辑可能由 Agent 自动重新生成的 `active.yaml`。已有自定义 Profile 由
-官方 Agent 管理，不会在每次部署脚本更新时重置。
+## Docker 内部代理网络
 
-切换使用相同容器名 `mihomo`，因此旧容器会有短暂重建中断；
-拉取和预检新镜像安排在重建旧容器之前。**如镜像下载失败，旧容器不变。**
-若新容器在切换后失败，原始 config.yaml、备份及完整数据仍在，但
-安装器不会擅自执行未经测试的自动回滚。建议切换前备份整个 mihomo/data。
+仍使用本机 internal bridge `proxy-net`，正式容器继续叫 `mihomo`；
+其他已加入网络的业务容器保持 `mihomo:7890` 作为代理地址，无需修改端口。
 
-## 安全和网络
+```bash
+sudo bash deploy.sh proxy status
+sudo bash deploy.sh proxy connect sub2api
+sudo bash deploy.sh proxy status sub2api
+sudo bash deploy.sh proxy disconnect sub2api
+```
 
-普通 Docker bridge 模式；不启用 TUN / host / NET_ADMIN / privileged，
-也不挂载 Docker Socket，不接管 fnOS 或 EasyTier 网络。
-官方的 CONTROL_TOKEN **不是 UI 登录口令**；7012 和 7013 均须通过 NAS 防火墙、
-受信任私网或带身份验证的反向代理限制来源，严禁无保护映射公网。
+接入网络只解决容器互通，不会自动修改业务应用的 `HTTP_PROXY/HTTPS_PROXY`；
+重建**目标业务容器**后需要再次 connect。数据库和 Redis 不必接入。
 
-保留内部 Docker `proxy-net` 和同名容器，业务容器原有
-`mihomo:7890` 代理地址不变；首次使用可执行
-`sudo bash deploy.sh proxy connect sub2api`，目标容器重建后需要重新连接。
-接入 Docker 网络不会自动改变该应用的 HTTP_PROXY/HTTPS_PROXY。
+## 启动验收
 
-更新：`sudo bash deploy.sh mihomo update`。检查：
-`docker logs --tail=100 mihomo`；
-Web 健康接口是 `http://127.0.0.1:7012/api/control/health`，
-7013 的 `/version` 需要携带 MIHOMO_API_SECRET。
+```bash
+sudo docker logs --tail=100 mihomo
+curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7012/api/control/health
+```
+
+Web 健康返回 200 不代表代理内核一定正常；安装脚本还会独立验证容器内
+`http://127.0.0.1:9090/version`。fnOS 上对 7011/7012/7013 和实际订阅下载
+仍需要现场验收，GitHub CI 无法代替真实 NAS 网络环境。

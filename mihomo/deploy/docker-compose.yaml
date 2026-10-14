@@ -1,21 +1,22 @@
 name: mihomo
 services:
   mihomo:
+    # Official bundled Web / Agent / kernel, not the legacy static UI image.
     image: ghcr.io/metacubex/metacubexd-server:latest
     container_name: mihomo
     restart: unless-stopped
     environment:
       TZ: "${TZ:-Asia/Shanghai}"
-      CONTROL_TOKEN: "${MIHOMO_CONTROL_TOKEN:?Agent token not set}"
-      CLASH_SECRET: "${MIHOMO_API_SECRET:?Core API secret not set}"
+      CONTROL_TOKEN: "${MIHOMO_CONTROL_TOKEN:?Agent token missing}"
+      CLASH_SECRET: "${MIHOMO_API_SECRET:?Core secret missing}"
       CONTROL_PORT: "8080"
       CLASH_API_PORT: "9090"
       MIXED_PORT: "7890"
       DATA_DIR: "/data"
     ports:
-      - "${MIHOMO_PROXY_BIND_IP:-127.0.0.1}:${MIHOMO_MIXED_PORT:?proxy port not set}:7890/tcp"
-      - "${MIHOMO_API_BIND_IP:-0.0.0.0}:${MIHOMO_API_PORT:?web port not set}:8080/tcp"
-      - "${MIHOMO_CORE_API_BIND_IP:-0.0.0.0}:${MIHOMO_CORE_API_PORT:?core API port not set}:9090/tcp"
+      - "${MIHOMO_PROXY_BIND_IP:-127.0.0.1}:${MIHOMO_MIXED_PORT:-7011}:7890/tcp"
+      - "${MIHOMO_API_BIND_IP:-0.0.0.0}:${MIHOMO_API_PORT:-7012}:8080/tcp"
+      - "${MIHOMO_CORE_API_BIND_IP:-0.0.0.0}:${MIHOMO_CORE_API_PORT:-7013}:9090/tcp"
     volumes:
       - ../data/all-in-one:/data
     security_opt:
