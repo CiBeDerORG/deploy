@@ -28,7 +28,7 @@ jobs:
       MIHOMO_MIXED_PORT: "7011"
       MIHOMO_API_PORT: "7012"
       MIHOMO_PROXY_BIND_IP: "127.0.0.1"
-      MIHOMO_API_BIND_IP: "0.0.0.0"
+      MIHOMO_API_BIND_IP: "127.0.0.1"
       MIHOMO_API_SECRET: "test-api-secret"
 
     steps:
@@ -65,7 +65,9 @@ jobs:
           ports = {p['published']: p for p in mihomo['ports']}
           assert set(ports) == {'7011', '7012'}, ports
           assert ports['7011']['host_ip'] == '127.0.0.1', ports
-          assert ports['7012']['host_ip'] == '0.0.0.0', ports
+          assert ports['7012']['host_ip'] == '127.0.0.1', ports
+          template = Path('.env.example').read_text()
+          assert 'MIHOMO_API_BIND_IP=127.0.0.1' in template
           config = Path('mihomo/deploy/config.example.yaml').read_text()
           assert 'external-controller: 0.0.0.0:9090' in config
           assert 'external-ui: /root/.config/mihomo/ui' in config
