@@ -1,5 +1,5 @@
-# Initial local profile for official MetaCubeXD Agent.
-# The Agent injects external-controller, secret and mixed-port.
+# Official All-in-One starter profile. The Agent supervises/injects
+# external-controller, secret and mixed-port; none is hardcoded here.
 allow-lan: true
 bind-address: "*"
 mode: rule
