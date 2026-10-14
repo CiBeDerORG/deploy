@@ -23,7 +23,7 @@ MIHOMO_API_BIND_IP=0.0.0.0
 
 - **代理端口 7011**：只发布至 NAS 宿主机的 `127.0.0.1`，不会因为开启 Web 而自动对其他设备开放代理。
 - **Web/API 端口 7012**：发布到 NAS 全部 IPv4 网卡。在其他电脑或手机浏览器打开 `http://<NAS_IP>:7012/ui/`。如面板要求连接内核，API 地址是 `http://<NAS_IP>:7012`（不含 `/ui/`）。
-- Web 与控制 API 同端口。API 操作需要单独的 `MIHOMO_API_SECRET`，并非代理用户名/密码；安装脚本在 Web 远程可访问时要求密钥至少 32 字符，留空首次安装会随机生成。
+- Web 与控制 API 同端口。API 操作需要单独的 `MIHOMO_API_SECRET`，并非代理用户名/密码；建议使用强随机密钥；留空首次安装会随机生成。安装器不会对手动设置的密钥施加额外的长度或字符集限制。
 - `0.0.0.0` 是监听全部宿主机 IPv4 网卡，**不等于必然能从公网访问**，实际可达范围仍取决于 NAS 所在网络和防火墙。如果通过公网使用，建议额外使用 HTTPS 或可信专用网络。
 
 **已有安装**：`deploy.sh env` 不会覆盖现有 `.env`，若其中仍为 `MIHOMO_API_BIND_IP=127.0.0.1`，请手动改成 `0.0.0.0`，然后在仓库根目录执行：
@@ -51,7 +51,7 @@ MIHOMO_PROXY_PASSWORD=
 sudo grep '^MIHOMO_API_SECRET=' /vol3/1000/software/deploy/.secrets
 ```
 
-代理账号和密码与 Web API 密钥是两套凭据。
+代理账号和密码与 Web API 密钥是两套凭据。`MIHOMO_PROXY_PASSWORD` 可以使用普通自定义密码（含空格及 YAML 标点），无需 hex 格式；脚本会无损转义后写入初始配置。留空才会自动生成。后续如果需要轮换代理密码，请同步修改 `.secrets` 与 `mihomo/data/config.yaml`，已有配置不会被安装器自动覆盖。
 
 ## 节点、订阅及持久化
 
