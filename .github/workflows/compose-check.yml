@@ -96,6 +96,8 @@ jobs:
           assert 'docker compose' in install
           assert 'MIHOMO_CONTROL_TOKEN=' in Path('.secrets.example').read_text()
           assert 'MIHOMO_CORE_API_PORT=7013' in template
+          for source in ('.env.example', 'mihomo/deploy/common.sh', 'mihomo/deploy/migrate.sh', 'mihomo/deploy/install.sh', 'mihomo/README.md'):
+              assert 'MIHOMO_WEB_ORIGIN' not in Path(source).read_text(), source
           assert set(mihomo['networks']) == {'default', 'proxy-net'}
           assert m['networks']['proxy-net']['external'] is True
           assert m['networks']['proxy-net']['name'] == 'proxy-net'

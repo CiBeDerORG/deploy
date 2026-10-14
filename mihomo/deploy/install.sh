@@ -21,7 +21,6 @@ MIHOMO_PROXY_BIND_IP="${MIHOMO_PROXY_BIND_IP:-127.0.0.1}"
 MIHOMO_API_BIND_IP="${MIHOMO_API_BIND_IP:-0.0.0.0}"
 MIHOMO_CORE_API_BIND_IP="${MIHOMO_CORE_API_BIND_IP:-0.0.0.0}"
 MIHOMO_PROXY_USER="${MIHOMO_PROXY_USER:-deploy}"
-MIHOMO_WEB_ORIGIN="${MIHOMO_WEB_ORIGIN:-}"
 TZ="${TZ:-Asia/Shanghai}"
 
 for key in MIHOMO_MIXED_PORT MIHOMO_API_PORT MIHOMO_CORE_API_PORT; do
@@ -34,12 +33,6 @@ done
 for key in MIHOMO_PROXY_BIND_IP MIHOMO_API_BIND_IP MIHOMO_CORE_API_BIND_IP; do
     check_ipv4 "$key" "${!key}"
 done
-# Fail on invalid optional origin before any changes to the running container.
-if [ -n "$MIHOMO_WEB_ORIGIN" ]; then
-    [[ "$MIHOMO_WEB_ORIGIN" =~ ^https?://[^/?#[:space:]]+$ ]] ||
-        die "MIHOMO_WEB_ORIGIN 必须是形如 http://10.10.10.2:7012 的来源，不能带路径"
-fi
-
 assert_our_container
 if [ "$MODE" = update ]; then
     docker container inspect mihomo >/dev/null 2>&1 ||
@@ -64,7 +57,7 @@ docker run --rm --network none --entrypoint /bin/sh "$IMAGE" -ec \
 
 # New installation: atomic first-time seeding. Existing full-version Profiles
 # are never rewritten, even when user has edited/imported them in Web.
-initialize_aio "$MODULE/data" "$HERE/default-profile.yaml" "$MIHOMO_API_PORT" "$MIHOMO_WEB_ORIGIN"
+initialize_aio "$MODULE/data" "$HERE/default-profile.yaml" "$MIHOMO_API_PORT"
 
 # Validate with exactly the image's bundled mihomo BEFORE replacing the container.
 docker run --rm --entrypoint /usr/local/bin/mihomo \

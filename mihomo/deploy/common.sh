@@ -77,23 +77,21 @@ yaml_scalar() {
     s="${s//\'/\'\'}"
     printf "'%s'" "$s"
 }
-# Browser and core API are separate origins on 7012 / 7013. Avoid '*'.
+# Generate official Mihomo external-controller-cors from the NAS IPv4 interfaces.
+# There is no additional user-facing WEB_ORIGIN setting; edit the native Profile
+# YAML only when using an origin not covered by the interface list.
 cors_yaml() {
-    local port="$1" explicit="$2" addr
+    local port="$1" addr
     local -a origins=("http://localhost:$port" "http://127.0.0.1:$port")
     if command -v hostname >/dev/null 2>&1; then
         for addr in $(hostname -I 2>/dev/null || :); do
             [[ "$addr" =~ ^[0-9]+(\.[0-9]+){3}$ ]] && origins+=("http://$addr:$port")
         done
     fi
-    if [ -n "$explicit" ]; then
-        [[ "$explicit" =~ ^https?://[^/?#[:space:]]+$ ]] ||
-            die "MIHOMO_WEB_ORIGIN 应为准确来源，例如 http://10.10.10.2:7012，不带路径"
-        origins+=("$explicit")
-    fi
     printf 'external-controller-cors:\n  allow-private-network: true\n  allow-origins:\n'
     for addr in "${origins[@]}"; do printf '    - %s\n' "$(yaml_scalar "$addr")"; done
 }
+
 # Must not take over unrelated user containers or an incompatible named network.
 assert_our_container() {
     local actual
