@@ -110,11 +110,16 @@ usage() {
   bash deploy.sh <业务类型> update     同步最新文件后执行 update.sh
   bash deploy.sh <业务类型> sync       仅同步文件，不启动/更新容器
   bash deploy.sh env                    初始化/检查 <SOFTWARE_ROOT>/deploy/.env 和 .secrets
+  sudo bash deploy.sh proxy connect <容器名>     动态接入 Mihomo 内部代理网络
+  sudo bash deploy.sh proxy disconnect <容器名>  断开该代理网络（不改变其他网络）
+  sudo bash deploy.sh proxy status [容器名]      查看代理网络接入状态
 
 示例：
   bash deploy.sh opencode
   bash deploy.sh frps update
   bash deploy.sh easytier sync
+  sudo bash deploy.sh proxy connect sub2api
+  sudo bash deploy.sh proxy disconnect sub2api
 
 说明：
   deploy 仓库可以 clone/pull 到任意目录。
@@ -491,6 +496,16 @@ main() {
             ;;
         list)
             list_tasks
+            ;;
+        proxy)
+            case "${2:-}" in
+                connect|disconnect) [ "$#" -eq 3 ] || { usage >&2; return 1; } ;;
+                status) [ "$#" -le 3 ] || { usage >&2; return 1; } ;;
+                *) usage >&2; return 1 ;;
+            esac
+            [ -f "$ROOT_DIR/mihomo/deploy/proxy-network.sh" ] ||
+                { echo "代理网络管理脚本不存在，请更新 deploy 仓库。" >&2; return 1; }
+            run_root bash "$ROOT_DIR/mihomo/deploy/proxy-network.sh" "${@:2}"
             ;;
         env)
             ensure_global_env || return $?

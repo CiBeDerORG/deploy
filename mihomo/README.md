@@ -66,3 +66,20 @@ sudo env SOFTWARE_ROOT=/vol3/1000/software bash deploy.sh mihomo update
 API 密钥通过官方 `CLASH_OVERRIDE_SECRET` 注入；初始代理密码写入 `data/config.yaml`，轮换代理密码时应同步修改 `.secrets` 和 `config.yaml`。
 
 其他 Docker 容器的 `127.0.0.1` 不等于 NAS 宿主机回环地址。如 Sub2API 需要经 Mihomo 出站，应单独配置共享 Docker 网络，使其通过 `mihomo:7890` 并携带代理认证连接；**无需为容器互访把宿主机代理端口 7011 改成 0.0.0.0**。
+
+## 其他 Docker 容器动态接入代理网络
+
+安装和更新 Mihomo 时自动创建并复用 **`proxy-net` 内部 bridge 网络**，Mihomo 由自己的 Compose 声明固定接入；不会开启 TUN、host 网络，也不会向 NAS 全网发布代理端口 7011。其他容器**不需要编辑原来的 Compose**，可以随时选择加入或断开（在 deploy 仓库根目录执行）：
+
+```bash
+sudo bash deploy.sh proxy status
+sudo bash deploy.sh proxy connect sub2api
+sudo bash deploy.sh proxy status sub2api
+sudo bash deploy.sh proxy disconnect sub2api
+```
+
+fnOS 上也可以显式设置 `SOFTWARE_ROOT=/vol3/1000/software`，快捷命令本身只操作 Docker 网络，不修改运行配置或容器的其他网络。
+
+接入后，容器内部使用 `http://mihomo:7890`，并配置实际代理用户名/密码（首次安装生成并存放在 `/vol3/1000/software/deploy/.secrets`；认证最终以 Mihomo 的 `data/config.yaml` 为准）。**接入网络只解决互通，不会自动修改应用的 HTTP_PROXY/HTTPS_PROXY，也不会接管全流量或启用 TUN。** 数据库/Redis 无需接入。
+
+操作针对已经存在的容器，支持重复 connect/disconnect 而不报错；禁止通过快捷命令断开 Mihomo 自身。通过 `docker compose up --force-recreate` 或其他方式**删除重建**目标业务容器后，原来的临时网络连接会丢失，需要再次执行 connect；普通容器重启通常保留。Mihomo 自身的连接由 Compose 管理，更新重建时会恢复。不会自动删除或重建目标容器。网络如果已存在但不是本机 internal bridge，脚本会拒绝接管，以避免碰到同名的现有用户网络。

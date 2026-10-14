@@ -35,6 +35,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Prepare isolated proxy network
+        run: docker network create --driver bridge --internal proxy-net
+
       - name: Validate Compose files
         shell: bash
         run: |
@@ -75,4 +78,29 @@ jobs:
           assert 'metacubexd/archive/refs/heads/gh-pages.zip' in config
           assert mihomo['environment']['CLASH_OVERRIDE_SECRET'] == 'test-api-secret'
           assert mihomo['volumes'], 'Mihomo config must be persisted'
+          assert set(mihomo['networks']) == {'default', 'proxy-net'}
+          assert m['networks']['proxy-net']['external'] is True
+          assert m['networks']['proxy-net']['name'] == 'proxy-net'
           PY
+
+      - name: Verify dynamic network connect and disconnect
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo bash mihomo/deploy/proxy-network.sh ensure
+          docker run -d --name mihomo --network proxy-net busybox:1.36 sleep 180
+          docker run -d --name proxy-cli-target busybox:1.36 sleep 180
+          trap 'docker rm -f proxy-cli-target mihomo >/dev/null 2>&1 || true' EXIT
+          sudo bash mihomo/deploy/proxy-network.sh status proxy-cli-target | grep '未接入'
+          sudo bash mihomo/deploy/proxy-network.sh connect proxy-cli-target
+          sudo bash mihomo/deploy/proxy-network.sh connect proxy-cli-target
+          docker network inspect -f '{{range .Containers}}{{println .Name}}{{end}}' proxy-net | grep -Fx proxy-cli-target
+          sudo bash mihomo/deploy/proxy-network.sh status proxy-cli-target | grep '已接入'
+          if sudo bash mihomo/deploy/proxy-network.sh disconnect mihomo; then
+            echo 'must not disconnect mihomo itself' >&2; exit 1
+          fi
+          sudo bash mihomo/deploy/proxy-network.sh disconnect proxy-cli-target
+          sudo bash mihomo/deploy/proxy-network.sh disconnect proxy-cli-target
+          if docker network inspect -f '{{range .Containers}}{{println .Name}}{{end}}' proxy-net | grep -Fx proxy-cli-target; then
+            echo 'target must be disconnected' >&2; exit 1
+          fi

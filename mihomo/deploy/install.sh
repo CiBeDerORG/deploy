@@ -51,6 +51,8 @@ EOF_AUTH
     chmod 0600 "$BASE_DIR/data/config.yaml"
     echo "已生成首次配置：$BASE_DIR/data/config.yaml（更新不会覆盖）"
 fi
+# Create/check the opt-in internal network before Compose evaluates its external reference.
+bash "$DEPLOY_DIR/proxy-network.sh" ensure
 cd "$DEPLOY_DIR"
 compose() { docker compose -f "$DEPLOY_DIR/docker-compose.yaml" "$@"; }
 compose config --quiet || fail "Compose 配置校验失败"
@@ -74,4 +76,5 @@ else
 fi
 echo "若面板提示连接核心：API 地址为上述入口去掉 /ui/，密钥在 $SECRETS_FILE 的 MIHOMO_API_SECRET 中。"
 echo "配置路径：$BASE_DIR/data/config.yaml；默认未启用 TUN/host 网络。"
+echo "Mihomo 已通过 Compose 接入内部网络 proxy-net；其他容器可用 deploy.sh proxy connect/disconnect/status 管理。"
 compose ps

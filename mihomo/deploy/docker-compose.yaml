@@ -17,3 +17,13 @@ services:
       - ../data:/root/.config/mihomo
     security_opt:
       - no-new-privileges:true
+    networks:
+      - default
+      - proxy-net
+
+# Dedicated internal bridge: opt-in containers can resolve mihomo:7890 without
+# publishing the proxy port on the NAS LAN. Created/verified by install.sh.
+networks:
+  proxy-net:
+    external: true
+    name: proxy-net
