@@ -45,3 +45,7 @@ jobs:
       - name: Mihomo credential preservation regression
         shell: bash
         run: bash mihomo/tests/password-config.sh
+
+      - name: Sub2API upstream admin password policy regression
+        shell: bash
+        run: bash sub2api/tests/password-policy.sh

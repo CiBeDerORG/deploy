@@ -6,7 +6,7 @@
 
 先在 deploy 仓库根目录执行 `sudo bash deploy.sh env`，然后检查统一配置：
 - `.env`：`SUB2API_HTTP_PORT=7010`、`SUB2API_BIND_IP=0.0.0.0`。
-- `.secrets`：四项数据库 / Redis / JWT / TOTP 密钥留空时首次安装生成并持久化；`SUB2API_ADMIN_EMAIL` 和 `SUB2API_ADMIN_PASSWORD` 可同时设置（密码 12-72 字符），也可同时留空，官方首启会随机生成管理员账号与密码，凭据仅在首次启动日志中打印。可选 `SUB2API_UPDATE_PROXY_URL` 只影响官方在线更新，**不是全部 API 出站代理**。
+- `.secrets`：四项数据库 / Redis / JWT / TOTP 密钥留空时首次安装生成并持久化；`SUB2API_ADMIN_EMAIL` 和 `SUB2API_ADMIN_PASSWORD` 可同时设置（按官方首次初始化要求，密码 8-72 字节；非部署器自定义限制），也可同时留空，官方首启会随机生成管理员账号与密码，凭据仅在首次启动日志中打印。可选 `SUB2API_UPDATE_PROXY_URL` 只影响官方在线更新，**不是全部 API 出站代理**。
 
 ```bash
 sudo bash deploy.sh sub2api

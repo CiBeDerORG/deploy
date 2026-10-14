@@ -79,3 +79,14 @@ verify_container_owner() {
         [ "$actual" = "$expected" ] || fail "容器 $name 已存在且不属于 $expected，请手动处理；不会接管或删除。"
     fi
 }
+
+# Official Sub2API setup checks Go len(password): 8-72 UTF-8 bytes.
+# Source: https://github.com/Wei-Shaw/sub2api/blob/main/backend/internal/setup/handler.go
+# Do not impose stricter deploy-only password policies.
+validate_upstream_admin_password() {
+    local password="$1" bytes
+    bytes="$(printf '%s' "$password" | LC_ALL=C wc -c)"
+    if (( bytes < 8 || bytes > 72 )); then
+        fail "SUB2API_ADMIN_PASSWORD 必须符合 Sub2API 官方首次初始化要求：8-72 字节"
+    fi
+}
