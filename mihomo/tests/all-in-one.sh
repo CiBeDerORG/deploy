@@ -41,5 +41,8 @@ original="$(cat "$tmp/legacy.yaml")"
 sed '/^external-ui:/d; /^external-ui-url:/d' "$tmp/legacy.yaml" > "$tmp/profile.yaml"
 [[ "$(cat "$tmp/legacy.yaml")" == "$original" ]]
 grep -F "deploy:With : # quotes and 中文" "$tmp/profile.yaml" >/dev/null
-! grep -F '^external-ui-url:' "$tmp/profile.yaml"
+! grep -q '^external-ui-url:' "$tmp/profile.yaml"
+extract_legacy_authentication "$tmp/profile.yaml" > "$tmp/auth.yaml"
+grep -F "deploy:With : # quotes and 中文" "$tmp/auth.yaml" >/dev/null
+! grep -q '^rules:' "$tmp/auth.yaml"
 echo 'MetaCubeXD All-in-One default and legacy migration checks passed.'

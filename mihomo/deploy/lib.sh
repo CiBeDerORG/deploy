@@ -107,3 +107,13 @@ write_web_cors() {
         printf '    - %s\n' "$(yaml_single_quote_scalar "$origin")"
     done
 }
+
+# Extract the original top-level authentication YAML block without parsing/re-encoding
+# user passwords. A generated global merge overlay preserves auth across new profiles.
+extract_legacy_authentication() {
+    awk '
+        /^authentication[[:space:]]*:/ { found=1; print; next }
+        found && /^[A-Za-z0-9_-]+[[:space:]]*:/ { exit }
+        found { print }
+    ' "$1"
+}

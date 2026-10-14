@@ -91,6 +91,8 @@ jobs:
           install = Path('mihomo/deploy/install.sh').read_text()
           assert 'external-ui-url' in install and 'sed ' in install
           assert 'docker exec mihomo node -e' in install
+          assert 'extract_legacy_authentication' in install
+          assert 'deploy-proxy-auth' in install
           assert 'docker compose' in install
           assert 'MIHOMO_CONTROL_TOKEN=' in Path('.secrets.example').read_text()
           assert 'MIHOMO_CORE_API_PORT=7013' in template

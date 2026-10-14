@@ -81,12 +81,25 @@ else
     else
         echo "旧配置已有 CORS：请检查其来源是否包含新 Web 地址；再次激活 Profile 后会合并 Web overlay。"
     fi
+    # Preserve legacy/initial proxy authentication across *new* remote profiles.
+    # Without this overlay, importing a subscription could unintentionally drop
+    # auth for proxy-net clients. Extract bytes from the original Profile source.
+    extract_legacy_authentication "$NEW_DATA/profiles/deploy-initial.yaml" > "$NEW_DATA/profiles/deploy-proxy-auth.yaml"
+    if [ ! -s "$NEW_DATA/profiles/deploy-proxy-auth.yaml" ]; then
+        rm -f "$NEW_DATA/profiles/deploy-proxy-auth.yaml"
+    fi
     cat > "$NEW_DATA/profiles/index.json" <<'EOF_INDEX'
 [
   {"id":"deploy-initial","name":"Deploy initial or migrated profile","type":"local","updatedAt":0},
   {"id":"deploy-web-cors","name":"Deploy browser origin compatibility","type":"merge","enabled":true,"updatedAt":0}
-]
 EOF_INDEX
+    if [ -f "$NEW_DATA/profiles/deploy-proxy-auth.yaml" ]; then
+        # Insert before the final closing bracket; content here is static JSON,
+        # and credentials only live in the independent chmod 0600 YAML file.
+        sed -i '$s/}$/},/' "$NEW_DATA/profiles/index.json"
+        printf '  {"id":"deploy-proxy-auth","name":"Deploy persistent proxy authentication","type":"merge","enabled":true,"updatedAt":0}\n' >> "$NEW_DATA/profiles/index.json"
+    fi
+    printf ']\n' >> "$NEW_DATA/profiles/index.json"
     printf '{"activeId":"deploy-initial"}\n' > "$NEW_DATA/profiles/state.json"
     chmod 0600 "$NEW_DATA/active.yaml" "$NEW_DATA/profiles/"*
 fi

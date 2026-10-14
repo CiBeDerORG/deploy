@@ -45,6 +45,7 @@ EasyTier 地址）和 MIHOMO_WEB_ORIGIN 作为准确 CORS 来源；不使用通�
 - `mihomo/data/backup/pre-all-in-one/config.yaml`：独立只读权限备份；
 - `mihomo/data/all-in-one/profiles/deploy-initial.yaml`：旧配置的副本，保留认证、节点及规则；
 - `mihomo/data/all-in-one/profiles/deploy-web-cors.yaml`：跨 Profile 使用的浏览器来源 overlay；
+- `mihomo/data/all-in-one/profiles/deploy-proxy-auth.yaml`：旧配置若有 authentication，会原样提取为全局代理认证 overlay，切换新订阅后继续生效；
 - `mihomo/data/all-in-one/active.yaml`：Agent 首次运行配置；
 - `mihomo/data/all-in-one/profiles/index.json` 与 `state.json`：Agent Profile 元数据。
 
