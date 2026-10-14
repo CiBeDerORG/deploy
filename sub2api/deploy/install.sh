@@ -27,7 +27,7 @@ SUB2API_ADMIN_PASSWORD="${SUB2API_ADMIN_PASSWORD:-}"
 if [ -n "$SUB2API_ADMIN_EMAIL" ] || [ -n "$SUB2API_ADMIN_PASSWORD" ]; then
     [ -n "$SUB2API_ADMIN_EMAIL" ] && [ -n "$SUB2API_ADMIN_PASSWORD" ] || fail "后台账号和密码必须同时填写，或同时留空"
     [[ "$SUB2API_ADMIN_EMAIL" == *@*.* ]] || fail "SUB2API_ADMIN_EMAIL 格式不正确"
-    [ "${#SUB2API_ADMIN_PASSWORD}" -ge 12 ] && [ "${#SUB2API_ADMIN_PASSWORD}" -le 72 ] || fail "SUB2API_ADMIN_PASSWORD 长度需为 12-72 字符"
+    validate_upstream_admin_password "$SUB2API_ADMIN_PASSWORD"
 fi
 export SUB2API_HTTP_PORT SUB2API_BIND_IP SUB2API_ADMIN_EMAIL SUB2API_ADMIN_PASSWORD
 for name in sub2api sub2api-postgres sub2api-redis; do verify_container_owner "$name" sub2api; done
