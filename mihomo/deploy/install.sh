@@ -23,14 +23,12 @@ validate_port MIHOMO_API_PORT "$MIHOMO_API_PORT"
 validate_ipv4 MIHOMO_PROXY_BIND_IP "$MIHOMO_PROXY_BIND_IP"
 validate_ipv4 MIHOMO_API_BIND_IP "$MIHOMO_API_BIND_IP"
 ensure_hex_secret MIHOMO_API_SECRET
-# A LAN-accessible Web panel also exposes the controller API. Require a strong key.
-if [ "$MIHOMO_API_BIND_IP" != 127.0.0.1 ] && [ "${#MIHOMO_API_SECRET}" -lt 32 ]; then
-    fail "Web 控制接口允许远程访问时，MIHOMO_API_SECRET 至少需要 32 个字符（推荐留空自动生成）。"
-fi
+# User-provided API credentials are never restricted by deploy-only policies.
+# Leaving the field blank still requests a strong generated secret.
 MIHOMO_PROXY_USER="${MIHOMO_PROXY_USER:-deploy}"
 [[ "$MIHOMO_PROXY_USER" =~ ^[A-Za-z0-9_.-]+$ ]] || fail "MIHOMO_PROXY_USER 只允许字母数字 _ . -"
 ensure_hex_secret MIHOMO_PROXY_PASSWORD
-[[ "$MIHOMO_PROXY_PASSWORD" =~ ^[A-Fa-f0-9]+$ ]] || fail "MIHOMO_PROXY_PASSWORD 应为 hex 字符（首次安装会自动生成）"
+# Mihomo does not require hex-only proxy passwords. Preserve user input.
 export MIHOMO_MIXED_PORT MIHOMO_API_PORT MIHOMO_PROXY_BIND_IP MIHOMO_API_BIND_IP MIHOMO_API_SECRET
 verify_container_owner mihomo mihomo
 if [ "$MODE" = update ]; then
@@ -41,12 +39,13 @@ install -d -m 0700 "$BASE_DIR/data"
 if [ ! -f "$BASE_DIR/data/config.yaml" ]; then
     [ "$MODE" = install ] || fail "更新模式不会重新生成配置"
     cp "$DEPLOY_DIR/config.example.yaml" "$BASE_DIR/data/config.yaml"
-    # Credential charset is restricted, so it can safely be emitted as a YAML quoted scalar.
+    # Losslessly quote user credentials as a YAML single-quoted scalar.
+    auth_entry="$(yaml_single_quote_scalar "$MIHOMO_PROXY_USER:$MIHOMO_PROXY_PASSWORD")"
     cat >> "$BASE_DIR/data/config.yaml" <<EOF_AUTH
 
 # 首次代理认证凭据来自 .secrets；此后可编辑 data/config.yaml 手动轮换。
 authentication:
-  - "$MIHOMO_PROXY_USER:$MIHOMO_PROXY_PASSWORD"
+  - $auth_entry
 EOF_AUTH
     chmod 0600 "$BASE_DIR/data/config.yaml"
     echo "已生成首次配置：$BASE_DIR/data/config.yaml（更新不会覆盖）"

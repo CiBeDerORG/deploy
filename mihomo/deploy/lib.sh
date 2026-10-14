@@ -79,3 +79,11 @@ verify_container_owner() {
         [ "$actual" = "$expected" ] || fail "容器 $name 已存在且不属于 $expected，请手动处理；不会接管或删除。"
     fi
 }
+
+# Escape YAML single-quoted scalars without modifying the decoded credential.
+# Double only apostrophes; punctuation, spaces, quotes and backslashes stay intact.
+yaml_single_quote_scalar() {
+    local value="$1"
+    value="${value//\'/\'\'}"
+    printf "'%s'" "$value"
+}
