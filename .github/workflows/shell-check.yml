@@ -42,6 +42,20 @@ jobs:
           mapfile -d '' files < <(find . -type f -name '*.sh' -print0)
           shellcheck --severity=error "${files[@]}"
 
+      - name: Verify no legacy Mihomo deployment source remains
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in \
+            mihomo/deploy/lib.sh \
+            mihomo/deploy/config.example.yaml \
+            mihomo/deploy/profile.example.yaml \
+            mihomo/tests/password-config.sh \
+            mihomo/tests/all-in-one.sh; do
+            test ! -e "$path" || { echo "Legacy source remains: $path" >&2; exit 1; }
+          done
+          grep -F 'run_root rm -f -- "$target_dir/$obsolete"' deploy.sh
+
       - name: Mihomo clean installer credential regression
         shell: bash
         run: bash mihomo/tests/credentials.sh

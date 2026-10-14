@@ -414,6 +414,21 @@ sync_task() {
     run_root mkdir -p "$target_dir"
     run_root tar -C "$target_dir" -xf "$archive"
 
+    # Mihomo was fully rebuilt as official MetaCubeXD All-in-One. tar extraction
+    # does not delete obsolete files in the NAS mirror, so prune ONLY the known
+    # legacy source files. Never remove data/, .env, .secrets, or user profiles.
+    if [ "$task" = mihomo ]; then
+        local obsolete
+        for obsolete in \
+            deploy/lib.sh \
+            deploy/config.example.yaml \
+            deploy/profile.example.yaml \
+            tests/password-config.sh \
+            tests/all-in-one.sh; do
+            run_root rm -f -- "$target_dir/$obsolete"
+        done
+    fi
+
     if [ -f "$target_dir/deploy/install.sh" ]; then
         run_root chmod +x "$target_dir/deploy/install.sh"
     fi

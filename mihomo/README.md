@@ -48,6 +48,8 @@ sudo bash deploy.sh mihomo update
 
 ## 旧配置和完整版本的数据
 
+每次执行 `deploy.sh mihomo`（包括仅同步）都会从 NAS 镜像目录精确清理已废弃的旧脚本、旧模板、旧测试，不清理运行时的 `data/`、真实 `.env` 或 `.secrets`。
+
 重写/删除的是仓库**部署源码**，不删除 NAS 上的运行数据：
 - 旧 `mihomo/data/config.yaml` 保留，并只在首次迁移复制备份到
   `mihomo/data/backup/pre-all-in-one/config.yaml`。
