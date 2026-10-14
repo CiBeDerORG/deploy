@@ -178,6 +178,9 @@ sudo bash deploy.sh <服务名>
 sudo bash deploy.sh <服务名> install
 sudo bash deploy.sh <服务名> update
 sudo bash deploy.sh <服务名> sync
+sudo bash deploy.sh proxy connect <容器名>
+sudo bash deploy.sh proxy disconnect <容器名>
+sudo bash deploy.sh proxy status [容器名]
 ```
 
 含义：
@@ -191,6 +194,8 @@ sudo bash deploy.sh <服务名> sync
 | `deploy.sh <服务> install` | 与上一条相同 |
 | `deploy.sh <服务> update` | 同步最新文件后执行服务更新脚本 |
 | `deploy.sh <服务> sync` | 只同步仓库文件，不启动或更新服务 |
+| `deploy.sh proxy connect/disconnect <容器名>` | 动态接入/断开 Mihomo 的 proxy-net 内部共享网络，不修改业务 Compose |
+| `deploy.sh proxy status [容器名]` | 查看共享网络成员或单容器接入状态 |
 
 ## 四、目录结构
 
@@ -491,7 +496,7 @@ FLATNAS_DOCKER_SOCKET=false
 
 Mihomo **代理端口 7011 默认仅宿主机访问**（`MIHOMO_PROXY_BIND_IP=127.0.0.1`），**Web 面板/控制 API 端口 7012 默认允许其他设备通过 NAS IP 访问**（`MIHOMO_API_BIND_IP=0.0.0.0`），浏览器入口 `http://<NAS_IP>:7012/ui/`。Web 控制 API 使用 `.secrets` 中的独立 `MIHOMO_API_SECRET`。已有真实 `.env` 不会被模板覆盖，若 7012 仍是 127.0.0.1 需手动改为 0.0.0.0 后 update。不启用 TUN；详细说明：[mihomo/README.md](./mihomo/README.md)。
 
-安装：`sudo bash deploy.sh mihomo`；更新：`sudo bash deploy.sh mihomo update`。
+安装：`sudo bash deploy.sh mihomo`；更新：`sudo bash deploy.sh mihomo update`。Mihomo 自动连接内部共享网络 `proxy-net`，无需编辑其他服务 Compose，即可使用 `sudo bash deploy.sh proxy connect <容器名>` / `sudo bash deploy.sh proxy disconnect <容器名>` / `sudo bash deploy.sh proxy status [容器名]` 管理容器接入。加入网络不等于自动代理流量，应用仍需配置 `mihomo:7890` 及认证；删除重建业务容器后需重新 connect。
 
 ### GitHub Actions self-hosted Runner
 
