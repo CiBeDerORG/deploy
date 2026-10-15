@@ -7,6 +7,17 @@ source "$HERE/../deploy/common.sh"
 tmp="$(mktemp -d)"
 trap 'rm -rf -- "$tmp"' EXIT
 SECRETS_FILE="$tmp/.secrets"
+# Existing global MYAI_IP must be imported without defining another option.
+printf 'MYAI_IP=198.51.100.42\nOPENCODE_PORT=7003\n' > "$tmp/.env"
+MYAI_IP=
+read_pairs "$tmp/.env"
+[[ "$MYAI_IP" == 198.51.100.42 ]]
+cors="$(cors_yaml 7012)"
+grep -Fx "    - 'http://198.51.100.42:7012'" <<< "$cors" >/dev/null
+[[ "$cors" != *"198.51.100.42:7013"* ]]
+unset MYAI_IP
+cors="$(cors_yaml 7012)"
+[[ "$cors" != *"198.51.100.42"* ]]
 pw=$' My: # = $HOME "double" \\\\ O\'Reilly 中文 '
 printf 'MIHOMO_API_SECRET=%s\nMIHOMO_PROXY_PASSWORD=%s\nMIHOMO_CONTROL_TOKEN=\n' "$pw" "$pw" > "$SECRETS_FILE"
 read_pairs "$SECRETS_FILE"

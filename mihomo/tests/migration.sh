@@ -11,6 +11,7 @@ SECRETS_FILE="$work/.secrets"
 : > "$SECRETS_FILE"
 MIHOMO_PROXY_USER=deploy
 MIHOMO_PROXY_PASSWORD=
+MYAI_IP=198.51.100.42
 mkdir -p "$work/legacy"
 cat > "$work/legacy/config.yaml" <<'EOF_CONFIG'
 mixed-port: 7890
@@ -30,6 +31,9 @@ cmp "$work/legacy/config.yaml" "$work/legacy/backup/pre-all-in-one/config.yaml"
 ! grep -q '^external-ui-url:' "$d/profiles/deploy-initial.yaml"
 grep -F "'deploy: preserved: # \"quoted\" 中文'" "$d/profiles/deploy-proxy-auth.yaml" >/dev/null
 grep -F "'http://127.0.0.1:7012'" "$d/profiles/deploy-web-cors.yaml" >/dev/null
+# MYAI_IP is existing global setting; it must be added as a full Web Origin.
+grep -Fx "    - 'http://198.51.100.42:7012'" "$d/profiles/deploy-web-cors.yaml" >/dev/null
+grep -Fx "    - 'http://198.51.100.42:7012'" "$d/active.yaml" >/dev/null
 grep -F "'deploy: preserved: # \"quoted\" 中文'" "$d/active.yaml" >/dev/null
 python3 - "$d" <<'PY'
 import json
