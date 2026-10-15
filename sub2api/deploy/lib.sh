@@ -64,11 +64,11 @@ ensure_hex_secret() {
     # A parsed blank can be written as KEY=, KEY="", KEY=\'\', or KEY =.
     # Do not overwrite ambiguous duplicate definitions (possibly nonempty).
     local definitions
-    definitions="$(grep -Ec "^[[:space:]]*$key[[:space:]]*=" "$SECRETS_FILE" || true)"
+    definitions="$(grep -Ec "^[[:space:]]*${key}[[:space:]]*=" "$SECRETS_FILE" || true)"
     if [ "$definitions" -gt 1 ]; then
         fail "$key 在 .secrets 中重复定义，请保留一行（原文件未修改）"
     elif [ "$definitions" -eq 1 ]; then
-        sed -i -E "s|^[[:space:]]*$key[[:space:]]*=.*$|$key=$generated|" "$SECRETS_FILE"
+        sed -i -E "s|^[[:space:]]*${key}[[:space:]]*=.*$|$key=$generated|" "$SECRETS_FILE"
     else
         printf '%s=%s\n' "$key" "$generated" >> "$SECRETS_FILE"
     fi
