@@ -61,12 +61,16 @@ ensure_hex_secret() {
     [ -z "$old" ] || return 0
     generated="$(LC_ALL=C od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
     [ "${#generated}" -eq 64 ] || fail "随机密钥生成失败"
-    if grep -q "^$key=$" "$SECRETS_FILE"; then
-        sed -i "s/^$key=$/$key=$generated/" "$SECRETS_FILE"
-    elif ! grep -q "^$key=" "$SECRETS_FILE"; then
-        printf '%s=%s\n' "$key" "$generated" >> "$SECRETS_FILE"
+    # A parsed blank can be written as KEY=, KEY="", KEY=\'\', or KEY =.
+    # Do not overwrite ambiguous duplicate definitions (possibly nonempty).
+    local definitions
+    definitions="$(grep -Ec "^[[:space:]]*${key}[[:space:]]*=" "$SECRETS_FILE" || true)"
+    if [ "$definitions" -gt 1 ]; then
+        fail "$key 在 .secrets 中重复定义，请保留一行（原文件未修改）"
+    elif [ "$definitions" -eq 1 ]; then
+        sed -i -E "s|^[[:space:]]*${key}[[:space:]]*=.*$|$key=$generated|" "$SECRETS_FILE"
     else
-        fail "$key 已配置但读取为空，请检查 .secrets 格式"
+        printf '%s=%s\n' "$key" "$generated" >> "$SECRETS_FILE"
     fi
     printf -v "$key" '%s' "$generated"
     export "$key"

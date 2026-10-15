@@ -67,3 +67,7 @@ jobs:
       - name: Sub2API upstream admin password policy regression
         shell: bash
         run: bash sub2api/tests/password-policy.sh
+
+      - name: Sub2API optional secret blank and persistence regression
+        shell: bash
+        run: bash sub2api/tests/optional-inputs.sh

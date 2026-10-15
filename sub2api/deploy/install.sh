@@ -20,13 +20,13 @@ validate_ipv4 SUB2API_BIND_IP "$SUB2API_BIND_IP"
 for key in SUB2API_POSTGRES_PASSWORD SUB2API_REDIS_PASSWORD SUB2API_JWT_SECRET SUB2API_TOTP_ENCRYPTION_KEY; do
     ensure_hex_secret "$key"
 done
-# The admin pair is optional: the upstream auto-setup prints random initial
-# credentials in the first-start logs when both fields are empty.
+# Upstream AutoSetupFromEnv independently generates an omitted admin email
+# or password. Do not impose an extra "both-or-neither" wrapper requirement.
+# Nonempty email is validated by upstream; only enforce its documented
+# 8-72 UTF-8 byte password constraint for a user-supplied nonempty password.
 SUB2API_ADMIN_EMAIL="${SUB2API_ADMIN_EMAIL:-}"
 SUB2API_ADMIN_PASSWORD="${SUB2API_ADMIN_PASSWORD:-}"
-if [ -n "$SUB2API_ADMIN_EMAIL" ] || [ -n "$SUB2API_ADMIN_PASSWORD" ]; then
-    [ -n "$SUB2API_ADMIN_EMAIL" ] && [ -n "$SUB2API_ADMIN_PASSWORD" ] || fail "后台账号和密码必须同时填写，或同时留空"
-    [[ "$SUB2API_ADMIN_EMAIL" == *@*.* ]] || fail "SUB2API_ADMIN_EMAIL 格式不正确"
+if [ -n "$SUB2API_ADMIN_PASSWORD" ]; then
     validate_upstream_admin_password "$SUB2API_ADMIN_PASSWORD"
 fi
 export SUB2API_HTTP_PORT SUB2API_BIND_IP SUB2API_ADMIN_EMAIL SUB2API_ADMIN_PASSWORD
@@ -48,5 +48,5 @@ if ! compose up -d --wait --wait-timeout 180; then
 fi
 echo "Sub2API 已启动：http://<服务器IP>:$SUB2API_HTTP_PORT（绑定 $SUB2API_BIND_IP）"
 echo "持久化目录：$BASE_DIR/data"
-if [ -z "$SUB2API_ADMIN_EMAIL" ]; then echo "首次管理员随机凭据：请查看 sudo docker logs sub2api 的首次启动日志，妥善保存。"; fi
+if [ -z "$SUB2API_ADMIN_EMAIL" ] || [ -z "$SUB2API_ADMIN_PASSWORD" ]; then echo "首次管理员缺省凭据由官方生成：请查看 sudo docker logs sub2api 并妥善保存。"; fi
 compose ps
