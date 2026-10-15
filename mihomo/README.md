@@ -17,7 +17,7 @@
 | MIHOMO_API_BIND_IP | 0.0.0.0 | — | 7012 支持可信 LAN / EasyTier |
 | MIHOMO_CORE_API_BIND_IP | 0.0.0.0 | — | 7013 供浏览器直连，需限制来源 |
 
-Web 和内核 API 使用不同端口。安装时从 NAS 当前 IPv4 网卡自动生成 Mihomo 原生的 `external-controller-cors`，不增加额外的 Web Origin 环境变量。使用自定义域名等特殊来源时，直接在对应 Profile YAML 内修改官方字段。
+Web 和内核 API 使用不同端口。**首次初始化时**，安装器从 NAS 当前 IPv4 网卡生成 Mihomo 原生 `external-controller-cors`，并读取统一 `.env` 中**已有的 `MYAI_IP`**，追加 `http://<MYAI_IP>:7012` 作为公网 IP 的 Web 来源（没有填写则不追加；如与本机 IP 重复则只保留一份）。不新增 Mihomo 环境变量。如果采用 HTTPS 域名反向代理，应在原生 Profile YAML 中配置该 HTTPS 域名来源；`MYAI_IP` 只生成当前 HTTP 7012 入口。已有完整版 Profiles 更新时不会被安装器覆写，修改来源后需在 Web 管理界面重新激活配置。
 新版管理页是 **http://10.10.10.2:7012/**，不是旧的 `/ui/`。
 面板需要连接内核时填 **http://10.10.10.2:7013** 和原来的 `MIHOMO_API_SECRET`。
 默认跨端口 CORS 使用当前 NAS IPv4 对应的浏览器来源，不设置 `*`。

@@ -27,8 +27,8 @@ read_pairs() {
         if (( ${#v} >= 2 )); then
             case "$v" in \"*\") v="${v:1:${#v}-2}" ;; \'*\') v="${v:1:${#v}-2}" ;; esac
         fi
-        # Only import this module's variables + shared timezone.
-        case "$k" in MIHOMO_*|TZ) printf -v "$k" '%s' "$v"; export "$k" ;; esac
+        # MYAI_IP is the existing global public IP setting; no new Mihomo variable.
+        case "$k" in MIHOMO_*|TZ|MYAI_IP) printf -v "$k" '%s' "$v"; export "$k" ;; esac
     done < "$file"
 }
 load_settings() {
@@ -77,16 +77,24 @@ yaml_scalar() {
     s="${s//\'/\'\'}"
     printf "'%s'" "$s"
 }
-# Generate official Mihomo external-controller-cors from the NAS IPv4 interfaces.
-# There is no additional user-facing WEB_ORIGIN setting; edit the native Profile
-# YAML only when using an origin not covered by the interface list.
+# Generate native Mihomo CORS origins from the NAS interfaces and the existing
+# global MYAI_IP. Origins use the Web port (7012), never the core API port (7013).
 cors_yaml() {
-    local port="$1" addr
+    local port="$1" addr origin item found
     local -a origins=("http://localhost:$port" "http://127.0.0.1:$port")
     if command -v hostname >/dev/null 2>&1; then
         for addr in $(hostname -I 2>/dev/null || :); do
             [[ "$addr" =~ ^[0-9]+(\.[0-9]+){3}$ ]] && origins+=("http://$addr:$port")
         done
+    fi
+    if [ -n "${MYAI_IP:-}" ]; then
+        check_ipv4 MYAI_IP "$MYAI_IP"
+        origin="http://$MYAI_IP:$port"
+        found=0
+        for item in "${origins[@]}"; do
+            if [ "$item" = "$origin" ]; then found=1; break; fi
+        done
+        if [ "$found" -eq 0 ]; then origins+=("$origin"); fi
     fi
     printf 'external-controller-cors:\n  allow-private-network: true\n  allow-origins:\n'
     for addr in "${origins[@]}"; do printf '    - %s\n' "$(yaml_scalar "$addr")"; done
