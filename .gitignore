@@ -3,6 +3,7 @@
 **/.env.panel
 frp/frps.panel.json
 **/data/
+/mihomo/runtime/
 **/logs/
 **/state/
 **/workspace/

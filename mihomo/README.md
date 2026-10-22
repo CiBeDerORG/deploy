@@ -1,8 +1,9 @@
 # Mihomo · MetaCubeXD 官方完整版
 
-本模块从零编写部署脚本，使用官方 **MetaCubeXD All-in-One** 镜像
-`ghcr.io/metacubex/metacubexd-server:latest`，它同时提供 Web、管理 Agent 和内置 Mihomo 内核。
-不是旧版独立 Mihomo + 静态 `/ui/` 面板方案，也不再依赖 `external-ui-url` 下载网页资源。
+原有 Docker 安装保持官方 **MetaCubeXD All-in-One** 镜像
+`ghcr.io/metacubex/metacubexd-server:latest`，新增**宿主机原生 systemd 安装**：
+从官方发布版源码构建同一套 Web + 管理 Agent，并安装发布版对应的 Mihomo 内核；
+不是只有静态面板的方案。两种模式共用 Profile 与凭据，但不能同时运行。
 官方文档：[MetaCubeXD](https://github.com/MetaCubeX/metacubexd) ·
 [官方 Compose 示例](https://github.com/MetaCubeX/metacubexd/blob/main/docs/docker-compose.yml)。
 
@@ -64,6 +65,68 @@ sudo bash deploy.sh mihomo update
 - 首次切换前先拉取、检查镜像并验证新配置，再替换同名 mihomo 容器。
   切换仍会短暂停止代理；失败时旧文件和备份保留，但不会未经测试擅自回滚旧容器。
   建议自己再额外备份整个 `mihomo/data`。
+
+## 宿主机原生安装：完整 Web + Agent + 内核（不使用 Docker）
+
+适用于 Linux / fnOS / Ubuntu（需 **systemd + glibc、amd64 或 arm64**），不要求安装或启动 Docker。
+**原 Docker 安装、Compose、proxy-net 和默认命令不变**。原生方式是显式选择的：
+
+```bash
+# 首次使用（先在 deploy 仓库目录）
+sudo bash deploy.sh env
+sudo bash deploy.sh mihomo host
+
+# 今后更新官方 MetaCubeXD 发布版（仓库先 git pull）
+sudo bash deploy.sh mihomo host-update
+
+# 查看状态、日志
+sudo systemctl status deploy-mihomo
+sudo journalctl -u deploy-mihomo -f
+```
+
+宿主机安装会把官方 **Node.js 22、MetaCubeXD Web/Agent、对应版本的
+Mihomo 二进制**放在 `<SOFTWARE_ROOT>/mihomo/runtime/host/`，使用
+`deploy-mihomo.service` 启动，系统重启后自动运行。Node.js 下载会根据官方
+SHA256 清单验证；源码通过上游官方发布 tag 获取，并用其锁定的 pnpm 依赖构建。
+因此首次安装/升级需要能访问 GitHub、nodejs.org 和 npm registry，并可能需要一定的磁盘空间/内存进行 UI 构建。
+不执行 apt 安装，不改系统 Node 或 Docker 镜像。
+
+| 内容 | Docker 模式 | 宿主机模式 |
+| --- | --- | --- |
+| 入口 | `deploy.sh mihomo` / `mihomo update` | `deploy.sh mihomo host` / `mihomo host-update` |
+| Web / Agent | 官方镜像内部 `8080` → `7012` | 官方 Nitro/Agent 直接监听 `7012` |
+| 内核 API | `9090` → `7013` | 直接监听 `7013` |
+| 混合代理 | `7890` → `7011` | 直接监听 `7011` |
+| 数据/订阅/切换状态 | `mihomo/data/all-in-one/` | **相同目录，不另建 Profile** |
+| 统一参数 | `deploy/.env`、`deploy/.secrets` | **相同文件、相同端口与密钥** |
+| 管理方式 | `docker compose` | `systemctl` / `journalctl` |
+
+宿主机原生同样使用 Web 的根地址 `http://<NAS-IP>:7012/`；面板内配置
+`http://<NAS-IP>:7013` 与 `MIHOMO_API_SECRET`。
+代理默认只监听 `127.0.0.1:7011`。原生运行没有 Docker 的端口映射隔离，
+因此在**内核启动时生成临时监听覆盖配置**，保障
+`MIHOMO_PROXY_BIND_IP` 默认值有效；**不会改动** `active.yaml`、已有订阅、
+Profiles、认证或 Docker 代理设置。
+`MIHOMO_API_BIND_IP` 用于 Web；原生 `MIHOMO_CORE_API_BIND_IP` 支持
+`0.0.0.0` 和 `127.0.0.1`（受上游 Agent 的本机内核探活机制限制）。
+原生模式不会自动打开 TUN，也不会自动接管 NAS 的系统代理。
+
+**切换注意：** 端口和 Profile 共用，同一时刻只能运行一种模式。
+如 Docker `mihomo` 仍在运行，宿主机安装会明确报错，**不会自动停掉或删除 Docker 容器**。
+需自行执行 `docker stop mihomo`，然后运行 `deploy.sh mihomo host`。从原生版切回 Docker 之前还应禁用原生服务开机自启（`systemctl disable --now deploy-mihomo`），防止服务器下次重启时两种方式同时争用端口。
+需要切回 Docker 时：
+
+```bash
+sudo systemctl disable --now deploy-mihomo
+sudo bash deploy.sh mihomo update
+```
+
+宿主机模式不运行名为 `mihomo` 的 Docker 容器，所以既有 Docker 业务容器
+**不能继续用 `mihomo:7890`** 访问它；若要让这些业务使用宿主机代理，
+需自行配置可达的宿主机地址和 `7011`，并按需放开绑定地址及网络访问权限。
+切回 Docker 后原 `proxy-net` 与 `mihomo:7890` 方式仍可继续使用。
+两种方式均不应把 Web/Agent 和内核 API 直接暴露到不可信公网；
+官方 `CONTROL_TOKEN` 不是真实的网页登录保护。
 
 ## Docker 内部代理网络
 

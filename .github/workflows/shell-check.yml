@@ -64,6 +64,10 @@ jobs:
         shell: bash
         run: bash mihomo/tests/migration.sh
 
+      - name: Mihomo native host listener isolation regression
+        shell: bash
+        run: bash mihomo/tests/host.sh
+
       - name: Sub2API upstream admin password policy regression
         shell: bash
         run: bash sub2api/tests/password-policy.sh
