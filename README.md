@@ -27,7 +27,7 @@
 | Portainer CE | `7004/TCP` | Docker Compose | [portainer/README.md](./portainer/README.md) |
 | FlatNas | `7009/TCP` | Docker Compose | [flatnas/README.md](./flatnas/README.md) |
 | Sub2API | `7010/TCP` | Docker Compose（含 PostgreSQL、Redis） | [sub2api/README.md](./sub2api/README.md) |
-| Mihomo / MetaCubeXD 完整版 | 代理 `7011/TCP`（宿主机）、Web/Agent `7012/TCP`、内核 API `7013/TCP` | Docker Compose | [mihomo/README.md](./mihomo/README.md) |
+| Mihomo / MetaCubeXD 完整版 | 代理 `7011/TCP`（宿主机）、Web/Agent `7012/TCP`、内核 API `7013/TCP` | Docker Compose **或原生 systemd** | [mihomo/README.md](./mihomo/README.md) |
 | GitHub Actions Runner | 无固定 Web 端口 | systemd | [github-runner/README.md](./github-runner/README.md) |
 
 ## 一、运行环境
@@ -131,6 +131,8 @@ sudo bash deploy.sh portainer
 sudo bash deploy.sh flatnas
 sudo bash deploy.sh sub2api
 sudo bash deploy.sh mihomo
+# 可选：Mihomo 无 Docker 的完整 Web/Agent/内核原生安装
+sudo bash deploy.sh mihomo host
 sudo bash deploy.sh github-runner
 ```
 
@@ -178,6 +180,8 @@ sudo bash deploy.sh <服务名>
 sudo bash deploy.sh <服务名> install
 sudo bash deploy.sh <服务名> update
 sudo bash deploy.sh <服务名> sync
+sudo bash deploy.sh mihomo host
+sudo bash deploy.sh mihomo host-update
 sudo bash deploy.sh proxy connect <容器名>
 sudo bash deploy.sh proxy disconnect <容器名>
 sudo bash deploy.sh proxy status [容器名]
@@ -194,6 +198,7 @@ sudo bash deploy.sh proxy status [容器名]
 | `deploy.sh <服务> install` | 与上一条相同 |
 | `deploy.sh <服务> update` | 同步最新文件后执行服务更新脚本 |
 | `deploy.sh <服务> sync` | 只同步仓库文件，不启动或更新服务 |
+| `deploy.sh mihomo host/host-update` | 选择原生安装/升级 Mihomo 一体化 Web + Agent + Core（不调用 Docker） |
 | `deploy.sh proxy connect/disconnect <容器名>` | 动态接入/断开 Mihomo 的 proxy-net 内部共享网络，不修改业务 Compose |
 | `deploy.sh proxy status [容器名]` | 查看共享网络成员或单容器接入状态 |
 
@@ -497,7 +502,9 @@ FLATNAS_DOCKER_SOCKET=false
 
 Web + Agent + 自带 Mihomo 内核，一体化提供 Web 订阅 URL 导入、Profile/YAML 编辑和内核管理。默认代理 7011 只绑定本机；Web/Agent 是 7012 的根路径（不再是 /ui/）；内核 API 独立为 7013，通过原来的 MIHOMO_API_SECRET 认证。新增 MIHOMO_CONTROL_TOKEN 用于官方 Agent 控制，不是网页登录密码；管理界面需要可信网络/防火墙保护。不会启用 TUN、host、privileged 或 Docker Socket；[安全、端口、旧版迁移详见 Mihomo 说明](./mihomo/README.md)。
 
-安装：sudo bash deploy.sh mihomo；更新：sudo bash deploy.sh mihomo update。旧 config.yaml 原样保留并备份、复制到新 Agent Profile（副本去除旧 external-ui-url）；完整版持久化目录 mihomo/data/all-in-one。内部 proxy-net 和 mihomo:7890 保留，其他容器可使用 sudo bash deploy.sh proxy connect / disconnect / status。已存在的完整版 Profile、密码和 active.yaml 不会被安装器覆盖。
+Docker 安装：`sudo bash deploy.sh mihomo`；Docker 更新：`sudo bash deploy.sh mihomo update`。
+
+新增原生安装：`sudo bash deploy.sh mihomo host`；原生更新：`sudo bash deploy.sh mihomo host-update`。原生方式无需 Docker，使用 `deploy-mihomo.service` 管理完整 MetaCubeXD Web/Agent/内核，继续读取相同的 `.env`、`.secrets`、`mihomo/data/all-in-one`；默认 Docker 命令、容器和 Compose 不变。两个模式不能同时运行；切换前须自行停止另一种方式。详细见 [Mihomo 原生安装与切换说明](./mihomo/README.md)。旧 config.yaml 原样保留并备份、复制到新 Agent Profile（副本去除旧 external-ui-url）；完整版持久化目录 mihomo/data/all-in-one。内部 proxy-net 和 mihomo:7890 保留，其他容器可使用 sudo bash deploy.sh proxy connect / disconnect / status。已存在的完整版 Profile、密码和 active.yaml 不会被安装器覆盖。
 
 ### GitHub Actions self-hosted Runner
 
