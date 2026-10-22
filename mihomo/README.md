@@ -113,11 +113,11 @@ Profiles、认证或 Docker 代理设置。
 
 **切换注意：** 端口和 Profile 共用，同一时刻只能运行一种模式。
 如 Docker `mihomo` 仍在运行，宿主机安装会明确报错，**不会自动停掉或删除 Docker 容器**。
-需自行执行 `docker stop mihomo`，然后运行 `deploy.sh mihomo host`。
+需自行执行 `docker stop mihomo`，然后运行 `deploy.sh mihomo host`。从原生版切回 Docker 之前还应禁用原生服务开机自启（`systemctl disable --now deploy-mihomo`），防止服务器下次重启时两种方式同时争用端口。
 需要切回 Docker 时：
 
 ```bash
-sudo systemctl stop deploy-mihomo
+sudo systemctl disable --now deploy-mihomo
 sudo bash deploy.sh mihomo update
 ```
 
