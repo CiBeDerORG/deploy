@@ -138,6 +138,10 @@ if [ ! -f "$release/server/index.mjs" ] || [ ! -f "$release/ui-dist/index.html" 
     export COREPACK_HOME="$RUNTIME/corepack-cache"
     export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
     export HUSKY=0
+    # The monorepo's own build scripts invoke plain "pnpm"; enable the shim
+    # inside our isolated Node distribution, never in the system-wide PATH.
+    corepack enable pnpm --install-directory "$RUNTIME/$NODE_DIR/bin" ||
+        die "无法在隔离 Node 环境中启用 pnpm"
     (cd "$work/source" &&
        corepack pnpm install --frozen-lockfile &&
        corepack pnpm build) || die "MetaCubeXD 上游构建失败；旧服务及数据未切换"
