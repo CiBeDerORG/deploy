@@ -109,6 +109,8 @@ usage() {
   bash deploy.sh <业务类型> install    同上
   bash deploy.sh <业务类型> update     同步最新文件后执行 update.sh
   bash deploy.sh <业务类型> sync       仅同步文件，不启动/更新容器
+  sudo bash deploy.sh mihomo host       原生 systemd 安装完整 Web/Agent/内核（不使用 Docker）
+  sudo bash deploy.sh mihomo host-update 更新原生安装（不影响 Docker）
   bash deploy.sh env                    初始化/检查 <SOFTWARE_ROOT>/deploy/.env 和 .secrets
   sudo bash deploy.sh proxy connect <容器名>     动态接入 Mihomo 内部代理网络
   sudo bash deploy.sh proxy disconnect <容器名>  断开该代理网络（不改变其他网络）
@@ -120,6 +122,7 @@ usage() {
   bash deploy.sh easytier sync
   sudo bash deploy.sh proxy connect sub2api
   sudo bash deploy.sh proxy disconnect sub2api
+  sudo bash deploy.sh mihomo host
 
 说明：
   deploy 仓库可以 clone/pull 到任意目录。
@@ -387,6 +390,15 @@ sync_task() {
     local source_dir="$ROOT_DIR/$task"
     local target_dir="$SOFTWARE_ROOT/$task"
     local archive
+    local -a sync_excludes=(
+        --exclude='./deploy/.env'
+        --exclude='./deploy/.secrets'
+        --exclude='./data'
+        --exclude='./state'
+        --exclude='./workspace'
+        --exclude='./backup'
+    )
+    [ "$task" != mihomo ] || sync_excludes+=(--exclude='./runtime')
 
     [ -d "$source_dir" ] || {
         echo "源目录不存在：$source_dir" >&2
@@ -402,14 +414,7 @@ sync_task() {
     trap "rm -f '$archive'" EXIT
 
     # 仓库只是安装源；运行时敏感配置和持久化数据不从仓库覆盖。
-    tar \
-        --exclude='./deploy/.env' \
-        --exclude='./deploy/.secrets' \
-        --exclude='./data' \
-        --exclude='./state' \
-        --exclude='./workspace' \
-        --exclude='./backup' \
-        -C "$source_dir" -cf "$archive" .
+    tar "${sync_excludes[@]}" -C "$source_dir" -cf "$archive" .
 
     run_root mkdir -p "$target_dir"
     run_root tar -C "$target_dir" -xf "$archive"
@@ -435,6 +440,14 @@ sync_task() {
     if [ -f "$target_dir/deploy/update.sh" ]; then
         run_root chmod +x "$target_dir/deploy/update.sh"
     fi
+    if [ "$task" = mihomo ]; then
+        local native_script
+        for native_script in host-install.sh host-run.sh host-kernel.sh; do
+            if [ -f "$target_dir/deploy/$native_script" ]; then
+                run_root chmod +x "$target_dir/deploy/$native_script"
+            fi
+        done
+    fi
 
     rm -f "$archive"
     trap - EXIT
@@ -455,13 +468,17 @@ run_task() {
         update|pull)
             script="$target_dir/deploy/update.sh"
             ;;
+        host|host-update)
+            [ "$task" = mihomo ] || { echo "host/host-update 仅支持 mihomo" >&2; return 1; }
+            script="$target_dir/deploy/host-install.sh"
+            ;;
         sync)
             sync_task "$task"
             return 0
             ;;
         *)
             echo "不支持的操作：$action" >&2
-            echo "支持：install / update / sync" >&2
+            echo "支持：install / update / sync；mihomo 另支持 host / host-update" >&2
             return 1
             ;;
     esac
@@ -484,7 +501,11 @@ run_task() {
     fi
 
     echo "执行：$script"
-    run_root bash "$script"
+    if [ "$action" = host-update ]; then
+        run_root bash "$script" update
+    else
+        run_root bash "$script"
+    fi
 }
 
 interactive() {
@@ -500,7 +521,11 @@ interactive() {
     esac
 
     task="$(resolve_task "$choice")" || return 1
-    read -r -p '操作 install/update/sync（默认 install）：' action || return 0
+    if [ "$task" = mihomo ]; then
+        read -r -p '操作 install/update/sync/host/host-update（默认 Docker install）：' action || return 0
+    else
+        read -r -p '操作 install/update/sync（默认 install）：' action || return 0
+    fi
     run_task "$task" "${action:-install}"
 }
 
