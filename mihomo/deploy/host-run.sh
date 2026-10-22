@@ -7,6 +7,13 @@ MODULE="$(cd -- "$HERE/.." && pwd)"
 ROOT="$(cd -- "$MODULE/.." && pwd)"
 # shellcheck source=./common.sh
 source "$HERE/common.sh"
+# Check again on every systemd boot/restart, not just during installation.
+# Native mode does not require Docker to be installed or running.
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    if [ "$(docker inspect -f '{{.State.Running}}' mihomo 2>/dev/null || :)" = true ]; then
+        die "Docker mihomo 已运行，拒绝同时启动原生 Agent（共享 data/all-in-one）；请先停止 Docker mihomo"
+    fi
+fi
 load_settings "$ROOT"
 current="$MODULE/runtime/host/current"
 node="$MODULE/runtime/host/node-current/bin/node"
