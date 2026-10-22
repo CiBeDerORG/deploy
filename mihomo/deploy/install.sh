@@ -14,8 +14,9 @@ must_be_root
 # Native mode reuses data/all-in-one. Never start both writers at the same time.
 # This is a safety check only; all original Docker install/update steps follow.
 if command -v systemctl >/dev/null 2>&1 &&
-   systemctl is-active --quiet deploy-mihomo.service; then
-    die "检测到宿主机 Mihomo 正在运行；请自行先停止 systemctl stop deploy-mihomo，再使用原 Docker 安装/更新"
+   { systemctl is-active --quiet deploy-mihomo.service ||
+     systemctl is-enabled --quiet deploy-mihomo.service; }; then
+    die "检测到宿主机 Mihomo 正在运行或设置为开机启动；切回 Docker 前请先执行 systemctl disable --now deploy-mihomo，避免重启后两种模式争用端口/配置"
 fi
 docker_ready
 load_settings "$ROOT"
