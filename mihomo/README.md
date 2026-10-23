@@ -81,8 +81,47 @@ sudo bash deploy.sh mihomo host-update
 
 # 查看状态、日志
 sudo systemctl status deploy-mihomo
-sudo journalctl -u deploy-mihomo -f
+sudo tail -F /vol3/1000/software/mihomo/runtime/host/logs/service.log /vol3/1000/software/mihomo/runtime/host/logs/service-error.log
 ```
+
+### fnOS 目录与配置位置
+
+统一 `.env` 中仍填写所有服务共用的父目录：
+
+```dotenv
+SOFTWARE_ROOT=/vol3/1000/software
+```
+
+安装器在它下面选择 `mihomo/`，因此 Mihomo 的实际根目录就是
+**`/vol3/1000/software/mihomo/`**。不要把全局 `SOFTWARE_ROOT` 再填成
+`/vol3/1000/software/mihomo`，否则其他服务的根目录也会改变，Mihomo 还会多嵌套一层。
+
+| 内容 | fnOS 路径 |
+| --- | --- |
+| 统一普通配置（位置不变） | `/vol3/1000/software/deploy/.env` |
+| 统一敏感配置（位置不变） | `/vol3/1000/software/deploy/.secrets` |
+| Docker / 原生共用 Profiles、订阅、状态与 active.yaml | `/vol3/1000/software/mihomo/data/all-in-one/` |
+| 旧 Docker 配置与首次迁移备份 | `/vol3/1000/software/mihomo/data/config.yaml`、`data/backup/pre-all-in-one/` |
+| 每次发布的 Web、Agent、内核与启动脚本 | `/vol3/1000/software/mihomo/runtime/host/releases/` |
+| Node.js 与当前发布入口 | `/vol3/1000/software/mihomo/runtime/host/node-*/`、`runtime/host/current` |
+| 下载、包管理缓存与构建配置 | `/vol3/1000/software/mihomo/runtime/host/cache/`、`runtime/host/build-config/` |
+| 临时构建、切换备份与内核临时 YAML | `/vol3/1000/software/mihomo/runtime/host/.host-build.*/`、`runtime/host/tmp/` |
+| 服务日志与回退记录 | `/vol3/1000/software/mihomo/runtime/host/logs/` |
+| 生成的 systemd 配置原本 | `/vol3/1000/software/mihomo/runtime/host/systemd/deploy-mihomo.service` |
+
+**本次修复不新增需要填写的 `.env` / `.secrets` 配置项。** 端口、绑定地址、API 密钥和
+Agent Token 继续使用已有 `MIHOMO_*` 配置。Docker 已有的 `data/all-in-one` 直接复用；
+只有尚未初始化完整版数据时，才从旧 `data/config.yaml` 复制迁移。
+
+系统目录仅保留开机自启必需的 `/etc/systemd/system/deploy-mihomo.service` 注册文件和
+systemd 管理的启用链接。注册文件由模块内原本生成，使用 `RequiresMountsFor` 等待数据目录所需挂载；
+不把整个 unit 仅做成指向数据盘的软链接，以免 `/vol3` 晚挂载时 systemd 无法读到服务定义。
+这是 [systemd 外部 unit 文件的启动期要求](https://www.freedesktop.org/software/systemd/man/latest/systemctl.html#link%20PATH%E2%80%A6)。
+业务配置、密钥、Profiles、程序和日志不写到 `/etc`、`/opt` 或 `/var/lib`。
+
+服务输出写入上述 `logs/`；`journalctl -u deploy-mihomo` 仍可查看 systemd 自身的启动、停止和失败记录。
+
+### 构建、验收与失败恢复
 
 宿主机安装会把官方 **Node.js 22、MetaCubeXD Web/Agent、对应版本的
 Mihomo 二进制**放在 `<SOFTWARE_ROOT>/mihomo/runtime/host/`，使用
@@ -90,6 +129,15 @@ Mihomo 二进制**放在 `<SOFTWARE_ROOT>/mihomo/runtime/host/`，使用
 SHA256 清单验证；源码通过上游官方发布 tag 获取，并用其锁定的 pnpm 依赖构建。
 因此首次安装/升级需要能访问 GitHub、nodejs.org 和 npm registry，并可能需要一定的磁盘空间/内存进行 UI 构建。
 不执行 apt 安装，不改系统 Node 或 Docker 镜像。
+
+构建顺序沿用官方 Docker 的隔离方式：先构建服务端，再构建 UI，保留完整服务端输出并单独部署 UI。
+安装验收同时检查 Agent 健康、内核版本、网页首页、实际 JavaScript 资源，以及带当前 Agent Token 的动态
+`config.js`，避免只有健康接口正常但管理页打不开。
+
+每次安装创建独立发布目录，把启动脚本、YAML 处理器和对应 Node 路径一并固定。
+切换前先验证候选内核与现有配置；切换失败则恢复原发布、原 systemd 注册和原启用/运行状态。
+回退过程失败会明确报错并保留模块内事务备份，诊断见 `runtime/host/logs/last-rollback.log`。
+首次从旧版原生布局升级时，会先封存兼容启动器；仅同步仓库或在构建前失败也能继续使用旧版入口。
 
 | 内容 | Docker 模式 | 宿主机模式 |
 | --- | --- | --- |
@@ -104,9 +152,20 @@ SHA256 清单验证；源码通过上游官方发布 tag 获取，并用其锁�
 宿主机原生同样使用 Web 的根地址 `http://<NAS-IP>:7012/`；面板内配置
 `http://<NAS-IP>:7013` 与 `MIHOMO_API_SECRET`。
 代理默认只监听 `127.0.0.1:7011`。原生运行没有 Docker 的端口映射隔离，
-因此在**内核启动时生成临时监听覆盖配置**，保障
+因此在**内核启动时于 `runtime/host/tmp/` 生成临时监听覆盖配置**，保障
 `MIHOMO_PROXY_BIND_IP` 默认值有效；**不会改动** `active.yaml`、已有订阅、
 Profiles、认证或 Docker 代理设置。
+覆盖配置使用 YAML 解析器处理，支持以 `---` 开始的单文档 Profile，保留节点、规则和代理认证；
+含多个独立 YAML 文档或重复键的配置会明确拒绝，避免内核只读到第一段。
+已有凭据保留原值；可选空值支持裸空值、单双引号空值、CRLF 和缺省键。
+同一变量重复定义时停止部署并提示变量名，不打印凭据，也不自动挑选或替换已有值。
+
+上游兼容边界：MetaCubeXD `v1.273.1` 的监督器自身用 `fetch` 发送原样 Bearer 头，
+含中文等字符的 `MIHOMO_API_SECRET` 可能让其内核探活失败，见
+[上游探活实现](https://github.com/MetaCubeX/metacubexd/blob/v1.273.1/packages/agent/src/supervisor.ts)。
+Mihomo 内核与本部署的 YAML/验收传输可保留这些值，但本部署不改写官方 Agent；
+安装验收因此还会核对 Agent 的 `running` 状态，失败时回退，不会自动改密码来让检查通过。
+如旧 `active.yaml` 已含多个文档且其管理头密钥与当前配置不匹配，也会拒绝猜测合并，保留原数据。
 `MIHOMO_API_BIND_IP` 用于 Web；原生 `MIHOMO_CORE_API_BIND_IP` 支持
 `0.0.0.0` 和 `127.0.0.1`（受上游 Agent 的本机内核探活机制限制）。
 原生模式不会自动打开 TUN，也不会自动接管 NAS 的系统代理。
@@ -153,3 +212,8 @@ curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7012/api/control/heal
 Web 健康返回 200 不代表代理内核一定正常；安装脚本还会独立验证容器内
 `http://127.0.0.1:9090/version`。fnOS 上对 7011/7012/7013 和实际订阅下载
 仍需要现场验收，GitHub CI 无法代替真实 NAS 网络环境。
+
+仓库的 `Shell Check` 包含凭据、迁移、原生配置与升级回退回归；
+`Mihomo Native Build and Web Check` 会实际构建官方发布版，并在 runner 的回环地址启动
+Web/Agent/内核，验证网页、动态配置、旧 Docker Profile、节点规则、代理认证及进程清理。
+后者也可在 Actions 页面手动运行。CI 只使用隔离测试数据，不接触 NAS 服务。

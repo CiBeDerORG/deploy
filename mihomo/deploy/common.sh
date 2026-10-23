@@ -13,23 +13,37 @@ docker_ready() {
 
 # .env / .secrets are simple KEY=VALUE records, not executable shell programs.
 # Preserve the original value, including punctuation and interior whitespace.
+# Return 1 for comments/empty lines; write the decoded key/value to caller locals.
+# Whitespace in the VALUE is credential data, never formatting to trim.
+decode_pair() {
+    local decoded_line="${1%$'\r'}" decoded_key decoded_value
+    decoded_line="${decoded_line#"${decoded_line%%[![:space:]]*}"}"
+    case "$decoded_line" in ''|\#*) return 1 ;; esac
+    [[ "$decoded_line" == *=* ]] || die "$2 中存在非 KEY=VALUE 行"
+    decoded_key="${decoded_line%%=*}"; decoded_value="${decoded_line#*=}"
+    decoded_key="${decoded_key%"${decoded_key##*[![:space:]]}"}"
+    [[ "$decoded_key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "$2 的变量名不合法"
+    if (( ${#decoded_value} >= 2 )); then
+        case "$decoded_value" in
+            \"*\"|\'*\') decoded_value="${decoded_value:1:${#decoded_value}-2}" ;;
+        esac
+    fi
+    printf -v "$3" '%s' "$decoded_key"
+    printf -v "$4" '%s' "$decoded_value"
+}
 read_pairs() {
-    local file="$1" line k v trimmed
-    [ -f "$file" ] || die "缺少配置：$file，请先运行 sudo bash deploy.sh env"
-    while IFS= read -r line || [ -n "$line" ]; do
-        line="${line%$'\r'}"
-        trimmed="${line#"${line%%[![:space:]]*}"}"
-        case "$trimmed" in ''|\#*) continue ;; esac
-        [[ "$trimmed" == *=* ]] || die "$file 中存在非 KEY=VALUE 行"
-        k="${trimmed%%=*}"; v="${trimmed#*=}"
-        k="${k%"${k##*[![:space:]]}"}"
-        [[ "$k" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "$file 的变量名不合法"
-        if (( ${#v} >= 2 )); then
-            case "$v" in \"*\") v="${v:1:${#v}-2}" ;; \'*\') v="${v:1:${#v}-2}" ;; esac
-        fi
-        # MYAI_IP is the existing global public IP setting; no new Mihomo variable.
-        case "$k" in MIHOMO_*|TZ|MYAI_IP) printf -v "$k" '%s' "$v"; export "$k" ;; esac
-    done < "$file"
+    local file line k v
+    local -A seen=()
+    for file in "$@"; do
+        [ -f "$file" ] || die "缺少配置：$file，请先运行 sudo bash deploy.sh env"
+        while IFS= read -r line || [ -n "$line" ]; do
+            decode_pair "$line" "$file" k v || continue
+            [[ ! ${seen[$k]+defined} ]] || die "配置中变量 $k 重复定义；请保留唯一配置（值不打印）"
+            seen[$k]=1
+            # MYAI_IP is the existing global public IP setting; no new Mihomo variable.
+            case "$k" in MIHOMO_*|TZ|MYAI_IP) printf -v "$k" '%s' "$v"; export "$k" ;; esac
+        done < "$file"
+    done
 }
 load_settings() {
     local root="$1"
@@ -37,24 +51,53 @@ load_settings() {
     [ -f "$ordinary" ] && [ -f "$private" ] || die "请先运行 sudo bash deploy.sh env"
     chown root:root "$ordinary" "$private"
     chmod 0600 "$ordinary" "$private"
-    read_pairs "$ordinary"
-    read_pairs "$private"
+    read_pairs "$ordinary" "$private"
     SECRETS_FILE="$private"
 }
 
 # Autogenerate only when the user explicitly left an optional setting empty.
 # No character set or length restrictions on nonempty user-provided credentials.
 secret_when_blank() {
-    local key="$1" value="${!1:-}" generated
+    local key="$1" value="${!1:-}" generated line k v stored="" index=-1 temp ending=""
+    local -a records=()
+    local -A seen=()
+    [ -f "$SECRETS_FILE" ] || die "缺少敏感配置，请先运行 sudo bash deploy.sh env"
+    # Re-read the same syntax as read_pairs before writing: stale environment
+    # values must never overwrite a configured nonempty value or hide duplicates.
+    while IFS= read -r line || [ -n "$line" ]; do
+        if decode_pair "$line" "$SECRETS_FILE" k v; then
+            [[ ! ${seen[$k]+defined} ]] || die "敏感配置中变量 $k 重复定义；未写入任何密钥（值不打印）"
+            seen[$k]=1
+            if [ "$k" = "$key" ]; then
+                index=${#records[@]}
+                stored="$v"
+            fi
+        fi
+        records+=("$line")
+    done < "$SECRETS_FILE"
+    if [ -n "$stored" ]; then
+        printf -v "$key" '%s' "$stored"
+        export "$key"
+        return 0
+    fi
     [ -z "$value" ] || return 0
     generated="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
     [ "${#generated}" -eq 64 ] || die "无法生成随机密钥"
-    if grep -Eq "^$key=$" "$SECRETS_FILE"; then
-        sed -i "s/^$key=$/$key=$generated/" "$SECRETS_FILE"
-    elif grep -q "^$key=" "$SECRETS_FILE"; then
-        die "$key 格式异常，读取为空但配置行不为空；请检查 .secrets"
+    if (( index >= 0 )); then
+        line="${records[index]}"
+        [[ "$line" != *$'\r' ]] || ending=$'\r'
+        records[index]="${line%%=*}=$generated$ending"
     else
-        printf '%s=%s\n' "$key" "$generated" >> "$SECRETS_FILE"
+        records+=("$key=$generated")
+    fi
+    # Terminate every record, including a previously unterminated final line,
+    # so an omitted key cannot be concatenated onto another credential's value.
+    # Stage beside the original for atomic replacement, retaining its ownership.
+    temp="$(mktemp "${SECRETS_FILE}.tmp.XXXXXXXX")" || die "无法暂存敏感配置"
+    if ! cp -p -- "$SECRETS_FILE" "$temp" || ! chmod 0600 "$temp" ||
+       ! printf '%s\n' "${records[@]}" > "$temp" || ! mv -f -- "$temp" "$SECRETS_FILE"; then
+        rm -f -- "$temp"
+        die "无法持久化 $key；请检查敏感配置文件权限"
     fi
     printf -v "$key" '%s' "$generated"
     export "$key"

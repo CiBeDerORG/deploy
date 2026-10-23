@@ -1,58 +1,19 @@
 #!/usr/bin/env bash
-# Native listener policy regression. No root, systemd, Docker or network needed.
+# Offline native adapter/launcher tests; HTTP checks bind loopback only.
 set -Eeuo pipefail
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-work="$(mktemp -d)"
+command -v node >/dev/null 2>&1 || { echo "Native regression requires Node.js" >&2; exit 1; }
+yaml_dir="${MIHOMO_TEST_YAML_DIR:-}"
+if [ -z "$yaml_dir" ]; then
+    yaml_dir="$(node -e 'const p=require("node:path");process.stdout.write(p.dirname(require.resolve("yaml/package.json", {paths:[process.argv[1]]})))' "$HERE")"
+fi
+[ -f "$yaml_dir/package.json" ] || { echo "Set MIHOMO_TEST_YAML_DIR to the installed upstream YAML package" >&2; exit 1; }
+work="$(mktemp -d "${TMPDIR:-/tmp}/mihomo-host-test.XXXXXXXX")"
 trap 'rm -rf -- "$work"' EXIT
-cat > "$work/mihomo" <<'EOF_CORE'
-#!/usr/bin/env bash
-set -Eeuo pipefail
-while [ "$#" -gt 0 ]; do
-    if [ "$1" = -f ] || [ "$1" = --config ]; then
-        cat "$2"
-        exit 0
-    fi
-    shift
-done
-exit 2
-EOF_CORE
-chmod +x "$work/mihomo"
-cat > "$work/active.yaml" <<'EOF_CONFIG'
-external-controller: 0.0.0.0:9090
-mixed-port: 7890
-allow-lan: true
-bind-address: "*"
-authentication:
-  - 'deploy:keep-secret'
-external-controller-cors:
-  allow-origins:
-    - 'http://127.0.0.1:7012'
-rules:
-  - MATCH,DIRECT
-EOF_CONFIG
-cp "$work/active.yaml" "$work/original.yaml"
-export MIHOMO_REAL_BIN="$work/mihomo"
-export MIHOMO_KERNEL_TMPDIR="$work/tmp"
-export MIHOMO_PROXY_BIND_IP=127.0.0.1
-export MIHOMO_CORE_API_BIND_IP=0.0.0.0
-export MIHOMO_MIXED_PORT=7011
-export MIHOMO_CORE_API_PORT=7013
-output="$(bash "$HERE/../deploy/host-kernel.sh" -t -d "$work" -f "$work/active.yaml")"
-grep -Fx 'external-controller: "0.0.0.0:7013"' <<< "$output"
-grep -Fx 'mixed-port: 7011' <<< "$output"
-grep -Fx 'bind-address: "127.0.0.1"' <<< "$output"
-grep -Fx "  - 'deploy:keep-secret'" <<< "$output"
-grep -Fx "    - 'http://127.0.0.1:7012'" <<< "$output"
-[ "$(grep -c '^mixed-port:' <<< "$output")" -eq 1 ]
-[ "$(grep -c '^external-controller:' <<< "$output")" -eq 1 ]
-cmp -s "$work/active.yaml" "$work/original.yaml"
-
-# The wildcard proxy bind must be Mihomo's documented "*" value.
-export MIHOMO_PROXY_BIND_IP=0.0.0.0
-export MIHOMO_CORE_API_BIND_IP=127.0.0.1
-output="$(bash "$HERE/../deploy/host-kernel.sh" -t -f "$work/active.yaml")"
-grep -Fx 'bind-address: "*"' <<< "$output"
-grep -Fx 'external-controller: "127.0.0.1:7013"' <<< "$output"
-cmp -s "$work/active.yaml" "$work/original.yaml"
-[ "$(find "$work/tmp" -name 'active.*.yaml' -type f | wc -l)" -eq 2 ]
-echo "Native Mihomo config isolation and listener regression passed"
+mkdir -p "$work/release/launch" "$work/release/node_modules"
+cp "$HERE/../deploy/host-kernel.sh" "$HERE/../deploy/host-config.mjs" \
+   "$HERE/../deploy/host-health.mjs" "$work/release/launch/"
+ln -s "$(cd -- "$yaml_dir" && pwd -P)" "$work/release/node_modules/yaml"
+cp "$HERE/host-cases.mjs" "$work/release/host-cases.mjs"
+node "$work/release/host-cases.mjs" "$HERE/../deploy"
+echo "Native YAML, pinned launcher, legacy bridge and Web acceptance regression passed"

@@ -196,19 +196,60 @@ remove_deprecated_env_keys() {
 }
 
 sync_template_keys() {
-    local template="$1" target="$2" label="$3" line key
+    local template="$1" target="$2" label="$3" line key trimmed keys
+    local -A existing=() template_seen=()
+    local -a pending=() pending_keys=()
     [ -f "$template" ] || return 0
-    while IFS= read -r line; do
-        case "$line" in ''|'#'*) continue ;; esac
-        key="${line%%=*}"
+    # Read only names, never source/print values. Match the key whitespace that
+    # the service config readers accept, and reject ambiguity before any append.
+    if ! keys="$(run_root awk -v label="$label" '
+        {
+            line=$0
+            sub(/\r$/, "", line)
+            sub(/^[[:space:]]*/, "", line)
+            if (line == "" || line ~ /^#/) next
+            equals=index(line, "=")
+            if (!equals) next
+            key=substr(line, 1, equals-1)
+            sub(/[[:space:]]*$/, "", key)
+            if (key !~ /^[A-Za-z_][A-Za-z0-9_]*$/) next
+            if (seen[key]++) {
+                printf "配置错误：%s 中变量 %s 重复定义；未同步模板（值不打印）\n", label, key > "/dev/stderr"
+                invalid=1
+                exit 1
+            }
+        }
+        END { if (!invalid) for (key in seen) print key }
+    ' "$target")"; then
+        return 1
+    fi
+    while IFS= read -r key; do
+        [ -z "$key" ] || existing[$key]=1
+    done <<< "$keys"
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%$'\r'}"
+        trimmed="${line#"${line%%[![:space:]]*}"}"
+        case "$trimmed" in ''|'#'*) continue ;; esac
+        [[ "$trimmed" == *=* ]] || continue
+        key="${trimmed%%=*}"
+        key="${key%"${key##*[![:space:]]}"}"
         [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
-        if ! run_root grep -q "^$key=" "$target"; then
+        if [[ ${template_seen[$key]+defined} ]]; then
+            echo "配置错误：$label 模板中变量 $key 重复定义；未同步模板（值不打印）" >&2
+            return 1
+        fi
+        template_seen[$key]=1
+        if [[ ! ${existing[$key]+defined} ]]; then
             [ "$key" != "SOFTWARE_ROOT" ] || line="SOFTWARE_ROOT=$SOFTWARE_ROOT"
-            run_root sh -c 'printf "\n%s\n" "$1" >> "$2"' sh "$line" "$target"
-            echo "已补充 $label 配置项：$key"
-            GLOBAL_ENV_UPDATED=1
+            pending+=("$line")
+            pending_keys+=("$key")
         fi
     done < "$template"
+    if (( ${#pending[@]} )); then
+        run_root sh -c 'target=$1; shift; printf "\n%s\n" "$@" >> "$target"' sh "$target" "${pending[@]}" || return 1
+        for key in "${pending_keys[@]}"; do echo "已补充 $label 配置项：$key"; done
+        GLOBAL_ENV_UPDATED=1
+    fi
 }
 
 set_config_line() {
@@ -321,8 +362,8 @@ ensure_global_env() {
         GLOBAL_SECRETS_CREATED=1
     fi
 
-    sync_template_keys "$GLOBAL_ENV_EXAMPLE" "$GLOBAL_ENV" ".env"
-    sync_template_keys "$GLOBAL_SECRETS_EXAMPLE" "$GLOBAL_SECRETS" ".secrets"
+    sync_template_keys "$GLOBAL_ENV_EXAMPLE" "$GLOBAL_ENV" ".env" || return $?
+    sync_template_keys "$GLOBAL_SECRETS_EXAMPLE" "$GLOBAL_SECRETS" ".secrets" || return $?
     migrate_easytier_default_ports
     migrate_flatnas_default_port
     migrate_sensitive_env_keys
@@ -442,9 +483,9 @@ sync_task() {
     fi
     if [ "$task" = mihomo ]; then
         local native_script
-        for native_script in host-install.sh host-run.sh host-kernel.sh; do
-            if [ -f "$target_dir/deploy/$native_script" ]; then
-                run_root chmod +x "$target_dir/deploy/$native_script"
+        for native_script in "$target_dir/deploy"/host-*.sh; do
+            if [ -f "$native_script" ]; then
+                run_root chmod +x "$native_script"
             fi
         done
     fi
@@ -485,7 +526,7 @@ run_task() {
 
     sync_task "$task"
 
-    ensure_global_env
+    ensure_global_env || return $?
     if [ "$GLOBAL_ENV_CREATED" -eq 1 ] || [ "$GLOBAL_SECRETS_CREATED" -eq 1 ]; then
         return 2
     fi

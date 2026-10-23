@@ -1,0 +1,41 @@
+name: Mihomo Native Build and Web Check
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "mihomo/deploy/**"
+      - "mihomo/tests/native-smoke.sh"
+      - ".github/workflows/mihomo-native-check.yml"
+  pull_request:
+    paths:
+      - "mihomo/deploy/**"
+      - "mihomo/tests/native-smoke.sh"
+      - ".github/workflows/mihomo-native-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  native-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Prepare isolated module directory
+        shell: bash
+        run: |
+          runtime="$RUNNER_TEMP/mihomo-native/mihomo/runtime/host"
+          mkdir -p "$runtime/.host-build.ci"
+          echo "MIHOMO_HOST_RUNTIME=$runtime" >> "$GITHUB_ENV"
+          echo "MIHOMO_TEST_RELEASE=$runtime/.host-build.ci/release" >> "$GITHUB_ENV"
+
+      - name: Build official server, UI and matching core
+        shell: bash
+        run: bash mihomo/deploy/host-build.sh "$MIHOMO_TEST_RELEASE"
+
+      - name: Verify real native Web and preserved proxy configuration
+        shell: bash
+        run: sudo bash mihomo/tests/native-smoke.sh "$MIHOMO_TEST_RELEASE"

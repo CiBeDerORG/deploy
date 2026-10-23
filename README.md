@@ -513,6 +513,12 @@ Docker 安装：`sudo bash deploy.sh mihomo`；Docker 更新：`sudo bash deploy
 
 新增原生安装：`sudo bash deploy.sh mihomo host`；原生更新：`sudo bash deploy.sh mihomo host-update`。原生方式无需 Docker，使用 `deploy-mihomo.service` 管理完整 MetaCubeXD Web/Agent/内核，继续读取相同的 `.env`、`.secrets`、`mihomo/data/all-in-one`；默认 Docker 命令、容器和 Compose 不变。两个模式不能同时运行；切换前须自行停止另一种方式。详细见 [Mihomo 原生安装与切换说明](./mihomo/README.md)。旧 config.yaml 原样保留并备份、复制到新 Agent Profile（副本去除旧 external-ui-url）；完整版持久化目录 mihomo/data/all-in-one。内部 proxy-net 和 mihomo:7890 保留，其他容器可使用 sudo bash deploy.sh proxy connect / disconnect / status。已存在的完整版 Profile、密码和 active.yaml 不会被安装器覆盖。
 
+fnOS 保持全局 `SOFTWARE_ROOT=/vol3/1000/software`，Mihomo 的运行数据与配置集中在
+`/vol3/1000/software/mihomo/`；原生程序、缓存、临时文件、升级事务备份和日志都在其
+`runtime/host/` 子目录。统一 `.env` / `.secrets` 仍放在 `/vol3/1000/software/deploy/`，
+本次原生修复不新增配置项。systemd 必需的开机注册文件由模块内配置生成，等待数据盘挂载后启动。
+具体目录和失败恢复行为见 [Mihomo fnOS 目录说明](./mihomo/README.md#fnos-目录与配置位置)。
+
 ### GitHub Actions self-hosted Runner
 
 `.env`：
