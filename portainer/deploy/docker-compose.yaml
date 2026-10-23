@@ -2,7 +2,7 @@ name: portainer
 
 services:
   portainer:
-    image: "portainer/portainer-ce:lts"
+    image: "${DEPLOY_PORTAINER_IMAGE:-portainer/portainer-ce:lts}"
     container_name: portainer
     restart: unless-stopped
 

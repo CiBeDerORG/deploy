@@ -1,4 +1,5 @@
-FROM mcr.microsoft.com/devcontainers/typescript-node:24
+ARG OPENCODE_BASE_IMAGE=mcr.microsoft.com/devcontainers/typescript-node:24
+FROM ${OPENCODE_BASE_IMAGE}
 
 USER root
 

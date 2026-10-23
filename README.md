@@ -39,6 +39,7 @@ Docker 服务需要：
 - root 或 sudo 权限
 - Docker
 - Docker Compose v2 Plugin（命令为 `docker compose`）
+- 启用镜像加速且部署涉及 GHCR 镜像时需要 `flock`（通常由 util-linux 提供），用于并发保护轮换记录
 
 GitHub Runner 还需要：
 
@@ -210,7 +211,9 @@ sudo bash deploy.sh proxy status [容器名]
 <SOFTWARE_ROOT>/
 ├── deploy/
 │   ├── .env
-│   └── .secrets
+│   ├── .secrets
+│   ├── lib/image-sources.sh
+│   └── state/image-mirror.last
 ├── opencode/
 │   ├── config/
 │   ├── data/
@@ -279,6 +282,78 @@ MIHOMO_MIXED_PORT=7011
 MIHOMO_API_PORT=7012
 MIHOMO_CORE_API_PORT=7013
 ```
+
+### 全局镜像源与轮换
+
+在统一 `<SOFTWARE_ROOT>/deploy/.env` 中配置：
+
+```dotenv
+# 只对 ghcr.io 镜像生效；original 使用原始镜像，mirror 使用加速镜像。
+# 可选，默认 original；Docker Hub、MCR 等其他来源始终保留原地址。
+DOCKER_IMAGE_SOURCE=mirror
+# 可选，按逗号分隔的顺序轮换；空值或未配置时使用以下默认值。
+DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
+```
+
+这是 deploy 自身提供的配置，所有 Docker 部署项目共用同一条判断规则：**只有原始仓库为 `ghcr.io` 的镜像才转换到加速站**。其他镜像地址完整保留，不参与轮换。目前各项目的效果如下：
+
+| 项目 | 镜像来源与处理方式 |
+| --- | --- |
+| EasyTier | 默认 GHCR 镜像会加速；`EASYTIER_IMAGE` 指定非 GHCR 镜像时保留原地址，cloud / intranet 共用 |
+| FRPS | GHCR 服务镜像会加速 |
+| Mihomo Docker | GHCR 完整版镜像会加速；启动前检查和 Compose 共用本轮镜像 |
+| FlatNas | 当前为 Docker Hub 镜像，原样使用 |
+| Portainer | 当前为 Docker Hub 镜像，原样使用 |
+| Sub2API | 应用、PostgreSQL、Redis 当前均为 Docker Hub 镜像，三个地址均原样使用 |
+| OpenCode | MCR 基础镜像原样使用；构建输出仍为 `opencode-local:latest` |
+
+轮换规则：
+
+- 每次包含 GHCR 镜像的 Docker 安装或更新选择一个加速站，同一次执行的 GHCR 镜像拉取、检查、构建和启动共用该站。
+- 所有项目共用 `<SOFTWARE_ROOT>/deploy/state/image-mirror.last`，按配置顺序循环。例如默认顺序下，先执行 `easytier update` 使用 DockerProxy，再执行 `mihomo update` 使用 GH-Proxy，下一次包含 GHCR 镜像的部署使用 DockerProxy；中间执行 `sub2api update` 不推进轮换。
+- 完成业务预检并选站后，在 Compose 校验、拉取或构建之前记录本轮位置；后续校验或拉取失败，再次执行脚本也会从下一个站开始，不在一次执行中自动重试其他站。
+- 使用文件锁和原子替换保存记录，避免两个部署进程同时覆盖轮换位置。更改列表后，如果上次站点仍在列表中，就从它后面继续；否则从第一项开始。
+- `original` 模式、没有 GHCR 镜像的部署、`env`、`list`、`sync`、代理网络管理不推进轮换。GitHub Runner、Mihomo 原生模式、EasyTier OpenWrt 使用原生安装流程，也不推进镜像轮换。
+- 同一次部署混用 GHCR 与其他仓库时，仅转换 GHCR 镜像，其余镜像原样使用。识别按仓库域名进行，路径中包含 `ghcr.io` 或 `ghcr.io.example.com` 这样的其他域名不会误判为 GHCR。
+
+配置中的原始镜像始终保留。例如 EasyTier 继续填写：
+
+```dotenv
+EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
+```
+
+本轮选中 DockerProxy 时，脚本仅在当前执行环境中使用：
+
+```text
+ghcr.dockerproxy.net/cibederorg/easytier:feat-node-attributes-main
+```
+
+GHCR 镜像的组织、嵌套路径、标签和 digest 会保留。已知 GHCR 专用加速域名，以及 `m.daocloud.io/ghcr.io/...`、`gh-proxy.com/docker/ghcr.io/...`，会先还原到 `ghcr.io` 再转换，防止重复加前缀；切回 `original` 也会还原这些已识别的 GHCR 地址。Docker Hub 短名称、MCR、自定义仓库及非 GHCR 加速地址均按输入原样保留。
+
+内置站点及限制（文档核对日期：2026-10-23）：
+
+| 配置值 | GHCR 转换规则与限制 |
+| --- | --- |
+| `dockerproxy` | 默认候选。`ghcr.io/路径` 转为 `ghcr.dockerproxy.net/路径`。见 [官方文档](https://dockerproxy.net/docs)。 |
+| `ghproxy` | 默认候选。`ghcr.io/路径` 转为 `gh-proxy.com/docker/ghcr.io/路径`，该站说明仅支持公开镜像。见 [Docker 代理文档](https://gh-proxy.com/docs/docker-mirror)。 |
+| `nju` | 可选。`ghcr.io/路径` 转为 `ghcr.nju.edu.cn/路径`。见 [官方 GHCR 文档](https://doc.nju.edu.cn/books/e1654/page/ghcr)。 |
+| `1ms` | 可选。`ghcr.io/路径` 转为 `ghcr.1ms.run/路径`，GHCR 有免费共享通道。见 [镜像列表](https://mdoc.cc/mliev/1ms/v1.0.0/3)。 |
+| `daocloud` | 可选。`ghcr.io/路径` 转为 `m.daocloud.io/ghcr.io/路径`，需要镜像已在服务方白名单内；自建仓库未必获准。见 [官方说明与白名单](https://github.com/DaoCloud/public-image-mirror)。 |
+
+默认列表为 `dockerproxy,ghproxy`，需要其他站点时自行修改顺序。公开服务的连通性与速度以部署机器实际拉取为准，白名单及服务方访问限制仍然适用。
+
+更新使用方式：
+
+```bash
+git pull
+sudo bash deploy.sh env
+# 编辑统一 .env，将 DOCKER_IMAGE_SOURCE 改成 mirror
+sudo bash deploy.sh easytier update
+```
+
+其余项目使用各自的 install/update 命令即可。根 `deploy.sh` 同步业务时，也会把公共模块同步到 `<SOFTWARE_ROOT>/deploy/lib/`；之后直接运行该业务的 `deploy/install.sh` 或 `deploy/update.sh` 同样生效。直接手动运行 `docker compose` 不会执行轮换逻辑，正常部署请使用上述脚本。
+
+此配置只控制 GHCR 容器镜像地址，不负责 npm、Git、Release 下载等其他网络请求；Docker 构建内的 HTTP 代理继续使用原有 `BUILD_HTTP_PROXY` / `BUILD_HTTPS_PROXY` 配置。
 
 ### .secrets
 

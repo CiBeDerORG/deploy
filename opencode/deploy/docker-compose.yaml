@@ -8,6 +8,7 @@ services:
         - "host.docker.internal:host-gateway"
 
       args:
+        OPENCODE_BASE_IMAGE: "${DEPLOY_OPENCODE_BASE_IMAGE:-mcr.microsoft.com/devcontainers/typescript-node:24}"
         OPENCODE_CACHE_BUST: "${OPENCODE_CACHE_BUST:-manual}"
 
         # 仅在 build 阶段存在，不传入运行时 environment。

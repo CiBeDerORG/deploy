@@ -248,6 +248,14 @@ validate_build_proxy
 fix_permissions
 cd "$DEPLOY_DIR"
 
+IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
+[ -f "$IMAGE_SOURCES_LIB" ] || IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/lib/image-sources.sh"
+[ -f "$IMAGE_SOURCES_LIB" ] || { echo "镜像源公共脚本不存在，请通过 deploy.sh 同步部署文件。" >&2; exit 1; }
+# shellcheck source=../../lib/image-sources.sh
+source "$IMAGE_SOURCES_LIB"
+DEPLOY_OPENCODE_BASE_IMAGE=mcr.microsoft.com/devcontainers/typescript-node:24
+deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_OPENCODE_BASE_IMAGE
+
 echo "=================================================="
 if [ "$MODE" = "update" ]; then
     echo " OpenCode V2 更新开始"

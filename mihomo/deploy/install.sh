@@ -51,14 +51,21 @@ export MIHOMO_MIXED_PORT MIHOMO_API_PORT MIHOMO_CORE_API_PORT
 export MIHOMO_PROXY_BIND_IP MIHOMO_API_BIND_IP MIHOMO_CORE_API_BIND_IP
 export MIHOMO_API_SECRET MIHOMO_CONTROL_TOKEN TZ
 
+IMAGE_SOURCES_LIB="$ROOT/deploy/lib/image-sources.sh"
+[ -f "$IMAGE_SOURCES_LIB" ] || IMAGE_SOURCES_LIB="$ROOT/lib/image-sources.sh"
+[ -f "$IMAGE_SOURCES_LIB" ] || die "镜像源公共脚本不存在，请通过 deploy.sh 同步部署文件。"
+# shellcheck source=../../lib/image-sources.sh
+source "$IMAGE_SOURCES_LIB"
+DEPLOY_MIHOMO_IMAGE=ghcr.io/metacubex/metacubexd-server:latest
+deploy_prepare_images "$ROOT" "$ROOT/deploy/.env" DEPLOY_MIHOMO_IMAGE
+
 bash "$HERE/proxy-network.sh" ensure
 cd "$HERE"
 compose() { docker compose -f "$HERE/docker-compose.yaml" "$@"; }
 compose config --quiet || die "Compose 配置校验失败"
 # Download and inspect the complete official image while the old container stays up.
 compose pull || die "无法拉取官方完整版镜像；旧容器没有被替换"
-IMAGE=ghcr.io/metacubex/metacubexd-server:latest
-docker run --rm --network none --entrypoint /bin/sh "$IMAGE" -ec \
+docker run --rm --network none --entrypoint /bin/sh "$DEPLOY_MIHOMO_IMAGE" -ec \
     'test -x /usr/local/bin/mihomo && test -f /app/server/index.mjs && test -d /app/ui-dist' ||
     die "拉取的镜像缺少官方 Web、Agent 或内核；旧容器没有被替换"
 
@@ -69,7 +76,7 @@ initialize_aio "$MODULE/data" "$HERE/default-profile.yaml" "$MIHOMO_API_PORT"
 # Validate with exactly the image's bundled mihomo BEFORE replacing the container.
 docker run --rm --entrypoint /usr/local/bin/mihomo \
     --mount "type=bind,source=$MODULE/data/all-in-one,target=/data" \
-    "$IMAGE" -t -d /data -f /data/active.yaml >/dev/null 2>&1 ||
+    "$DEPLOY_MIHOMO_IMAGE" -t -d /data -f /data/active.yaml >/dev/null 2>&1 ||
     die "已有配置未通过完整版内核验证，旧容器不受影响；请检查备份和 Profile"
 
 echo "预检通过，开始切换同名 mihomo 容器（代理会短暂中断）..."

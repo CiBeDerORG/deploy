@@ -36,6 +36,17 @@ if [ "$MODE" = update ]; then
     [ -d "$BASE_DIR/data/postgres" ] || fail "PostgreSQL 数据目录缺失，已中止，防止意外初始化新数据库"
 fi
 install -d -m 0700 "$BASE_DIR/data" "$BASE_DIR/data/app" "$BASE_DIR/data/postgres" "$BASE_DIR/data/redis"
+IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
+[ -f "$IMAGE_SOURCES_LIB" ] || IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/lib/image-sources.sh"
+[ -f "$IMAGE_SOURCES_LIB" ] || fail "镜像源公共脚本不存在，请通过 deploy.sh 同步部署文件。"
+# shellcheck source=../../lib/image-sources.sh
+source "$IMAGE_SOURCES_LIB"
+DEPLOY_SUB2API_IMAGE=weishaw/sub2api:latest
+DEPLOY_SUB2API_POSTGRES_IMAGE=postgres:18-alpine
+DEPLOY_SUB2API_REDIS_IMAGE=redis:8-alpine
+deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" \
+    DEPLOY_SUB2API_IMAGE DEPLOY_SUB2API_POSTGRES_IMAGE DEPLOY_SUB2API_REDIS_IMAGE
+
 cd "$DEPLOY_DIR"
 compose() { docker compose -f "$DEPLOY_DIR/docker-compose.yaml" "$@"; }
 compose config --quiet || fail "Compose 配置校验失败"

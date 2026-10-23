@@ -1,6 +1,6 @@
 services:
   frps:
-    image: "ghcr.io/cibeder/frps:dev-multi-latest"
+    image: "${DEPLOY_FRPS_IMAGE:-ghcr.io/cibeder/frps:dev-multi-latest}"
     pull_policy: always
 
     container_name: frps

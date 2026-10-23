@@ -425,6 +425,34 @@ resolve_task() {
     return 1
 }
 
+sync_shared_libraries() {
+    local source_file="$ROOT_DIR/lib/image-sources.sh"
+    local target_dir="$GLOBAL_ENV_DIR/lib"
+    local target_file="$target_dir/image-sources.sh"
+    local staged_file
+
+    [ -f "$source_file" ] || {
+        echo "公共镜像源模块不存在：$source_file，请完整更新 deploy 仓库。" >&2
+        return 1
+    }
+    run_root mkdir -p "$target_dir" || return $?
+
+    # 仓库本身可能就在 <SOFTWARE_ROOT>/deploy，避免覆盖正在使用的源文件。
+    if [ "$source_file" -ef "$target_file" ]; then
+        return 0
+    fi
+
+    staged_file="$(run_root mktemp "$target_dir/.image-sources.XXXXXX")" || return $?
+    if ! run_root cp -- "$source_file" "$staged_file" ||
+       ! run_root chown root:root "$staged_file" ||
+       ! run_root chmod 0644 "$staged_file" ||
+       ! run_root mv -f -- "$staged_file" "$target_file"; then
+        run_root rm -f -- "$staged_file"
+        echo "同步公共镜像源模块失败：$target_file" >&2
+        return 1
+    fi
+}
+
 sync_task() {
     local task="$1"
     local source_dir="$ROOT_DIR/$task"
@@ -449,6 +477,8 @@ sync_task() {
         echo "缺少 tar，无法同步部署文件。" >&2
         return 1
     fi
+
+    sync_shared_libraries || return $?
 
     archive="$(mktemp "/tmp/deploy-${task}.XXXXXX.tar")"
     trap "rm -f '$archive'" EXIT

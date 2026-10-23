@@ -112,9 +112,17 @@ mkdir -p "$BASE_DIR/data" "$BASE_DIR/music" "$BASE_DIR/PC" "$BASE_DIR/APP" "$BAS
 chmod 0700 "$BASE_DIR/data"
 cd "$DEPLOY_DIR"
 
+IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
+[ -f "$IMAGE_SOURCES_LIB" ] || IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/lib/image-sources.sh"
+[ -f "$IMAGE_SOURCES_LIB" ] || { echo "镜像源公共脚本不存在，请通过 deploy.sh 同步部署文件。" >&2; exit 1; }
+# shellcheck source=../../lib/image-sources.sh
+source "$IMAGE_SOURCES_LIB"
+DEPLOY_FLATNAS_IMAGE=qdnas/flatnas:latest
+deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_FLATNAS_IMAGE
+
 echo "校验 FlatNas Compose 配置..."
 compose config --quiet || fail "Compose 配置校验失败。"
-echo "拉取官方镜像 qdnas/flatnas:latest..."
+echo "拉取 FlatNas 镜像：$DEPLOY_FLATNAS_IMAGE"
 compose pull flatnas
 echo "启动 FlatNas（$MODE）..."
 compose up -d --no-deps --force-recreate flatnas

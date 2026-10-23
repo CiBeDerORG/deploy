@@ -495,6 +495,14 @@ check_runtime
 echo "[2/6] 根据统一 .env 同步 FRPS TOML/YAML 端口..."
 apply_runtime_config
 
+IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
+[ -f "$IMAGE_SOURCES_LIB" ] || IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/lib/image-sources.sh"
+[ -f "$IMAGE_SOURCES_LIB" ] || { echo "镜像源公共脚本不存在，请通过 deploy.sh 同步部署文件。" >&2; exit 1; }
+# shellcheck source=../../lib/image-sources.sh
+source "$IMAGE_SOURCES_LIB"
+DEPLOY_FRPS_IMAGE=ghcr.io/cibeder/frps:dev-multi-latest
+deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_FRPS_IMAGE
+
 cd "$DEPLOY_DIR"
 
 echo "[3/6] 校验 Compose 配置..."

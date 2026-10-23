@@ -215,6 +215,14 @@ fi
 mkdir -p "$DATA_DIR"
 cd "$DEPLOY_DIR"
 
+IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
+[ -f "$IMAGE_SOURCES_LIB" ] || IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/lib/image-sources.sh"
+[ -f "$IMAGE_SOURCES_LIB" ] || { echo "镜像源公共脚本不存在，请通过 deploy.sh 同步部署文件。" >&2; exit 1; }
+# shellcheck source=../../lib/image-sources.sh
+source "$IMAGE_SOURCES_LIB"
+DEPLOY_PORTAINER_IMAGE=portainer/portainer-ce:lts
+deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_PORTAINER_IMAGE
+
 echo "=================================================="
 if [ "$MODE" = "update" ]; then
     echo " Portainer CE 更新开始"
