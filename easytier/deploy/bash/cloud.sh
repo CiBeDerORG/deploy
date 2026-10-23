@@ -11,6 +11,18 @@ MACHINE_ID_FILE="${EASYTIER_MACHINE_ID_FILE:-/etc/machine-id}"
 : "${EASYTIER_CONFIG_PORT:?EASYTIER_CONFIG_PORT 未设置}"
 : "${EASYTIER_WEB_API_HOST:?EASYTIER_WEB_API_HOST 未设置}"
 
+# The deploy setting is positive; EasyTier's native environment flag is negative.
+EASYTIER_WEB_ENABLE_REGISTRATION="${EASYTIER_WEB_ENABLE_REGISTRATION:-true}"
+case "$EASYTIER_WEB_ENABLE_REGISTRATION" in
+    true) ET_DISABLE_REGISTRATION=false ;;
+    false) ET_DISABLE_REGISTRATION=true ;;
+    *)
+        echo "EASYTIER_WEB_ENABLE_REGISTRATION 是部署配置，只能填写 true 或 false。" >&2
+        exit 1
+        ;;
+esac
+export ET_DISABLE_REGISTRATION
+
 [ -s "$MACHINE_ID_FILE" ] || {
     echo "machine-id 不存在或为空: $MACHINE_ID_FILE" >&2
     exit 1
@@ -37,6 +49,7 @@ trap cleanup INT TERM EXIT
 
 echo "[EasyTier] role=cloud (Web-managed Core)"
 echo "[EasyTier] Web: $EASYTIER_WEB_API_HOST"
+echo "[EasyTier] Web registration enabled: $EASYTIER_WEB_ENABLE_REGISTRATION"
 echo "[EasyTier] Core Config Server: $CLOUD_CONFIG_SERVER"
 echo "[EasyTier] Core managed config: $CLOUD_CONFIG_DIR"
 echo "[EasyTier] IMPORTANT: set cloud Core listeners and disable_relay_data=true in Web."

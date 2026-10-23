@@ -401,7 +401,7 @@ opencode
 
 ### EasyTier
 
-Docker 使用同一个容器部署两种角色：
+Docker 镜像使用 `ghcr.io/cibederorg/easytier:feat-node-attributes-main`，支持 amd64 / arm64 匿名拉取。同一个容器部署两种角色：
 
 - `cloud`：同时运行 Web Console、Config Server、**连接本机 Config Server 的云端 Core**。
 - `intranet`：仅运行 Core，连接云端 Web Config Server。
@@ -420,9 +420,12 @@ EASYTIER_CONFIG_PORT=7008
 ```dotenv
 EASYTIER_ROLE=cloud
 EASYTIER_PRIVILEGED=false
+EASYTIER_WEB_ENABLE_REGISTRATION=true
 EASYTIER_WEB_API_HOST=http://<公网IP>:7007
 EASYTIER_CONFIG_SERVER=
 ```
+
+`EASYTIER_WEB_ENABLE_REGISTRATION` 是可选的部署配置：`true` 允许 Web 自助注册，`false` 禁止；默认、留空或未配置均为 `true`，已有账号仍可登录，仅 cloud 模式使用。拉取仓库后执行 `sudo bash deploy.sh env` 会把缺失的配置项补入 `<SOFTWARE_ROOT>/deploy/.env`；修改后执行 `sudo bash deploy.sh easytier update` 生效。当前镜像关闭注册后由后端拒绝注册请求，前端注册入口仍可能显示，详见 [注册开关说明](./easytier/README.md#web-注册开关)。
 
 cloud Core 自动连接 `udp://127.0.0.1:7008/admin`。云端的**网络名称、网络密钥、虚拟 IPv4、Listener 和安全 flags 均在 Web 管理页面配置**，不再要求 `.env/.secrets` 提前填写网络身份。
 

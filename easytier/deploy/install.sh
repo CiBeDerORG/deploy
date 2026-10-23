@@ -178,6 +178,15 @@ validate_config() {
     fi
 
     if [ "$EASYTIER_ROLE" = "cloud" ]; then
+        case "${EASYTIER_WEB_ENABLE_REGISTRATION:-true}" in
+            true|false)
+                ;;
+            *)
+                echo "EASYTIER_WEB_ENABLE_REGISTRATION 是部署配置，只能填写 true 或 false。" >&2
+                exit 1
+                ;;
+        esac
+
         validate_port EASYTIER_WEB_PORT
         validate_port EASYTIER_CONFIG_PORT
 
@@ -328,6 +337,7 @@ echo " 容器状态:     $STATUS"
 echo " 角色:         $EASYTIER_ROLE"
 if [ "$EASYTIER_ROLE" = "cloud" ]; then
     echo " Web 地址:     $EASYTIER_WEB_API_HOST"
+    echo " 允许 Web 注册: ${EASYTIER_WEB_ENABLE_REGISTRATION:-true}"
     echo " Web 端口:     $EASYTIER_WEB_PORT"
     echo " Config Server: udp://0.0.0.0:$EASYTIER_CONFIG_PORT/admin"
     echo " EasyTier:     $EASYTIER_PORT (TCP/UDP)"

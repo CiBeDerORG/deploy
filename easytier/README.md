@@ -5,6 +5,8 @@
 - `cloud`：同一容器运行 `easytier-web-embed`、Web Config Server 和**由本机 Web 管理的云端 Core**。
 - `intranet`：仅运行 `easytier-core`，通过远端 Web Config Server 接收配置。
 
+Docker 镜像地址：`ghcr.io/cibederorg/easytier:feat-node-attributes-main`，包含 `linux/amd64`、`linux/arm64`，可匿名拉取。Compose 继续使用单容器、原有启动脚本和数据目录。
+
 OpenWrt 不需要 Docker，使用 `easytier/openwrt/install.sh` 原生安装。
 
 ## Docker 目录
@@ -39,6 +41,7 @@ Listener 建议分别填写 `tcp://0.0.0.0:7005`、`udp://0.0.0.0:7005`，而非
 ```dotenv
 EASYTIER_ROLE=cloud
 EASYTIER_PRIVILEGED=false
+EASYTIER_WEB_ENABLE_REGISTRATION=true
 EASYTIER_PORT=7005
 EASYTIER_RPC_PORT=7006
 EASYTIER_WEB_PORT=7007
@@ -57,6 +60,26 @@ EASYTIER_CONFIG_SERVER=
 ```
 
 云端网络名称、网络密钥、虚拟 IPv4 **完全由 Web 控制台配置**，不再需要提前填写 `EASYTIER_CLOUD_NETWORK_NAME`、`EASYTIER_CLOUD_IPV4` 和 `EASYTIER_CLOUD_NETWORK_SECRET`。旧文件中若仍存在这些变量，新版本不再读取。
+
+### Web 注册开关
+
+在统一普通配置 `<SOFTWARE_ROOT>/deploy/.env` 中设置：
+
+| 配置 | 默认值 | 作用 |
+| --- | --- | --- |
+| `EASYTIER_WEB_ENABLE_REGISTRATION` | `true` | `true` 允许 Web 自助注册；`false` 关闭 Web 自助注册；仅 cloud 模式使用 |
+
+这是 deploy 定义的可选配置。未配置或留空时使用 `true`，保持升级前的行为；有值时填写小写 `true` 或 `false`。关闭注册可设置：
+
+```dotenv
+EASYTIER_WEB_ENABLE_REGISTRATION=false
+```
+
+`cloud.sh` 将该开关映射到镜像原生的 `ET_DISABLE_REGISTRATION`，值取反；无需另外配置镜像原生变量。镜像接口依据：[Web 启动选项](https://github.com/CiBeDerORG/EasyTier/blob/9eb9e8aced76776c59668d8686affc2a8f302317/easytier-web/src/main.rs)。
+
+修改后从 deploy 仓库执行 `sudo bash deploy.sh easytier update`，更新流程会重建容器并应用新环境变量；仅重启旧容器不会重新读取 Compose 中的环境变量。已有账号的登录不受此开关影响。当前镜像的前端注册入口仍可能显示，但关闭后注册请求会被后端拒绝。
+
+更新仓库后执行 `sudo bash deploy.sh env` 会将模板中的缺失项自动补入真实 `.env`；已存在的 `EASYTIER_WEB_ENABLE_REGISTRATION=...` 行保持原值。该配置不放在 `.secrets`，不影响 intranet Docker 节点和 OpenWrt 原生安装。
 
 ### Web 首次配置云端 Core
 

@@ -1,6 +1,6 @@
 services:
   easytier:
-    image: easytier/easytier:latest
+    image: ghcr.io/cibederorg/easytier:feat-node-attributes-main
     pull_policy: always
 
     container_name: easytier
@@ -43,6 +43,7 @@ services:
       EASYTIER_WEB_PORT: "${EASYTIER_WEB_PORT:-7007}"
       EASYTIER_CONFIG_PORT: "${EASYTIER_CONFIG_PORT:-7008}"
       EASYTIER_WEB_API_HOST: "${EASYTIER_WEB_API_HOST:-}"
+      EASYTIER_WEB_ENABLE_REGISTRATION: "${EASYTIER_WEB_ENABLE_REGISTRATION:-true}"
       EASYTIER_CONFIG_SERVER: "${EASYTIER_CONFIG_SERVER:-}"
       EASYTIER_CORE_CONFIG_DIR: "/config"
       EASYTIER_CLOUD_MANAGED_CONFIG_DIR: "/cloud-managed-core"
