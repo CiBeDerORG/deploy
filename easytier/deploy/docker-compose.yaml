@@ -4,7 +4,7 @@ services:
     pull_policy: always
 
     container_name: easytier
-    hostname: easytier
+    hostname: "${EASYTIER_HOSTNAME:-easytier}"
     restart: unless-stopped
     network_mode: host
 

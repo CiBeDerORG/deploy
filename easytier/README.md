@@ -23,6 +23,18 @@ easytier/deploy/
 
 Compose 使用 host 网络、TUN 和稳定的宿主机 `/etc/machine-id`。
 
+## 容器主机名
+
+在统一普通配置 `<SOFTWARE_ROOT>/deploy/.env` 中设置：
+
+```dotenv
+EASYTIER_HOSTNAME=easytier
+```
+
+这是可选的部署配置，用于 Compose 的 `hostname`，cloud 和 intranet 两种 Docker 模式均适用。未配置或留空时使用 `easytier`；例如 fnOS 节点可以设置 `EASYTIER_HOSTNAME=fnos`。
+
+拉取最新仓库后执行 `sudo bash deploy.sh env` 会补齐缺失的配置项，已有 `EASYTIER_HOSTNAME=...` 行保留原值。修改后执行 `sudo bash deploy.sh easytier update`，更新流程会重建容器并应用新主机名；仅重启旧容器不会应用此项更改。
+
 ## 端口规划
 
 | 用途 | 默认端口 | 说明 |
@@ -40,6 +52,7 @@ Listener 建议分别填写 `tcp://0.0.0.0:7005`、`udp://0.0.0.0:7005`，而非
 
 ```dotenv
 EASYTIER_ROLE=cloud
+EASYTIER_HOSTNAME=easytier
 EASYTIER_PRIVILEGED=false
 EASYTIER_WEB_ENABLE_REGISTRATION=true
 EASYTIER_PORT=7005
@@ -107,6 +120,7 @@ fnOS、普通 Linux 或其他 Docker 内网节点可使用同一份 Compose，�
 
 ```dotenv
 EASYTIER_ROLE=intranet
+EASYTIER_HOSTNAME=easytier
 EASYTIER_PORT=7005
 EASYTIER_RPC_PORT=7006
 EASYTIER_PRIVILEGED=true

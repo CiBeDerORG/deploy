@@ -419,11 +419,14 @@ EASYTIER_CONFIG_PORT=7008
 
 ```dotenv
 EASYTIER_ROLE=cloud
+EASYTIER_HOSTNAME=easytier
 EASYTIER_PRIVILEGED=false
 EASYTIER_WEB_ENABLE_REGISTRATION=true
 EASYTIER_WEB_API_HOST=http://<公网IP>:7007
 EASYTIER_CONFIG_SERVER=
 ```
+
+`EASYTIER_HOSTNAME` 是可选的容器主机名配置，cloud / intranet 均适用；默认、留空或未配置时使用 `easytier`。例如可在统一 `.env` 中设置 `EASYTIER_HOSTNAME=fnos`，更新服务后生效，无需修改 Compose 文件。详见 [容器主机名](./easytier/README.md#容器主机名)。
 
 `EASYTIER_WEB_ENABLE_REGISTRATION` 是可选的部署配置：`true` 允许 Web 自助注册，`false` 禁止；默认、留空或未配置均为 `true`，已有账号仍可登录，仅 cloud 模式使用。拉取仓库后执行 `sudo bash deploy.sh env` 会把缺失的配置项补入 `<SOFTWARE_ROOT>/deploy/.env`；修改后执行 `sudo bash deploy.sh easytier update` 生效。当前镜像关闭注册后由后端拒绝注册请求，前端注册入口仍可能显示，详见 [注册开关说明](./easytier/README.md#web-注册开关)。
 
@@ -439,6 +442,7 @@ cloud Core 自动连接 `udp://127.0.0.1:7008/admin`。云端的**网络名称�
 
 ```dotenv
 EASYTIER_ROLE=intranet
+EASYTIER_HOSTNAME=easytier
 EASYTIER_PRIVILEGED=true
 EASYTIER_CONFIG_SERVER=udp://<公网服务器IP>:7008/admin
 ```
