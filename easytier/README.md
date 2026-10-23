@@ -5,7 +5,7 @@
 - `cloud`：同一容器运行 `easytier-web-embed`、Web Config Server 和**由本机 Web 管理的云端 Core**。
 - `intranet`：仅运行 `easytier-core`，通过远端 Web Config Server 接收配置。
 
-Docker 镜像地址：`ghcr.io/cibederorg/easytier:feat-node-attributes-main`，包含 `linux/amd64`、`linux/arm64`，可匿名拉取。Compose 继续使用单容器、原有启动脚本和数据目录。
+默认 Docker 镜像地址：`ghcr.io/cibederorg/easytier:feat-node-attributes-main`，包含 `linux/amd64`、`linux/arm64`，可匿名拉取。镜像地址可通过统一 `.env` 中的 `EASYTIER_IMAGE` 修改。Compose 继续使用单容器、原有启动脚本和数据目录。
 
 OpenWrt 不需要 Docker，使用 `easytier/openwrt/install.sh` 原生安装。
 
@@ -22,6 +22,24 @@ easytier/deploy/
 ```
 
 Compose 使用 host 网络、TUN 和稳定的宿主机 `/etc/machine-id`。
+
+## Docker 镜像
+
+在统一普通配置 `<SOFTWARE_ROOT>/deploy/.env` 中设置完整镜像地址；fnOS 默认位置为 `/vol3/1000/software/deploy/.env`：
+
+```dotenv
+EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
+```
+
+`EASYTIER_IMAGE` 是 deploy 定义的可选配置，cloud 和 intranet 两种 Docker 模式共用。支持 `仓库地址/镜像名:标签` 或 `仓库地址/镜像名@sha256:摘要`；未配置或留空时仍使用上述默认镜像。更换镜像仓库、标签或固定摘要只需修改这一项，无需编辑 `docker-compose.yaml`。
+
+拉取最新仓库后执行 `sudo bash deploy.sh env` 会补齐缺失项，保留已有的 `EASYTIER_IMAGE` 值。修改后从 deploy 仓库执行：
+
+```bash
+sudo bash deploy.sh easytier update
+```
+
+安装和更新会从共享 `.env` 读取镜像地址，拉取该镜像并重建容器；仅重启旧容器不会切换镜像。自定义镜像需兼容现有启动脚本，包含 `/sbin/tini`、`sh`、`easytier-core`，cloud 模式还需包含 `easytier-web-embed`。此项不影响 OpenWrt 原生安装。
 
 ## 容器主机名
 
@@ -51,6 +69,7 @@ Listener 建议分别填写 `tcp://0.0.0.0:7005`、`udp://0.0.0.0:7005`，而非
 在 `<SOFTWARE_ROOT>/deploy/.env` 填写：
 
 ```dotenv
+EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
 EASYTIER_ROLE=cloud
 EASYTIER_HOSTNAME=easytier
 EASYTIER_PRIVILEGED=false
@@ -119,6 +138,7 @@ EASYTIER_WEB_ENABLE_REGISTRATION=false
 fnOS、普通 Linux 或其他 Docker 内网节点可使用同一份 Compose，只把角色改成：
 
 ```dotenv
+EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
 EASYTIER_ROLE=intranet
 EASYTIER_HOSTNAME=easytier
 EASYTIER_PORT=7005

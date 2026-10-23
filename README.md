@@ -401,7 +401,7 @@ opencode
 
 ### EasyTier
 
-Docker 镜像使用 `ghcr.io/cibederorg/easytier:feat-node-attributes-main`，支持 amd64 / arm64 匿名拉取。同一个容器部署两种角色：
+默认 Docker 镜像为 `ghcr.io/cibederorg/easytier:feat-node-attributes-main`，支持 amd64 / arm64 匿名拉取。同一个容器部署两种角色：
 
 - `cloud`：同时运行 Web Console、Config Server、**连接本机 Config Server 的云端 Core**。
 - `intranet`：仅运行 Core，连接云端 Web Config Server。
@@ -418,6 +418,7 @@ EASYTIER_CONFIG_PORT=7008
 云端 `.env`：
 
 ```dotenv
+EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
 EASYTIER_ROLE=cloud
 EASYTIER_HOSTNAME=easytier
 EASYTIER_PRIVILEGED=false
@@ -425,6 +426,8 @@ EASYTIER_WEB_ENABLE_REGISTRATION=true
 EASYTIER_WEB_API_HOST=http://<公网IP>:7007
 EASYTIER_CONFIG_SERVER=
 ```
+
+`EASYTIER_IMAGE` 是可选的 Docker 镜像配置，cloud / intranet 共用；留空或未配置时使用上述默认镜像。在统一 `.env` 修改完整镜像地址（支持标签或 digest）后执行 `sudo bash deploy.sh easytier update`，即可拉取指定镜像并重建容器，无需修改 Compose。执行 `sudo bash deploy.sh env` 会补齐缺失项并保留已有镜像值。自定义镜像的兼容要求见 [Docker 镜像](./easytier/README.md#docker-镜像)。
 
 `EASYTIER_HOSTNAME` 是可选的容器主机名配置，cloud / intranet 均适用；默认、留空或未配置时使用 `easytier`。例如可在统一 `.env` 中设置 `EASYTIER_HOSTNAME=fnos`，更新服务后生效，无需修改 Compose 文件。详见 [容器主机名](./easytier/README.md#容器主机名)。
 
@@ -441,6 +444,7 @@ cloud Core 自动连接 `udp://127.0.0.1:7008/admin`。云端的**网络名称�
 内网 `.env`：
 
 ```dotenv
+EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
 EASYTIER_ROLE=intranet
 EASYTIER_HOSTNAME=easytier
 EASYTIER_PRIVILEGED=true
