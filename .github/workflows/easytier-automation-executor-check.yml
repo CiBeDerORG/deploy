@@ -1,0 +1,66 @@
+name: EasyTier Executor Deploy Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "easytier-automation-executor/**"
+      - ".env.example"
+      - ".secrets.example"
+      - "README.md"
+      - ".github/workflows/easytier-automation-executor-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Verify script syntax, discovery and global configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n easytier-automation-executor/deploy/install.sh
+          bash -n easytier-automation-executor/deploy/update.sh
+          bash -n deploy.sh
+          test "$(bash deploy.sh list | grep -c 'easytier-automation-executor')" -eq 1
+          grep -q '^EASYTIER_EXECUTOR_CALLBACK_URL=' .env.example
+          grep -q '^EASYTIER_EXECUTOR_IMAGE=' .env.example
+          grep -q '^EASYTIER_EXECUTOR_TOKEN=' .secrets.example
+          if grep -q '^EASYTIER_EXECUTOR_TOKEN=' .env.example; then
+            echo 'Executor token must not be stored in the public configuration template' >&2
+            exit 1
+          fi
+      - name: Validate isolated host-network Compose service without printing credentials
+        shell: bash
+        env:
+          EASYTIER_EXECUTOR_TOKEN: ci-only-credential-01234567890123456789
+          EASYTIER_EXECUTOR_CALLBACK_URL: http://127.0.0.1:7007
+          EASYTIER_EXECUTOR_BIND_IP: 127.0.0.1
+          EASYTIER_EXECUTOR_PORT: '8766'
+          DEPLOY_EASYTIER_EXECUTOR_IMAGE: ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center
+        run: |
+          set -euo pipefail
+          file=easytier-automation-executor/deploy/docker-compose.yaml
+          docker compose -f "$file" config --quiet
+          docker compose -f "$file" config --format json | python3 -c '
+          import json, sys
+          model = json.load(sys.stdin)
+          assert list(model["services"]) == ["easytier-automation-executor"]
+          service = model["services"]["easytier-automation-executor"]
+          assert service["network_mode"] == "host"
+          assert service["container_name"] == "easytier-automation-executor"
+          assert "--workers" in service["command"] and service["command"][service["command"].index("--workers")+1] == "1"
+          assert len(service["volumes"]) == 2
+          targets = {entry["target"] for entry in service["volumes"]}
+          assert targets == {"/var/lib/easytier-automation", "/home/automation/.android"}
+          assert service["environment"]["AUTOMATION_CALLBACK_URL"] == "http://127.0.0.1:7007"
+          assert service["image"] == "ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center"
+          print("Independent executor Compose structure verified without emitting secrets")
+          '
