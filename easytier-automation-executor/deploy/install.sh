@@ -123,12 +123,24 @@ if docker container inspect "$CONTAINER" >/dev/null 2>&1; then
     [ "$owner" = easytier-automation-executor ] ||
         die "已存在同名但不属于本部署项目的容器；不会删除或接管它"
 else
-    [ "$MODE" = install ] || die "未找到已安装的执行器，请先使用 install"
+    # "update" is an idempotent desired-state operation: on an empty host it
+    # follows exactly the same first-install path as "install".
+    if [ "$MODE" = update ]; then
+        echo "未发现已有执行器容器，update 将按首次安装继续；保留已有运行数据和配置。"
+    fi
 fi
 
 # First install: generate once in the canonical secret file. Never rotate on update.
 if [ -z "${EASYTIER_EXECUTOR_TOKEN:-}" ]; then
-    [ "$MODE" = install ] && [ "$existing" -eq 0 ] || die "已有执行器或正在更新时 Token 为空；拒绝自动轮换，避免执行器身份或连接配置意外变化"
+    [ "$existing" -eq 0 ] || die "已有执行器时 Token 为空；拒绝自动轮换，避免原执行器失联"
+    # A stopped or manually removed container may still have a live identity,
+    # journal or ADB key. Never silently generate a replacement credential then.
+    if [ -d "$BASE_DIR/data/runtime" ] && [ -n "$(find "$BASE_DIR/data/runtime" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+        die "检测到已有执行器运行记录但 Token 为空；请恢复 .secrets 中的原 Token"
+    fi
+    if [ -d "$BASE_DIR/data/adb" ] && [ -n "$(find "$BASE_DIR/data/adb" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+        die "检测到已有 ADB 密钥但 Token 为空；请恢复 .secrets 中的原 Token"
+    fi
     command -v od >/dev/null 2>&1 || die "缺少 od，无法安全生成 Token"
     generated="$(od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]')"
     [ "${#generated}" -eq 64 ] || die "无法生成随机 Token"
@@ -180,6 +192,13 @@ deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_EASYTIER_EXECUTOR_IMAG
 echo "独立执行器 $MODE：linux/amd64，网络：host，监听：$EASYTIER_EXECUTOR_BIND_IP:$EASYTIER_EXECUTOR_PORT"
 echo "提醒：更新前请在 EasyTier 自动化中心关闭活动投屏，完成或取消运行任务；更新不会自动重放任务。"
 compose config --quiet || die "Compose 配置校验未通过（不会输出含 Token 的完整配置）"
+# Resolve the Compose image once, and verify it uses the image selected by the
+# shared GHCR round-robin rather than accidentally pulling the original tag.
+resolved_image="$(compose config --images)" ||
+    die "无法读取 Compose 解析后的镜像地址"
+[ "$resolved_image" = "$DEPLOY_EASYTIER_EXECUTOR_IMAGE" ] ||
+    die "Compose 镜像地址与本轮镜像加速选择不一致；拒绝拉取错误镜像"
+echo "本次实际拉取镜像：$resolved_image"
 # Pull BEFORE recreating the old container. A failed pull leaves it untouched.
 compose pull "$SERVICE" || die "镜像拉取失败；现有容器不受影响"
 arch="$(docker image inspect "$DEPLOY_EASYTIER_EXECUTOR_IMAGE" --format '{{.Architecture}}')" ||
