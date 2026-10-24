@@ -33,7 +33,19 @@ sudo bash deploy.sh easytier-automation-executor update
 sudo bash deploy.sh easytier-automation-executor sync
 ```
 
-更新前在自动化中心关闭画面并完成/取消活动任务；重启不会自动重放旧动作。更新先完成 Compose 校验、镜像拉取和 amd64 架构检查，再重新创建容器。失败拉取不会中断已运行的容器。默认镜像地址可用 `EASYTIER_EXECUTOR_IMAGE` 指定完整 GHCR 标签或不可变的 `sha-<完整提交号>` 标签；`DOCKER_IMAGE_SOURCE=original|mirror` 和 `DOCKER_IMAGE_MIRRORS` 复用全局仅 GHCR 转换与每次执行轮换规则。
+`install` 与 `update` 都是幂等的期望状态操作：尚无执行器容器时，`update` 也会按首次安装继续，不需要先执行 `install`。如果发现历史运行记录或 ADB 密钥，但 `.secrets` 里 Token 为空，脚本会拒绝生成新 Token，要求恢复原凭据，避免破坏已有身份。
+
+更新前在自动化中心关闭画面并完成/取消活动任务；重启不会自动重放旧动作。更新先完成 Compose 校验、镜像拉取和 amd64 架构检查，再重新创建容器。 脚本会先通过统一镜像源模块解析镜像、打印**本次实际拉取镜像**，再核对 Compose 解析结果一致才拉取。失败拉取不会中断已运行的容器。默认镜像地址可用 `EASYTIER_EXECUTOR_IMAGE` 指定完整 GHCR 标签或不可变的 `sha-<完整提交号>` 标签；`DOCKER_IMAGE_SOURCE=original|mirror` 和 `DOCKER_IMAGE_MIRRORS` 复用全局仅 GHCR 转换与每次执行轮换规则。
+
+启用镜像加速，需要在**统一** `<SOFTWARE_ROOT>/deploy/.env` 中显式设置（默认 `original` 不会轮换）：
+
+```dotenv
+DOCKER_IMAGE_SOURCE=mirror
+DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
+```
+
+此配置对所有 Deploy 的 GHCR 项目生效，`install` 和 `update` 均轮换同一全局站点；例如本轮显示 `镜像来源：加速站 dockerproxy`、`本次实际拉取镜像：ghcr.dockerproxy.net/cibederorg/easytier-automation-executor:feat-automation-center`，下轮轮到 `ghproxy`。不会直接改写 `EASYTIER_EXECUTOR_IMAGE` 原始配置。
+
 
 配置均集中在 `<SOFTWARE_ROOT>/deploy/.env` / `.secrets`。执行器自己不存储另一个独立 `.env`；令牌可首次自动生成并只写入权限为 0600 的 `.secrets`，再次安装和更新不会自动改掉已有 Token。启动前校验必填回调 URL、监听 IPv4、端口、任务限制和凭证。已存在其他项目持有的同名容器时拒绝接管。
 
