@@ -119,7 +119,7 @@ esac
 existing=0
 if docker container inspect "$CONTAINER" >/dev/null 2>&1; then
     existing=1
-    owner="$(docker inspect -f '${ index .Config.Labels "com.docker.compose.project" }' "$CONTAINER")"
+    owner="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "$CONTAINER")"
     [ "$owner" = easytier-automation-executor ] ||
         die "已存在同名但不属于本部署项目的容器；不会删除或接管它"
 else
@@ -182,7 +182,7 @@ echo "提醒：更新前请在 EasyTier 自动化中心关闭活动投屏，完�
 compose config --quiet || die "Compose 配置校验未通过（不会输出含 Token 的完整配置）"
 # Pull BEFORE recreating the old container. A failed pull leaves it untouched.
 compose pull "$SERVICE" || die "镜像拉取失败；现有容器不受影响"
-arch="$(docker image inspect "$DEPLOY_EASYTIER_EXECUTOR_IMAGE" --format '${.Architecture}')" ||
+arch="$(docker image inspect "$DEPLOY_EASYTIER_EXECUTOR_IMAGE" --format '{{.Architecture}}')" ||
     die "无法检查已拉取镜像架构"
 [ "$arch" = amd64 ] || die "镜像架构为 $arch，预期 amd64；未更换容器"
 # Persist SQLite journal / executor_id / screenshots and ADB identity across upgrades.
@@ -192,7 +192,7 @@ compose up -d --no-deps --force-recreate --pull never "$SERVICE" ||
 # Only authenticate inside the container; do not pass the private token on the host command line.
 ready=0
 for attempt in $(seq 1 25); do
-    status="$(docker inspect --format '${.State.Status}' "$CONTAINER" 2>/dev/null || true)"
+    status="$(docker inspect --format '{{.State.Status}}' "$CONTAINER" 2>/dev/null || true)"
     case "$status" in exited|dead) break ;; esac
     if docker exec -e EASYTIER_EXECUTOR_BIND_IP="$EASYTIER_EXECUTOR_BIND_IP" -e EASYTIER_EXECUTOR_PORT="$EASYTIER_EXECUTOR_PORT" "$CONTAINER" python -c '
 import json, os, urllib.request
