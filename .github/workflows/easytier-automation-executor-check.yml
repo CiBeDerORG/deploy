@@ -29,6 +29,8 @@ jobs:
           bash -n easytier-automation-executor/deploy/install.sh
           bash -n easytier-automation-executor/deploy/update.sh
           bash -n deploy.sh
+          bash -n tests/easytier-automation-executor-install.sh
+          bash tests/easytier-automation-executor-install.sh
           grep -Fq "{{ index .Config.Labels \"com.docker.compose.project\" }}" easytier-automation-executor/deploy/install.sh
           grep -Fq '{{.Architecture}}' easytier-automation-executor/deploy/install.sh
           grep -Fq '{{.State.Status}}' easytier-automation-executor/deploy/install.sh
