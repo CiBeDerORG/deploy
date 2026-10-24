@@ -1,0 +1,35 @@
+name: easytier-automation-executor
+
+services:
+  easytier-automation-executor:
+    image: "${DEPLOY_EASYTIER_EXECUTOR_IMAGE:-${EASYTIER_EXECUTOR_IMAGE:-ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center}}"
+    container_name: easytier-automation-executor
+    network_mode: host
+    init: true
+    restart: unless-stopped
+    # One journal owner and one ADB key identity. Do not scale this service.
+    command:
+      - uvicorn
+      - automation_executor.app:app
+      - --host
+      - "${EASYTIER_EXECUTOR_BIND_IP:-127.0.0.1}"
+      - --port
+      - "${EASYTIER_EXECUTOR_PORT:-8766}"
+      - --workers
+      - "1"
+      - --no-access-log
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      AUTOMATION_TOKEN: "${EASYTIER_EXECUTOR_TOKEN:?Set the private executor token in deploy/.secrets}"
+      AUTOMATION_CALLBACK_URL: "${EASYTIER_EXECUTOR_CALLBACK_URL:?Set the reachable EasyTier Web backend URL in deploy/.env}"
+      AUTOMATION_MAX_RUNNING: "${EASYTIER_EXECUTOR_MAX_RUNNING:-2}"
+      AUTOMATION_MAX_PENDING: "${EASYTIER_EXECUTOR_MAX_PENDING:-30}"
+      AUTOMATION_MAX_MEDIA_SESSIONS: "${EASYTIER_EXECUTOR_MAX_MEDIA_SESSIONS:-10}"
+      AUTOMATION_MAX_MEDIA_STARTING: "${EASYTIER_EXECUTOR_MAX_MEDIA_STARTING:-2}"
+      AUTOMATION_ICE_SERVERS: "${EASYTIER_EXECUTOR_ICE_SERVERS:-[]}"
+      AUTOMATION_TURN_URLS: "${EASYTIER_EXECUTOR_TURN_URLS:-[]}"
+      AUTOMATION_TURN_SECRET: "${EASYTIER_EXECUTOR_TURN_SECRET:-}"
+      AUTOMATION_TURN_TTL_SECONDS: "${EASYTIER_EXECUTOR_TURN_TTL_SECONDS:-3600}"
+    volumes:
+      - ../data/runtime:/var/lib/easytier-automation
+      - ../data/adb:/home/automation/.android
