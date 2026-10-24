@@ -24,6 +24,7 @@
 | OpenCode V2 | `7003/TCP` | Docker Compose | [opencode/README.md](./opencode/README.md) |
 | FRPS | `7000/TCP`，后台 `7001/TCP` | Docker Compose | [frps/README.md](./frps/README.md) |
 | EasyTier | Core `7005`，RPC `7006`，Web `7007`，Config `7008/UDP` | Docker / OpenWrt | [easytier/README.md](./easytier/README.md) |
+| EasyTier 手机执行器 | `8766/TCP`（默认仅本机监听） | 独立 Docker Compose，Linux amd64 | [easytier-automation-executor/README.md](./easytier-automation-executor/README.md) |
 | Portainer CE | `7004/TCP` | Docker Compose | [portainer/README.md](./portainer/README.md) |
 | FlatNas | `7009/TCP` | Docker Compose | [flatnas/README.md](./flatnas/README.md) |
 | Sub2API | `7010/TCP` | Docker Compose（含 PostgreSQL、Redis） | [sub2api/README.md](./sub2api/README.md) |
@@ -128,6 +129,7 @@ bash deploy.sh list
 sudo bash deploy.sh opencode
 sudo bash deploy.sh frps
 sudo bash deploy.sh easytier
+sudo bash deploy.sh easytier-automation-executor
 sudo bash deploy.sh portainer
 sudo bash deploy.sh flatnas
 sudo bash deploy.sh sub2api
@@ -227,6 +229,9 @@ sudo bash deploy.sh proxy status [容器名]
 ├── easytier/
 │   ├── data/
 │   └── deploy/
+├── easytier-automation-executor/
+│   ├── data/runtime/ data/adb/
+│   └── deploy/
 ├── portainer/
 │   ├── data/
 │   └── deploy/
@@ -300,6 +305,7 @@ DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
 | 项目 | 镜像来源与处理方式 |
 | --- | --- |
 | EasyTier | 默认 GHCR 镜像会加速；`EASYTIER_IMAGE` 指定非 GHCR 镜像时保留原地址，cloud / intranet 共用 |
+| EasyTier 手机执行器 | 独立 `EASYTIER_EXECUTOR_IMAGE`，仅原始 GHCR 镜像参与同一全局轮换，不触发主服务更新 |
 | FRPS | GHCR 服务镜像会加速 |
 | Mihomo Docker | GHCR 完整版镜像会加速；启动前检查和 Compose 共用本轮镜像 |
 | FlatNas | 当前为 Docker Hub 镜像，原样使用 |
@@ -527,6 +533,12 @@ EASYTIER_CONFIG_SERVER=udp://<公网服务器IP>:7008/admin
 ```
 
 详细说明（含 Web、升级、OpenWrt）：[easytier/README.md](./easytier/README.md)
+
+### EasyTier 手机执行器（独立）
+
+使用单独 `ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center` 镜像，只支持 Linux amd64；默认 8766 只监听 127.0.0.1。需要在统一 `.env` 设置实际主服务回调地址 `EASYTIER_EXECUTOR_CALLBACK_URL`，跨主机使用时另设置可信私网监听 `EASYTIER_EXECUTOR_BIND_IP`；令牌 `EASYTIER_EXECUTOR_TOKEN` 只保存在统一 `.secrets`，首次留空由安装脚本生成。数据及 ADB 密钥保留在 `<SOFTWARE_ROOT>/easytier-automation-executor/data/`。
+
+安装：`sudo bash deploy.sh easytier-automation-executor`；更新：`sudo bash deploy.sh easytier-automation-executor update`。执行器安装后还需在 EasyTier 管理员「自动化中心 → 设置」录入执行器地址和同一 Token。详细说明：[独立执行器](./easytier-automation-executor/README.md)。
 
 ### Portainer
 
