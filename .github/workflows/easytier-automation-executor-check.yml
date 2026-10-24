@@ -29,6 +29,9 @@ jobs:
           bash -n easytier-automation-executor/deploy/install.sh
           bash -n easytier-automation-executor/deploy/update.sh
           bash -n deploy.sh
+          grep -Fq "{{ index .Config.Labels \"com.docker.compose.project\" }}" easytier-automation-executor/deploy/install.sh
+          grep -Fq '{{.Architecture}}' easytier-automation-executor/deploy/install.sh
+          grep -Fq '{{.State.Status}}' easytier-automation-executor/deploy/install.sh
           test "$(bash deploy.sh list | grep -c 'easytier-automation-executor')" -eq 1
           grep -q '^EASYTIER_EXECUTOR_CALLBACK_URL=' .env.example
           grep -q '^EASYTIER_EXECUTOR_IMAGE=' .env.example
