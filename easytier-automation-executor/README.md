@@ -76,3 +76,9 @@ docker logs --tail=100 easytier-automation-executor
 ```
 
 工作流和执行器源码：[EasyTier feat/automation-center / automation-executor](https://github.com/CiBeDerORG/EasyTier/tree/feat/automation-center/automation-executor)。镜像发布情况以 [独立执行器 GitHub Actions](https://github.com/CiBeDerORG/EasyTier/actions/workflows/automation-executor-image.yml) 为准。
+
+## 自动化并行执行（feat/automation-center）
+
+自动化中心脚本批量执行默认同时运行 **3 台**，单次运行可选择 **1～5 台**。执行器全局容量由统一 `deploy/.env` 的 `EASYTIER_EXECUTOR_MAX_RUNNING` 控制，默认 3，允许 1～5。不同脚本可同时使用不同设备；同一台设备仍按独占锁串行执行脚本动作，投屏是否可查看由媒体会话独立管理。执行记录的并行总览可按任务或设备查看，运行中的任务按进度同步；未知动作不会自动重放。
+
+更新到新执行器镜像后，通过 `sudo docker exec easytier-automation-executor printenv AUTOMATION_MAX_RUNNING` 检查最终容器容量。**已有 .env 的显式值（例如 1 或 2）不会被部署脚本改写**；想使用默认三路并行，请把该值设为 3 后用 `sudo bash deploy.sh easytier-automation-executor update` 重建容器。更新前结束/取消活动脚本并关闭投屏，避免重建时出现未确认动作。
