@@ -19,6 +19,8 @@ sudo bash deploy.sh env
 sudo bash deploy.sh easytier-automation-executor
 ```
 
+**主镜像版本提示：** deploy 的 EasyTier 主程序默认标签目前仍是 `feat-node-attributes-main`，不是此自动化中心分支。若要部署本分支的首次配对/清理修复，请先在统一 `deploy/.env` 中显式设置 `EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-automation-center`，再运行 `sudo bash deploy.sh easytier update`。执行器仍单独使用 `EASYTIER_EXECUTOR_IMAGE=ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center` 并独立更新。更新脚本会提示本机检测到的旧标签，但不会私自覆盖主镜像配置，也不会清除 journal / ADB 密钥。
+
 fnOS 默认运行位置为 `/vol3/1000/software/easytier-automation-executor/`，普通 Linux 默认 `/software/easytier-automation-executor/`。以当前 `SOFTWARE_ROOT` 为准。根安装器同步服务源码，不覆盖 `data/` 和全局密钥文件。
 
 完成后在 **EasyTier 主服务 → 自动化中心 → 设置（管理员）** 填写从主服务可访问的执行器 URL：`http://<执行器IP>:8766`，并填写与 `deploy/.secrets` 中 `EASYTIER_EXECUTOR_TOKEN` **相同的值**，保存后点击“检查已保存连接”。这个检查只证明协议及认证可达，不等于 Android 配对成功或 WebRTC 视频已验收。

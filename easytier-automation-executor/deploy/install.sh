@@ -189,6 +189,19 @@ DEPLOY_EASYTIER_EXECUTOR_IMAGE="$EASYTIER_EXECUTOR_IMAGE"
 deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_EASYTIER_EXECUTOR_IMAGE ||
     die "镜像源选择失败"
 
+# Read-only deployment cross-check. Never override another project's image
+# setting; simply call out old defaults that lack automation-center fixes.
+if docker container inspect easytier >/dev/null 2>&1; then
+    running_main_image="$(docker inspect --format '{{.Config.Image}}' easytier 2>/dev/null || true)"
+    case "$running_main_image" in
+        *:feat-node-attributes-main)
+            echo "警告：当前 EasyTier 主容器使用旧分支镜像 $running_main_image" >&2
+            echo "      自动化中心修复位于 feat-automation-center；请先确认统一 deploy/.env 的 EASYTIER_IMAGE，再单独更新主服务。" >&2
+            ;;
+    esac
+elif [ "$EASYTIER_EXECUTOR_BIND_IP" = "127.0.0.1" ]; then
+    echo "提醒：本机没有发现 EasyTier 主容器，执行器仅监听 127.0.0.1；如果主服务位于另一台服务器，它将无法直接连接此端口。" >&2
+fi
 echo "独立执行器 $MODE：linux/amd64，网络：host，监听：$EASYTIER_EXECUTOR_BIND_IP:$EASYTIER_EXECUTOR_PORT"
 echo "提醒：更新前请在 EasyTier 自动化中心关闭活动投屏，完成或取消运行任务；更新不会自动重放任务。"
 compose config --quiet || die "Compose 配置校验未通过（不会输出含 Token 的完整配置）"
