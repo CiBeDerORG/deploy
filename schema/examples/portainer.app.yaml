@@ -1,0 +1,70 @@
+# Contract fixture only. T03-02 will add the production portainer/app.yaml.
+schema_version: 1
+id: portainer
+name: Portainer
+summary: Docker and Compose management UI
+category: infrastructure
+homepage: https://www.portainer.io/
+runtime:
+  kind: docker_compose
+  compose_project: portainer
+  compose_file: deploy/docker-compose.yaml
+  requires_root: true
+compatibility:
+  platforms: [linux, fnos]
+  architectures: [amd64, arm64]
+  requires_docker: true
+  requires_compose_v2: true
+package:
+  files:
+    - source: portainer/deploy/docker-compose.yaml
+      destination: portainer/deploy/docker-compose.yaml
+    - source: portainer/deploy/install.sh
+      destination: portainer/deploy/install.sh
+      mode: "0755"
+    - source: portainer/deploy/update.sh
+      destination: portainer/deploy/update.sh
+      mode: "0755"
+config:
+  - key: PORTAINER_HTTP_PORT
+    label: Web port
+    type: port
+    target: env
+    required: true
+    default: 7004
+    minimum: 1
+    maximum: 65535
+  - key: PORTAINER_ADMIN_PASSWORD
+    label: Administrator password
+    type: secret
+    target: secrets
+    required: true
+    min_length: 12
+ports:
+  - id: web
+    label: Web UI
+    protocol: tcp
+    purpose: web
+    host_port_key: PORTAINER_HTTP_PORT
+    container_port: 9000
+    service: portainer
+    path: /
+actions:
+  install:
+    strategy: script
+    path: deploy/install.sh
+  update:
+    strategy: script
+    path: deploy/update.sh
+  uninstall:
+    strategy: compose_down
+    remove_orphans: false
+verification:
+  mode: docker_compose
+  required_services: [portainer]
+  state: running
+  timeout_seconds: 180
+data:
+  paths: [portainer/data]
+  named_volumes: []
+  default_retain: true
