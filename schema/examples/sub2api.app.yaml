@@ -45,8 +45,8 @@ config:
     default: 0.0.0.0
   - key: SUB2API_ADMIN_EMAIL
     label: Initial administrator email
-    type: string
-    target: env
+    type: secret
+    target: secrets
     required: false
     default: ""
   - key: SUB2API_POSTGRES_PASSWORD
