@@ -25,6 +25,8 @@ package:
     - source: portainer/deploy/update.sh
       destination: portainer/deploy/update.sh
       mode: "0755"
+    - source: lib/image-sources.sh
+      destination: deploy/lib/image-sources.sh
 config:
   - key: PORTAINER_HTTP_PORT
     label: Web port
