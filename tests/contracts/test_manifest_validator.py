@@ -70,7 +70,7 @@ class ManifestValidationTests(unittest.TestCase):
                    "Compose project")
 
     def test_missing_package_script(self):
-        self.fails("sub2api", lambda d: d["package"]["files"].pop(1), "Action script")
+        self.fails("sub2api", lambda d: d["package"]["files"].pop(2), "Action script")
 
     def test_missing_shared_dependency(self):
         self.fails("portainer",
@@ -90,8 +90,8 @@ class ManifestValidationTests(unittest.TestCase):
                    lambda d: d["package"]["files"][0].update({"destination": "../escape"}),
                    "Schema")
         self.fails("portainer",
-                   lambda d: d["package"]["files"][0].update({"source": "portainer/deploy/.env"}),
-                   "Schema")
+                   lambda d: d["package"]["files"][0].update({"destination": "portainer/deploy/.env"}),
+                   "hidden file")
 
     def test_casefold_duplicate_destination_or_source(self):
         def duplicate(d):
