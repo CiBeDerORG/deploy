@@ -25,7 +25,7 @@ BLOCKED_PARTS = {"data", "state", "backup", "runtime", "workspace"}
 BLOCKED_NAMES = {".env", ".secrets", ".git", ".ssh", "id_rsa", "id_ed25519"}
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_PACKAGE_BYTES = 24 * 1024 * 1024
-COMPOSE_VAR = re.compile(r"\\$\\{([A-Z][A-Z0-9_]*)(?::[^}]*)?\\}")
+COMPOSE_VAR = re.compile(r"\$\{([A-Z][A-Z0-9_]*)(?::[^}]*)?\}")
 ALLOWED_SCRIPT_ARGS = {"install": {"install"}, "update": {"update"}, "uninstall": set()}
 
 
@@ -68,7 +68,7 @@ def require(ok: bool, detail: str):
 def safe_parts(raw: str, field: str, *, allow_shared: bool = True) -> tuple[str, ...]:
     require(isinstance(raw, str) and 0 < len(raw) <= 256,
             f"{field}: path must be a nonempty string of at most 256 characters")
-    require(not raw.startswith("/") and "\\\\" not in raw and "\x00" not in raw,
+    require(not raw.startswith("/") and "\\" not in raw and "\x00" not in raw,
             f"{field}: absolute, backslash or NUL path forbidden")
     pieces = raw.split("/")
     require(all(piece not in ("", ".", "..") for piece in pieces),
@@ -99,39 +99,24 @@ def verified_file(root: Path, source: str) -> Path:
 
 
 def compose_port_match(entry, declared: dict) -> bool:
-    """Match a Compose port's real template/host binding, not substring digits."""
+    """Compare exact Compose host IP, variable and target port; ignore ':' inside ${VAR:?error}."""
     key = declared["host_port_key"]
     target = int(declared["container_port"])
     protocol = declared["protocol"]
     bind = declared.get("bind_address_key")
     if isinstance(entry, str):
-        pieces = entry.rsplit(":", 2)
-        # Formats without bind IP: HOST:CONTAINER or with bind IP: IP:HOST:CONTAINER
-        if len(pieces) == 2:
-            host, container = pieces
-            ip = None
-        elif len(pieces) == 3:
-            ip, host, container = pieces
-        else:
-            return False
-        container_port, _, proto = container.partition("/")
-        if container_port != str(target) or (proto or "tcp") != protocol:
-            return False
-        if key not in COMPOSE_VAR.findall(host) or not re.fullmatch(
-            r"\\$\\{[A-Z][A-Z0-9_]*(?::[^}]*)?\\}", host
-        ):
-            return False
-        if bind:
-            return ip is not None and bind in COMPOSE_VAR.findall(ip)
-        return ip is None or not COMPOSE_VAR.findall(ip)
+        variable = lambda k: r"\\$\\{" + re.escape(k) + r"(?::[^}]*)?\\}"
+        host = variable(key)
+        ip = variable(bind) + ":" if bind else ""
+        return re.fullmatch(ip + host + ":" + str(target) + r"(?:/" + protocol + r")?",
+                            entry) is not None
     if isinstance(entry, dict):
         if str(entry.get("target")) != str(target) or entry.get("protocol", "tcp") != protocol:
             return False
         return key in COMPOSE_VAR.findall(str(entry.get("published", ""))) and (
-            not bind or bind in COMPOSE_VAR.findall(str(entry.get("host_ip", "")))
+            not bind or bind in COMPOSE_VAR.findall(str(entry.get("host_ip", ""))
         )
     return False
-
 
 def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None = None) -> dict:
     root = root.resolve(strict=True)
@@ -221,7 +206,7 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
             script_dest = app + "/" + install_action["path"]
             require(script_dest in files, "Generated secret install script missing")
             text = files[script_dest].read_text(encoding="utf-8")
-            require(re.search(r"\\b" + re.escape(key) + r"\\b", text) is not None
+            require(re.search(r"\b" + re.escape(key) + r"\b", text) is not None
                     and ("ensure_hex_secret" in text or "generate" in text),
                     f"Generated secret has no observable implementation: {key}")
         if "min_length" in field and "max_length" in field:
