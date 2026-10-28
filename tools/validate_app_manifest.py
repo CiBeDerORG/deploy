@@ -276,7 +276,7 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
             # Validate relative scripts sourced from within the application.
             # The package builder MUST NOT depend on a global full Deploy checkout.
             for dependency in re.findall(
-                r'source\\s+["\\x27]?\\$DEPLOY_DIR/([A-Za-z0-9_.-]+\\.sh)', actual
+                r"""source\s+["']?\$DEPLOY_DIR/([A-Za-z0-9_.-]+\.sh)""", actual
             ):
                 require(app + "/deploy/" + dependency in files,
                         f"Sourced install dependency missing from package: {dependency}")
