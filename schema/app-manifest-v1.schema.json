@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/CiBeDerORG/deploy/blob/main/schema/app-manifest-v1.schema.json",
   "title": "Deploy App Manifest v1",
-  "description": "Machine-readable app.yaml for EasyTier central Deploy store. Docker Compose only in v1. Descriptions are data, not permission to run arbitrary commands. T03-01 will implement semantic+path+Compose validation.",
+  "description": "Machine-readable app.yaml for EasyTier central Deploy store. Docker Compose only in v1. Descriptions are data, not permission to run arbitrary commands. The T03-01 semantic validator (tools/validate_app_manifest.py) additionally enforces path ownership, Compose consistency, and package/script dependencies; schema validation alone grants no execution permission.",
   "type": "object",
   "additionalProperties": false,
   "required": [
