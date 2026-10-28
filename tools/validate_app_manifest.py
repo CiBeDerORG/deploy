@@ -99,23 +99,24 @@ def verified_file(root: Path, source: str) -> Path:
 
 
 def compose_port_match(entry, declared: dict) -> bool:
-    """Compare exact Compose host IP, variable and target port; ignore ':' inside ${VAR:?error}."""
+    """Compare Compose port binding without mistaking ':' inside \${VAR:?message}."""
     key = declared["host_port_key"]
     target = int(declared["container_port"])
     protocol = declared["protocol"]
     bind = declared.get("bind_address_key")
     if isinstance(entry, str):
-        variable = lambda k: r"\\$\\{" + re.escape(k) + r"(?::[^}]*)?\\}"
-        host = variable(key)
-        ip = variable(bind) + ":" if bind else ""
-        return re.fullmatch(ip + host + ":" + str(target) + r"(?:/" + protocol + r")?",
-                            entry) is not None
+        def variable(k: str) -> str:
+            return r"\$\{" + re.escape(k) + r"(?::[^}]*)?\}"
+        host_port = variable(key)
+        bind_prefix = variable(bind) + ":" if bind else ""
+        expected = bind_prefix + host_port + ":" + str(target) + r"(?:/" + protocol + r")?"
+        return re.fullmatch(expected, entry) is not None
     if isinstance(entry, dict):
         if str(entry.get("target")) != str(target) or entry.get("protocol", "tcp") != protocol:
             return False
-        return key in COMPOSE_VAR.findall(str(entry.get("published", ""))) and (
-            not bind or bind in COMPOSE_VAR.findall(str(entry.get("host_ip", ""))
-        )
+        is_host = key in COMPOSE_VAR.findall(str(entry.get("published", "")))
+        is_bind = not bind or bind in COMPOSE_VAR.findall(str(entry.get("host_ip", "")))
+        return is_host and is_bind
     return False
 
 def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None = None) -> dict:
