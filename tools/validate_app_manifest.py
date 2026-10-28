@@ -15,7 +15,7 @@ import posixpath
 import re
 import stat
 import sys
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
@@ -125,7 +125,7 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
     try:
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         Draft202012Validator.check_schema(schema)
-    except (OSError, ValueError, Exception) as exc:
+    except Exception as exc:
         raise ManifestError(f"Schema unavailable or invalid: {type(exc).__name__}") from exc
     data = yaml_load(manifest)
     require(isinstance(data, dict), "Manifest must be a mapping")
@@ -178,6 +178,9 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
             and bool(compose["services"]), "Compose must define services")
     require(compose.get("name") == data["runtime"]["compose_project"],
             "Compose project name does not match runtime.compose_project")
+    require(data["compatibility"].get("requires_docker") is True
+            and data["compatibility"].get("requires_compose_v2") is True,
+            "Docker Engine and Compose v2 must be explicitly required")
     services = compose["services"]
     for service, detail in services.items():
         require(isinstance(service, str) and isinstance(detail, dict),
@@ -270,6 +273,13 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
             if "deploy/lib/image-sources.sh" in actual:
                 require("deploy/lib/image-sources.sh" in files,
                         "Shared image-sources.sh dependency missing from package")
+            # Validate relative scripts sourced from within the application.
+            # The package builder MUST NOT depend on a global full Deploy checkout.
+            for dependency in re.findall(
+                r'source\\s+["\\x27]?\\$DEPLOY_DIR/([A-Za-z0-9_.-]+\\.sh)', actual
+            ):
+                require(app + "/deploy/" + dependency in files,
+                        f"Sourced install dependency missing from package: {dependency}")
 
     mounts = set()
     for service in services.values():
@@ -291,6 +301,13 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
         require(entry in mounts, f"Data path absent from Compose bind mounts: {entry}")
     require(data["data"].get("default_retain") is True,
             "Uninstall must retain user data by default")
+    # Explicitly declared named volumes must exist in the Compose resource map.
+    declared_volumes = compose.get("volumes") or {}
+    require(isinstance(declared_volumes, dict),
+            "Compose named volumes must be a mapping")
+    for volume in data["data"].get("named_volumes", []):
+        require(volume in declared_volumes,
+                f"Declared owned named volume is missing from Compose: {volume}")
 
     env_text = (root / ".env.example").read_text(encoding="utf-8")
     secret_text = (root / ".secrets.example").read_text(encoding="utf-8")
