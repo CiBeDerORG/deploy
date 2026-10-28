@@ -77,6 +77,21 @@ class ManifestValidationTests(unittest.TestCase):
                    lambda d: d["package"]["files"].pop(),
                    "Shared image-sources")
 
+    def test_sourced_local_shell_dependency_must_be_packaged(self):
+        self.fails("sub2api",
+                   lambda d: d["package"]["files"].pop(3),
+                   "Sourced install dependency")
+
+    def test_compatibility_requires_docker_and_compose_v2(self):
+        self.fails("portainer",
+                   lambda d: d["compatibility"].pop("requires_compose_v2"),
+                   "Docker Engine and Compose v2")
+
+    def test_invalid_named_volume_not_silently_claimed(self):
+        self.fails("sub2api",
+                   lambda d: d["data"].update({"named_volumes": ["some-volume"]}),
+                   "owned named volume")
+
     def test_symlink_package_source_rejected(self):
         shared = self.root / "lib/image-sources.sh"
         shared.unlink()
