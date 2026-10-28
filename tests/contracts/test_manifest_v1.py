@@ -29,6 +29,22 @@ class DeployManifestTests(unittest.TestCase):
                 VALIDATOR.validate(example)
                 self.assertEqual(example["id"], name)
 
+    def test_production_manifests_have_explicit_catalog_paths_and_match_fixtures(self):
+        # T03-02/T03-03 are real catalog entries, not only schema examples.
+        for name in EXAMPLES:
+            with self.subTest(name=name):
+                published = ROOT / name / "app.yaml"
+                self.assertTrue(published.is_file())
+                actual = yaml.safe_load(published.read_text(encoding="utf-8"))
+                VALIDATOR.validate(actual)
+                self.assertEqual(actual["id"], name)
+                self.assertEqual(actual, load(name))
+                self.assertEqual(actual["runtime"]["compose_project"], name)
+                self.assertIn(f"{name}/deploy/docker-compose.yaml",
+                              [f["destination"] for f in actual["package"]["files"]])
+                self.assertIn("deploy/lib/image-sources.sh",
+                              [f["destination"] for f in actual["package"]["files"]])
+
     def test_package_files_resolve_and_no_unsafe_destination(self):
         for name in EXAMPLES:
             app = load(name)
