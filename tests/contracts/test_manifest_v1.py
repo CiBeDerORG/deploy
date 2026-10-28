@@ -45,6 +45,14 @@ class DeployManifestTests(unittest.TestCase):
                 self.assertIn("deploy/lib/image-sources.sh",
                               [f["destination"] for f in actual["package"]["files"]])
 
+    def test_portainer_installer_does_not_destroy_unowned_same_name_containers(self):
+        source = (ROOT / "portainer/deploy/install.sh").read_text(encoding="utf-8")
+        self.assertIn("com.docker.compose.project", source)
+        self.assertIn("EXISTING_PROJECT", source)
+        self.assertIn('if [ "$EXISTING_PROJECT" != "$SERVICE" ]', source)
+        self.assertNotIn('docker rm "$CONTAINER"', source)
+        self.assertNotIn('docker stop "$CONTAINER"', source)
+
     def test_package_files_resolve_and_no_unsafe_destination(self):
         for name in EXAMPLES:
             app = load(name)
