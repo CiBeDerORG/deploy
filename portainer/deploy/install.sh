@@ -238,10 +238,15 @@ if ! compose config >/dev/null; then
     exit 1
 fi
 
-if [ "$MODE" = "install" ] && docker inspect "$CONTAINER" >/dev/null 2>&1; then
-    echo "      检测到同名旧容器，先清理: $CONTAINER"
-    docker stop "$CONTAINER" >/dev/null 2>&1 || true
-    docker rm "$CONTAINER" >/dev/null 2>&1 || true
+# A container name is NOT an ownership proof. Compose may reconcile its
+# own project, but this installer must never stop or remove an unrelated
+# existing container that happens to be called "portainer".
+if docker container inspect "$CONTAINER" >/dev/null 2>&1; then
+    EXISTING_PROJECT="$(docker inspect --format='{{ index .Config.Labels "com.docker.compose.project" }}' "$CONTAINER" 2>/dev/null || true)"
+    if [ "$EXISTING_PROJECT" != "$SERVICE" ]; then
+        echo "已有同名容器 $CONTAINER，但不是 Compose 项目 $SERVICE，拒绝接管、删除或覆盖。" >&2
+        exit 1
+    fi
 fi
 
 echo "[2/4] 拉取 Portainer LTS 镜像..."
