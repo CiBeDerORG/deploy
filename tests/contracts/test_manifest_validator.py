@@ -55,6 +55,27 @@ class ManifestValidationTests(unittest.TestCase):
         self.assertEqual(validate(self.fixture("sub2api")[0], self.root)["required_services"],
                          ["sub2api", "postgres", "redis"])
 
+    def test_both_published_manifests_validate_against_checked_in_assets(self):
+        for name in NAMES:
+            with self.subTest(name=name):
+                path = self.root / name / "app.yaml"
+                shutil.copy(self.fixture(name)[0], path)
+                result = validate(path, self.root)
+                self.assertEqual(result["id"], name)
+                self.assertEqual(result["compose_project"], name)
+                self.assertIn("web", (result["primary_port_id"],))
+
+    def test_published_app_id_and_location_must_match(self):
+        path = self.root / "sub2api/app.yaml"
+        shutil.copy(self.fixture("portainer")[0], path)
+        with self.assertRaisesRegex(ManifestError, "Production manifest"):
+            validate(path, self.root)
+
+    def test_missing_actual_dependency_is_fatal(self):
+        (self.root / "lib/image-sources.sh").unlink()
+        with self.assertRaisesRegex(ManifestError, "does not exist"):
+            validate(self.fixture("portainer")[0], self.root)
+
     def test_unknown_fields_and_required_schema(self):
         self.fails("portainer", lambda d: d.update({"new_permission": "exec"}), "Schema")
         self.fails("portainer", lambda d: d.pop("actions"), "Schema")
