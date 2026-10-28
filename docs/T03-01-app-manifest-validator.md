@@ -15,7 +15,7 @@ python3 tools/validate_app_manifest.py portainer/app.yaml
 python3 -m unittest discover -s tests/contracts -p 'test_*.py' -v
 ```
 
-`--examples` 校验两份已有**契约样例**，不是发布正式商店商品；`--all` 校验仓库根目录中的 `<id>/app.yaml`。只有 T03-02/T03-03 完成后才可把真实 Portainer/Sub2API 清单放进中央商品列表。命令退出码 0=当前输入均通过，1=至少一份校验失败。返回 JSON 行只含结构化清单摘要和相对错误位置，不输出用户密钥实际内容。
+`--examples` 校验两份已有**契约样例**，不是发布正式商店商品；`--all` 校验仓库根目录中的 `<id>/app.yaml`。T03-02/T03-03 已提交正式 `portainer/app.yaml` 和 `sub2api/app.yaml`；只有校验及 CI 验收通过后才应进入可信中央商品列表。命令退出码 0=当前输入均通过，1=至少一份校验失败。返回 JSON 行只含结构化清单摘要和相对错误位置，不输出用户密钥实际内容。
 
 ## 已实现的校验
 
@@ -46,6 +46,6 @@ python3 -m unittest discover -s tests/contracts -p 'test_*.py' -v
 
 ## 后续任务
 
-- T03-02/T03-03 将实际 `app.yaml` 纳入 Portainer/Sub2API 项目目录，并持续采用此校验器；旧 deploy CLI 不受影响。
+- T03-02/T03-03 已将实际 `app.yaml` 纳入 Portainer/Sub2API 项目目录，并补强 Portainer 的非自有容器防误删逻辑；下轮对其执行可信商店完整验证，旧 deploy CLI 仍保留。
 - T03-07 应严格打包本工具验证过的 source 文件，并绑定固定 commit 与完整 SHA-256；最终执行端还需要再校验。
 - 本项 CI/真实发布前验证完成之前状态继续 `IN_PROGRESS`，而不是 `DONE`。
