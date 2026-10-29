@@ -34,7 +34,7 @@ if not defined WSL_DIR (
 )
 
 echo.
-echo [INFO] Repository: %WSL_DIR%
+echo [INFO] Repository path resolved: "%WSL_DIR%"
 echo [INFO] Running the existing Linux deploy.sh inside WSL.
 echo [INFO] Docker commands require Docker Engine in WSL or Docker Desktop WSL integration.
 echo [INFO] "mihomo host" requires systemd enabled in the WSL distribution.
