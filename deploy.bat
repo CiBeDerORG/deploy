@@ -25,11 +25,24 @@ if not exist "%~dp0deploy.sh" (
 )
 
 set "WSL_DIR="
-for /f "usebackq delims=" %%I in (`"%WSL_EXE%" --exec wslpath -a "%~dp0." 2^>nul`) do set "WSL_DIR=%%I"
+for /f "delims=" %%I in ('"%WSL_EXE%" --exec wslpath -u "%~dp0."') do set "WSL_DIR=%%I"
 
 if not defined WSL_DIR (
     echo [ERROR] Could not convert the repository path to a WSL path.
-    echo Make sure the drive containing this repository is mounted in WSL.
+    echo Windows path: "%~dp0"
+    echo Check that WSL has a default Linux distribution and that wslpath is available.
+    echo If P: is a mapped or network drive, WSL may not be able to access it automatically.
+    exit /b 1
+)
+
+rem Confirm the translated path points to this repository inside WSL.
+"%WSL_EXE%" --cd "%WSL_DIR%" --exec test -f ./deploy.sh >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] WSL resolved the path but cannot find deploy.sh at that location.
+    echo Windows path: "%~dp0"
+    echo WSL path: "%WSL_DIR%"
+    echo If this is a mapped/network drive such as P:, move the repository to a local drive
+    echo accessible from WSL, or configure/mount that drive inside your WSL distribution.
     exit /b 1
 )
 
