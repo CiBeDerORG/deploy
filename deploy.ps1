@@ -803,7 +803,7 @@ function Prepare-Task {
             if ($role -eq 'cloud') {
                 $webPort = Test-Port 'EASYTIER_WEB_PORT' (Get-ConfigValue 'EASYTIER_WEB_PORT' '7007')
                 $configPort = Test-Port 'EASYTIER_CONFIG_PORT' (Get-ConfigValue 'EASYTIER_CONFIG_PORT' '7008')
-                if (@($mainPort,$rpcPort,$webPort,$configPort | Select-Object -Unique).Count -lt 4) { throw 'EasyTier 主端口、RPC、Web、Config 四个端口不能重复。' }
+                if ($mainPort -eq $webPort -or $mainPort -eq $configPort -or $rpcPort -eq $webPort -or $rpcPort -eq $configPort -or $webPort -eq $configPort) { throw 'EasyTier 主端口、RPC、Web、Config 四个端口不能重复。' }
                 $registration = Get-ConfigValue 'EASYTIER_WEB_ENABLE_REGISTRATION' 'true'
                 if ($registration -notin @('true','false')) { throw 'EASYTIER_WEB_ENABLE_REGISTRATION 只能是 true 或 false。' }
                 $hostUrl = Get-ConfigValue 'EASYTIER_WEB_API_HOST'
