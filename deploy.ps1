@@ -79,13 +79,13 @@ function Set-ConfigFileValue {
         foreach ($line in [IO.File]::ReadAllLines($Path)) { $lines.Add($line) }
     }
     $pattern = '^\s*' + [regex]::Escape($Key) + '\s*='
-    $matches = @()
+    $matchIndexes = @()
     for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -match $pattern) { $matches += $i }
+        if ($lines[$i] -match $pattern) { $matchIndexes += $i }
     }
-    if ($matches.Count -gt 1) { throw "$Path 中 $Key 重复定义；拒绝自动覆盖。" }
-    if ($matches.Count -eq 1) {
-        $lines[$matches[0]] = "$Key=$Value"
+    if ($matchIndexes.Count -gt 1) { throw "$Path 中 $Key 重复定义；拒绝自动覆盖。" }
+    if ($matchIndexes.Count -eq 1) {
+        $lines[$matchIndexes[0]] = "$Key=$Value"
     } else {
         if ($lines.Count -gt 0 -and $lines[$lines.Count - 1] -ne '') { $lines.Add('') }
         $lines.Add("$Key=$Value")
@@ -375,8 +375,9 @@ function Sync-Task {
     Sync-SharedLibrary
     New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
     $excludeRoots = @('data','state','workspace','backup')
+    $sourcePrefix = $sourceDir.TrimEnd([char[]]@('\','/'))
     foreach ($file in Get-ChildItem -LiteralPath $sourceDir -Force -Recurse -File) {
-        $relative = [IO.Path]::GetRelativePath($sourceDir, $file.FullName).Replace('\','/')
+        $relative = $file.FullName.Substring($sourcePrefix.Length).TrimStart([char[]]@('\','/')).Replace('\','/')
         $segments = $relative.Split('/')
         if ($segments.Count -gt 0 -and $excludeRoots -contains $segments[0]) { continue }
         if ($relative -eq 'deploy/.env' -or $relative -eq 'deploy/.secrets') { continue }
@@ -411,8 +412,8 @@ function Get-DockerOutput {
 
 function Check-DockerRuntime {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw '未检测到 Docker CLI。请安装并启动 Docker Desktop。' }
-    Invoke-Docker @('info')
-    Invoke-Docker @('compose','version')
+    if ($null -eq (Get-DockerOutput @('info'))) { throw 'Docker Engine 不可用。请启动 Docker Desktop 并等待引擎就绪。' }
+    if ($null -eq (Get-DockerOutput @('compose','version'))) { throw '未检测到 Docker Compose v2。请更新 Docker Desktop。' }
 }
 
 function Get-ComposeBaseArgs {
@@ -470,13 +471,30 @@ function Set-MirrorImages {
     $sourceMode = Get-ConfigValue 'DOCKER_IMAGE_SOURCE' 'original'
     if ($sourceMode -notin @('original','mirror')) { throw 'DOCKER_IMAGE_SOURCE 只能是 original 或 mirror。' }
     if ($sourceMode -eq 'original') { return }
-    $map = @{
-        frps = @(@('DEPLOY_FRPS_IMAGE','ghcr.io/cibeder/frps:dev-multi-latest'))
-        easytier = @(@('DEPLOY_EASYTIER_IMAGE',(Get-ConfigValue 'EASYTIER_IMAGE' 'ghcr.io/cibederorg/easytier:feat-node-attributes-main')))
-        'easytier-automation-executor' = @(@('DEPLOY_EASYTIER_EXECUTOR_IMAGE',(Get-ConfigValue 'EASYTIER_EXECUTOR_IMAGE' 'ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center')))
-        mihomo = @(@('DEPLOY_MIHOMO_IMAGE','ghcr.io/metacubex/metacubexd-server:latest'))
+
+    $key = ''
+    $image = ''
+    switch ($Task) {
+        frps {
+            $key = 'DEPLOY_FRPS_IMAGE'
+            $image = 'ghcr.io/cibeder/frps:dev-multi-latest'
+        }
+        easytier {
+            $key = 'DEPLOY_EASYTIER_IMAGE'
+            $image = Get-ConfigValue 'EASYTIER_IMAGE' 'ghcr.io/cibederorg/easytier:feat-node-attributes-main'
+        }
+        'easytier-automation-executor' {
+            $key = 'DEPLOY_EASYTIER_EXECUTOR_IMAGE'
+            $image = Get-ConfigValue 'EASYTIER_EXECUTOR_IMAGE' 'ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center'
+        }
+        mihomo {
+            $key = 'DEPLOY_MIHOMO_IMAGE'
+            $image = 'ghcr.io/metacubex/metacubexd-server:latest'
+        }
+        default { return }
     }
-    if (-not $map.ContainsKey($Task)) { return }
+    if (-not $image.StartsWith('ghcr.io/', [StringComparison]::OrdinalIgnoreCase)) { return }
+
     $providers = @( (Get-ConfigValue 'DOCKER_IMAGE_MIRRORS' 'dockerproxy,ghproxy').Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } )
     $allowed = @('dockerproxy','ghproxy','nju','1ms','daocloud')
     foreach ($providerName in $providers) {
@@ -484,6 +502,7 @@ function Set-MirrorImages {
     }
     $providers = @($providers | Select-Object -Unique)
     if ($providers.Count -eq 0) { throw 'DOCKER_IMAGE_MIRRORS 没有有效候选站。' }
+
     $stateDir = Join-Path $script:GlobalEnvDir 'state'
     New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
     $stateFile = Join-Path $stateDir 'image-mirror.last'
@@ -506,23 +525,17 @@ function Set-MirrorImages {
         Write-TextFile $stateFile $provider
     } finally { $lock.Dispose() }
 
-    foreach ($entry in $map[$Task]) {
-        $key = $entry[0]
-        $image = [string]$entry[1]
-        if (-not $image.StartsWith('ghcr.io/', [StringComparison]::OrdinalIgnoreCase)) { continue }
-        $path = $image.Substring('ghcr.io/'.Length)
-        switch ($provider) {
-            dockerproxy { $rewritten = "ghcr.dockerproxy.net/$path" }
-            ghproxy { $rewritten = "gh-proxy.com/docker/ghcr.io/$path" }
-            nju { $rewritten = "ghcr.nju.edu.cn/$path" }
-            '1ms' { $rewritten = "ghcr.1ms.run/$path" }
-            daocloud { $rewritten = "m.daocloud.io/ghcr.io/$path" }
-        }
-        [Environment]::SetEnvironmentVariable($key, $rewritten, 'Process')
-        Write-Host "本次 GHCR 镜像源：$provider"
+    $path = $image.Substring('ghcr.io/'.Length)
+    switch ($provider) {
+        dockerproxy { $rewritten = "ghcr.dockerproxy.net/$path" }
+        ghproxy { $rewritten = "gh-proxy.com/docker/ghcr.io/$path" }
+        nju { $rewritten = "ghcr.nju.edu.cn/$path" }
+        '1ms' { $rewritten = "ghcr.1ms.run/$path" }
+        daocloud { $rewritten = "m.daocloud.io/ghcr.io/$path" }
     }
+    [Environment]::SetEnvironmentVariable($key, $rewritten, 'Process')
+    Write-Host "本次 GHCR 镜像源：$provider"
 }
-
 function Ensure-TaskDirectories {
     param([string]$Task)
     $base = Join-Path $script:SoftwareRoot $Task
@@ -1082,7 +1095,7 @@ function Invoke-Main {
         }
         proxy {
             if ($Arguments.Count -lt 2) { throw '用法：.\deploy.ps1 proxy {ensure|connect|disconnect|status} [容器名]' }
-            Invoke-ProxyCommand @($Arguments | Select-Object -Skip 1)
+            Invoke-ProxyCommand -Arguments @($Arguments | Select-Object -Skip 1)
             return
         }
         default {
@@ -1096,9 +1109,10 @@ function Invoke-Main {
 
 try {
     Initialize-Paths
-    Invoke-Main @($CliArgs)
+    if ($CliArgs -and $CliArgs.Count -gt 0) { Invoke-Main -Arguments $CliArgs }
+    else { Invoke-Main -Arguments @() }
 } catch {
     Write-Host ''
-    Write-Error $_.Exception.Message
+    Write-Host ("[ERROR] " + $_.Exception.Message) -ForegroundColor Red
     exit 1
 }
