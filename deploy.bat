@@ -25,7 +25,17 @@ if not exist "%~dp0deploy.sh" (
 )
 
 set "WSL_DIR="
-for /f "delims=" %%I in ('"%WSL_EXE%" --exec wslpath -u "%~dp0."') do set "WSL_DIR=%%I"
+set "WSL_PATH_FILE=%TEMP%\deploy-wslpath-%RANDOM%-%RANDOM%.tmp"
+"%WSL_EXE%" --exec wslpath -u "%~dp0." > "%WSL_PATH_FILE%"
+if errorlevel 1 (
+    echo [ERROR] wslpath failed to convert the repository path.
+    echo Windows path: "%~dp0"
+    if exist "%WSL_PATH_FILE%" type "%WSL_PATH_FILE%"
+    if exist "%WSL_PATH_FILE%" del /q "%WSL_PATH_FILE%"
+    exit /b 1
+)
+set /p "WSL_DIR=" < "%WSL_PATH_FILE%"
+del /q "%WSL_PATH_FILE%"
 
 if not defined WSL_DIR (
     echo [ERROR] Could not convert the repository path to a WSL path.
