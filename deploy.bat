@@ -12,9 +12,9 @@ if not exist "%WSL_EXE%" (
 rem Prefer a normal Linux distribution; Docker Desktop's internal distro has no bash.
 rem Set DEPLOY_WSL_DISTRO to override automatic selection.
 set "WSL_DISTRO=%DEPLOY_WSL_DISTRO%"
+set "WSL_DISTRO_FILE=%TEMP%\deploy-wsl-distro-%RANDOM%-%RANDOM%.tmp"
 if not defined WSL_DISTRO (
-    set "WSL_DISTRO_FILE=%TEMP%\deploy-wsl-distro-%RANDOM%-%RANDOM%.tmp"
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$d = @(wsl.exe --list --quiet | ForEach-Object { ($_ -replace '[\x00-\x1f]', '').Trim() } | Where-Object { $_ -and $_ -notmatch '^docker-desktop' }); if ($d.Count -gt 0) { $d[0] }" > "%WSL_DISTRO_FILE%"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$d = @(wsl.exe --list --quiet | ForEach-Object { ($_ -replace '[\x00-\x1f]', '').Trim() } | Where-Object { $_ -and $_ -notmatch '^docker-desktop' }); if ($d.Count -gt 0) { [System.IO.File]::WriteAllText($env:WSL_DISTRO_FILE, ([string]$d[0] + [Environment]::NewLine), [System.Text.Encoding]::ASCII) }"
     if exist "%WSL_DISTRO_FILE%" (
         set /p "WSL_DISTRO=" < "%WSL_DISTRO_FILE%"
         del /q "%WSL_DISTRO_FILE%"
