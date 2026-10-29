@@ -1047,7 +1047,7 @@ function Invoke-Task {
 }
 
 function Show-Usage {
-@'
+    $usageText = @'
 用法：
   .\deploy.ps1                       交互选择业务
   .\deploy.ps1 list                  列出业务
@@ -1068,7 +1068,8 @@ function Show-Usage {
   可通过环境变量 SOFTWARE_ROOT 指定其他目录。
   Linux systemd、OpenWrt 和 Mihomo host 原生模式不由此脚本执行。
   EasyTier/执行器使用 Linux host 网络或 TUN 的配置在 Docker Desktop 上可能受限。
-'@ | Write-Host
+'@
+    Write-Host $usageText
 }
 
 function Invoke-Main {
