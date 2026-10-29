@@ -698,7 +698,8 @@ function Prepare-Mihomo {
     }
     $template = Join-Path $base 'deploy\default-profile.yaml'
     if (-not (Test-Path -LiteralPath $template)) { throw "Mihomo 初始 Profile 模板不存在：$template" }
-    $profiles = Join-Path $final 'profiles'
+    $staging = Join-Path $data ('.aio-stage-' + [Guid]::NewGuid().ToString('N'))
+    $profiles = Join-Path $staging 'profiles'
     New-Item -ItemType Directory -Path $profiles -Force | Out-Null
     $initial = Join-Path $profiles 'deploy-initial.yaml'
     if (Test-Path -LiteralPath $old) {
@@ -741,7 +742,7 @@ function Prepare-Mihomo {
     if ($activeText -notmatch '(?m)^external-controller-cors\s*:') {
         $activeText = $activeText.TrimEnd() + [Environment]::NewLine + [Environment]::NewLine + ($cors -join [Environment]::NewLine) + [Environment]::NewLine
     }
-    Write-TextFile (Join-Path $final 'active.yaml') $activeText
+    Write-TextFile (Join-Path $staging 'active.yaml') $activeText
     $hasAuth = Test-Path -LiteralPath (Join-Path $profiles 'deploy-proxy-auth.yaml')
     $index = @(
         [ordered]@{ id='deploy-initial'; name='Deploy initial profile'; type='local'; updatedAt=0 },
@@ -750,6 +751,7 @@ function Prepare-Mihomo {
     if ($hasAuth) { $index += [ordered]@{ id='deploy-proxy-auth'; name='Deploy proxy authentication'; type='merge'; enabled=$true; updatedAt=0 } }
     Write-TextFile (Join-Path $profiles 'index.json') (ConvertTo-Json -InputObject @($index) -Depth 8)
     Write-TextFile (Join-Path $profiles 'state.json') '{"activeId":"deploy-initial"}'
+    Move-Item -LiteralPath $staging -Destination $final
     Write-Host "已初始化 Mihomo All-in-One 数据：$final"
 }
 
