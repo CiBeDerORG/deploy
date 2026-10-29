@@ -797,10 +797,15 @@ function Prepare-Task {
         easytier {
             $role = Get-ConfigValue 'EASYTIER_ROLE' 'cloud'
             if ($role -notin @('cloud','intranet')) { throw 'EASYTIER_ROLE 只能是 cloud 或 intranet。' }
-            $null = Test-Port 'EASYTIER_PORT' (Get-ConfigValue 'EASYTIER_PORT' '7005')
-            $null = Test-Port 'EASYTIER_RPC_PORT' (Get-ConfigValue 'EASYTIER_RPC_PORT' '7006')
-            if ((Get-ConfigValue 'EASYTIER_PORT' '7005') -eq (Get-ConfigValue 'EASYTIER_RPC_PORT' '7006')) { throw 'EASYTIER_PORT 与 EASYTIER_RPC_PORT 不能重复。' }
+            $mainPort = Test-Port 'EASYTIER_PORT' (Get-ConfigValue 'EASYTIER_PORT' '7005')
+            $rpcPort = Test-Port 'EASYTIER_RPC_PORT' (Get-ConfigValue 'EASYTIER_RPC_PORT' '7006')
+            if ($mainPort -eq $rpcPort) { throw 'EASYTIER_PORT 与 EASYTIER_RPC_PORT 不能重复。' }
             if ($role -eq 'cloud') {
+                $webPort = Test-Port 'EASYTIER_WEB_PORT' (Get-ConfigValue 'EASYTIER_WEB_PORT' '7007')
+                $configPort = Test-Port 'EASYTIER_CONFIG_PORT' (Get-ConfigValue 'EASYTIER_CONFIG_PORT' '7008')
+                if (@($mainPort,$rpcPort,$webPort,$configPort | Select-Object -Unique).Count -lt 4) { throw 'EasyTier 主端口、RPC、Web、Config 四个端口不能重复。' }
+                $registration = Get-ConfigValue 'EASYTIER_WEB_ENABLE_REGISTRATION' 'true'
+                if ($registration -notin @('true','false')) { throw 'EASYTIER_WEB_ENABLE_REGISTRATION 只能是 true 或 false。' }
                 $hostUrl = Get-ConfigValue 'EASYTIER_WEB_API_HOST'
                 if (-not $hostUrl -or $hostUrl -notmatch '^https?://') { throw 'cloud 模式必须在 .env 设置以 http:// 或 https:// 开头的 EASYTIER_WEB_API_HOST。' }
             } else {
@@ -1023,6 +1028,19 @@ function Invoke-Task {
             $arch = Get-DockerOutput @('image','inspect','--format','{{.Architecture}}',$image)
             if ($arch -and $arch -ne 'amd64') { throw "执行器镜像架构为 $arch，预期 amd64；未替换容器。" }
             Invoke-Compose $Task @('up','-d','--no-deps','--force-recreate','--pull','never','easytier-automation-executor')
+            $healthCode = 'import json, os, urllib.request; from automation_executor.auth import authorization; ip = os.environ.get("EASYTIER_EXECUTOR_BIND_IP", "127.0.0.1"); ip = "127.0.0.1" if ip == "0.0.0.0" else ip; port = os.environ.get("EASYTIER_EXECUTOR_PORT", "8766"); request = urllib.request.Request("http://%s:%s/internal/v1/health" % (ip, port), headers={"Authorization": authorization(os.environ["AUTOMATION_TOKEN"])}); response = urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request, timeout=2); data = json.load(response); assert data["protocol_version"] == 1 and data["executor_id"] and data["state"] == "ready"'
+            $ready = $false
+            $bindIp = Get-ConfigValue 'EASYTIER_EXECUTOR_BIND_IP' '127.0.0.1'
+            $port = Get-ConfigValue 'EASYTIER_EXECUTOR_PORT' '8766'
+            for ($attempt = 0; $attempt -lt 25; $attempt++) {
+                $health = Get-DockerOutput @('exec','-e',"EASYTIER_EXECUTOR_BIND_IP=$bindIp",'-e',"EASYTIER_EXECUTOR_PORT=$port",'easytier-automation-executor','python','-c',$healthCode)
+                if ($null -ne $health) { $ready = $true; break }
+                Start-Sleep -Seconds 1
+            }
+            if (-not $ready) {
+                try { Invoke-Compose $Task @('logs','--tail=80','easytier-automation-executor') } catch { }
+                throw '执行器未通过内部认证健康检查；请检查 docker logs easytier-automation-executor。Token 和 ADB 数据不会被删除。'
+            }
         }
         sub2api {
             Invoke-Compose $Task @('pull')
