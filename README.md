@@ -17,6 +17,46 @@
 
 > `.env` / `.secrets` 是运行配置，不应提交到 Git。仓库中的 `.env.example` 与 `.secrets.example` 只是模板。
 
+## Windows 11 原生部署（PowerShell）
+
+Windows 11 使用根目录的 `deploy.ps1`，直接调用 Windows 上的 Docker CLI / Docker Compose；不会启动 WSL Bash，也不会执行仓库中的 `.sh` 安装脚本。Linux / fnOS 仍使用原有 `deploy.sh`，两套入口互不替换。
+
+在 PowerShell 中执行：
+
+```powershell
+.\deploy.ps1 list
+.\deploy.ps1 env
+```
+
+首次执行 `env` 后，编辑以下 Windows 专用配置文件：
+
+```text
+%LOCALAPPDATA%\CiBeDerORG\deploy\software\deploy\.env
+%LOCALAPPDATA%\CiBeDerORG\deploy\software\deploy\.secrets
+```
+
+配置完成后，例如：
+
+```powershell
+.\deploy.ps1 portainer
+.\deploy.ps1 flatnas
+.\deploy.ps1 sub2api
+.\deploy.ps1 mihomo update
+```
+
+默认软件根目录为 `%LOCALAPPDATA%\CiBeDerORG\deploy\software`，可通过当前 PowerShell 会话的 `$env:SOFTWARE_ROOT` 指定其他路径。若执行策略阻止脚本，可使用：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 list
+```
+
+注意：
+
+- 需要已启动的 Docker Desktop 和 Docker Compose v2。
+- Windows 配置与数据目录和 Linux 默认的 `/software` 分开，避免误用 Linux 路径或覆盖另一套配置。
+- Linux systemd 服务、OpenWrt 原生安装以及 `mihomo host` 不由 Windows PowerShell 入口执行。
+- EasyTier / 手机执行器依赖 Linux host networking、TUN 或设备网络能力；Docker Desktop 上的兼容性与 Linux 主机不同，部署前需确认相应功能可用。
+
 ## 服务一览
 
 | 服务 | 默认端口 / 入口 | 部署方式 | 详细文档 |
