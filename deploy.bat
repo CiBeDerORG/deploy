@@ -9,12 +9,40 @@ if not exist "%WSL_EXE%" (
     exit /b 1
 )
 
-rem Verify that a default WSL distribution can execute Linux commands.
-"%WSL_EXE%" --exec true >nul 2>&1
+rem Prefer a normal Linux distribution; Docker Desktop's internal distro has no bash.
+rem Set DEPLOY_WSL_DISTRO to override automatic selection.
+set "WSL_DISTRO=%DEPLOY_WSL_DISTRO%"
+if not defined WSL_DISTRO (
+    set "WSL_DISTRO_FILE=%TEMP%\deploy-wsl-distro-%RANDOM%-%RANDOM%.tmp"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$d = @(wsl.exe --list --quiet | ForEach-Object { ($_ -replace '[\x00-\x1f]', '').Trim() } | Where-Object { $_ -and $_ -notmatch '^docker-desktop' }); if ($d.Count -gt 0) { $d[0] }" > "%WSL_DISTRO_FILE%"
+    if exist "%WSL_DISTRO_FILE%" (
+        set /p "WSL_DISTRO=" < "%WSL_DISTRO_FILE%"
+        del /q "%WSL_DISTRO_FILE%"
+    )
+)
+
+if not defined WSL_DISTRO (
+    echo [ERROR] No regular Linux WSL distribution was found.
+    echo Docker Desktop's internal distro cannot run this deployment script.
+    echo Install Ubuntu with: wsl --install -d Ubuntu
+    echo Then restart this command, or set DEPLOY_WSL_DISTRO to your distro name.
+    "%WSL_EXE%" --list --verbose
+    exit /b 1
+)
+
+echo [INFO] WSL distribution: "%WSL_DISTRO%"
+"%WSL_EXE%" --distribution "%WSL_DISTRO%" --exec true >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] No usable default WSL distribution is available.
-    echo Open an elevated PowerShell and run: wsl --install -d Ubuntu
-    echo Restart Windows if requested, then finish the Ubuntu first-run setup.
+    echo [ERROR] WSL distribution "%WSL_DISTRO%" could not be started.
+    echo Run: wsl --list --verbose
+    echo To choose another distribution, set DEPLOY_WSL_DISTRO to its exact name.
+    exit /b 1
+)
+
+"%WSL_EXE%" --distribution "%WSL_DISTRO%" --exec bash -lc "command -v bash" >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] WSL distribution "%WSL_DISTRO%" does not have bash available.
+    echo Install/use Ubuntu or another Linux distribution with bash.
     exit /b 1
 )
 
@@ -26,7 +54,7 @@ if not exist "%~dp0deploy.sh" (
 
 set "WSL_DIR="
 set "WSL_PATH_FILE=%TEMP%\deploy-wslpath-%RANDOM%-%RANDOM%.tmp"
-"%WSL_EXE%" --exec wslpath -u "%~dp0." > "%WSL_PATH_FILE%"
+"%WSL_EXE%" --distribution "%WSL_DISTRO%" --exec wslpath -u "%~dp0." > "%WSL_PATH_FILE%"
 if errorlevel 1 (
     echo [ERROR] wslpath failed to convert the repository path.
     echo Windows path: "%~dp0"
@@ -46,7 +74,7 @@ if not defined WSL_DIR (
 )
 
 rem Confirm the translated path points to this repository inside WSL.
-"%WSL_EXE%" --cd "%WSL_DIR%" --exec test -f ./deploy.sh >nul 2>&1
+"%WSL_EXE%" --distribution "%WSL_DISTRO%" --cd "%WSL_DIR%" --exec test -f ./deploy.sh >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] WSL resolved the path but cannot find deploy.sh at that location.
     echo Windows path: "%~dp0"
@@ -63,7 +91,7 @@ echo [INFO] Docker commands require Docker Engine in WSL or Docker Desktop WSL i
 echo [INFO] "mihomo host" requires systemd enabled in the WSL distribution.
 echo.
 
-"%WSL_EXE%" --cd "%WSL_DIR%" --exec bash ./deploy.sh %*
+"%WSL_EXE%" --distribution "%WSL_DISTRO%" --cd "%WSL_DIR%" --exec bash ./deploy.sh %*
 set "DEPLOY_EXIT_CODE=%ERRORLEVEL%"
 
 if not "%DEPLOY_EXIT_CODE%"=="0" (
