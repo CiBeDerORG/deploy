@@ -310,7 +310,7 @@ function Set-ConfigValue {
 
 function New-HexSecret {
     param([int]$Bytes = 32)
-    $buffer = New-Object byte[] $Bytes
+    $buffer = [byte[]]::new($Bytes)
     $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
     try { $rng.GetBytes($buffer) } finally { $rng.Dispose() }
     return (($buffer | ForEach-Object { $_.ToString('x2') }) -join '')
@@ -957,6 +957,10 @@ function Invoke-Task {
     Sync-Task $Task
     if ($Action -eq 'sync') { return }
 
+    $composeFile = Join-Path (Join-Path (Join-Path $script:SoftwareRoot $Task) 'deploy') 'docker-compose.yaml'
+    if (-not (Test-Path -LiteralPath $composeFile)) {
+        throw "$Task 不是 Docker Compose 服务。Windows PowerShell 入口不会调用任何 Bash 脚本；Linux/systemd 或 OpenWrt 业务请继续在对应 Linux 环境部署。"
+    }
     $configResult = Ensure-GlobalConfig
     Load-Configuration
     if ($configResult.Created) {
@@ -964,10 +968,6 @@ function Invoke-Task {
         Write-Host "普通配置：$($script:GlobalEnv)"
         Write-Host "敏感配置：$($script:GlobalSecrets)"
         return
-    }
-    $composeFile = Join-Path (Join-Path (Join-Path $script:SoftwareRoot $Task) 'deploy') 'docker-compose.yaml'
-    if (-not (Test-Path -LiteralPath $composeFile)) {
-        throw "$Task 不是 Docker Compose 服务。Windows PowerShell 入口不会调用任何 Bash 脚本；Linux/systemd 或 OpenWrt 业务请继续在对应 Linux 环境部署。"
     }
     Check-DockerRuntime
     if ($Action -eq 'update' -and $Task -ne 'easytier-automation-executor') {
