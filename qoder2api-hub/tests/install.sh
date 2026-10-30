@@ -42,7 +42,7 @@ case "${1:-}" in
       *) echo "Unexpected docker compose command: $command $*" >&2; exit 3 ;;
     esac ;;
   container) [ "${2:-}" = inspect ] && [ -f "$MOCK_CONTAINER_STATE" ] && exit 0; exit 1 ;;
-  inspect) [ "${1:-}" = --format ] && { echo qoder2api-hub; exit 0; }; exit 1 ;;
+  inspect) shift; [ "${1:-}" = --format ] && { echo qoder2api-hub; exit 0; }; exit 1 ;;
   *) echo "Unexpected docker command: $*" >&2; exit 3 ;;
 esac
 exit 0

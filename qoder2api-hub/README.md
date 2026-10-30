@@ -44,7 +44,7 @@ docker logs qoder2api-hub 2>&1 | grep -i "api key"
 <SOFTWARE_ROOT>/qoder2api-hub/data/usage/
 ```
 
-`accounts/` 保存账号凭证、面板设置、API Key 和机器身份缓存；`usage/` 保存请求流水和用量汇总。安装和更新都不会删除这两个目录。
+`accounts/` 保存账号凭证及上游应用数据；`usage/` 保存请求流水和用量汇总。安装和更新都不会删除这两个目录。
 
 ## API 地址
 
@@ -63,7 +63,7 @@ sudo bash deploy.sh proxy ensure
 sudo bash deploy.sh proxy connect qoder2api-hub
 ```
 
-Windows PowerShell 对应执行 `.\\deploy.ps1 proxy ensure` 和 `.\\deploy.ps1 proxy connect qoder2api-hub`。然后将代理 URL 配置为容器在 `proxy-net` 中可访问的地址。
+Windows PowerShell 对应执行 `.\deploy.ps1 proxy ensure` 和 `.\deploy.ps1 proxy connect qoder2api-hub`。然后将代理 URL 配置为容器在 `proxy-net` 中可访问的地址。
 
 ## 更新行为
 
