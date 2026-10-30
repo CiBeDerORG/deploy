@@ -62,6 +62,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 list
 
 | 服务 | 默认端口 / 入口 | 部署方式 | 详细文档 |
 | --- | --- | --- | --- |
+| LinuxServer Webtop | `7014/HTTPS` | Docker Compose（Debian XFCE / Selkies） | [webtop/README.md](./webtop/README.md) |
 | OpenCode V2 | `7003/TCP` | Docker Compose | [opencode/README.md](./opencode/README.md) |
 | FRPS | `7000/TCP`，后台 `7001/TCP` | Docker Compose | [frps/README.md](./frps/README.md) |
 | EasyTier | Core `7005`，RPC `7006`，Web `7007`，Config `7008/UDP` | Docker / OpenWrt | [easytier/README.md](./easytier/README.md) |
@@ -176,6 +177,7 @@ sudo bash deploy.sh portainer
 sudo bash deploy.sh flatnas
 sudo bash deploy.sh sub2api
 sudo bash deploy.sh qoder2api-hub
+sudo bash deploy.sh webtop
 sudo bash deploy.sh mihomo
 # 可选：Mihomo 无 Docker 的完整 Web/Agent/内核原生安装
 sudo bash deploy.sh mihomo host
