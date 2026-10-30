@@ -16,6 +16,23 @@ sudo bash deploy.sh openhands update
 首次访问：`http://<NAS-IP>:7016/canvas`。端口可在全局 `.env` 中修改。
 如果该分支尚未合入 main，需要先切换到包含本功能的分支再执行以上命令。
 
+## 卸载
+
+在 `deploy` 仓库根目录执行：
+
+```bash
+sudo bash deploy.sh openhands uninstall
+```
+
+该命令只移除 OpenHands Compose 容器及其专属网络，**不会删除**统一配置、API Key、镜像、项目代码或历史会话，便于后续重新安装。若不再需要数据，确认已备份重要工作目录并确认容器已卸载后，才可执行以下不可恢复的清理操作（fnOS 默认安装路径）：
+
+```bash
+sudo rm -rf -- /vol3/1000/software/openhands/data
+sudo rm -rf -- /vol3/1000/software/openhands/workspace
+```
+
+上述两条命令会永久删除聊天、自动化状态和可能包含项目源代码的工作区。不要在未检查目录内容时直接执行，统一 `deploy/.secrets` 中的密钥不会随服务卸载被删除。
+
 ## 统一配置
 
 `<SOFTWARE_ROOT>/deploy/.env`（普通配置）：

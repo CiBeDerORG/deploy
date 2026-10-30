@@ -17,6 +17,10 @@
 
 > `.env` / `.secrets` 是运行配置，不应提交到 Git。仓库中的 `.env.example` 与 `.secrets.example` 只是模板。
 
+## 部署回答与维护规范
+
+本仓库的全局规范记录在 [AGENTS.md](./AGENTS.md)：每次新增应用或说明安装方法时，必须明确展示全局配置文件路径与示例（`deploy/.env`、`deploy/.secrets`）、可执行的安装命令、卸载命令及数据保留/彻底清理区别，以及更新命令。不能将尚未实现的卸载入口写成已支持。当前 `uninstall` 仅适用于提供了 `deploy/uninstall.sh` 的业务和专用原生桌面项目，不会统一删除运行数据。
+
 ## Windows 11 原生部署（PowerShell）
 
 Windows 11 使用根目录的 `deploy.ps1`，直接调用 Windows 上的 Docker CLI / Docker Compose；不会启动 WSL Bash，也不会执行仓库中的 `.sh` 安装脚本。Linux / fnOS 仍使用原有 `deploy.sh`，两套入口互不替换。
@@ -233,6 +237,7 @@ sudo bash deploy.sh <服务名>
 sudo bash deploy.sh <服务名> install
 sudo bash deploy.sh <服务名> update
 sudo bash deploy.sh <服务名> sync
+sudo bash deploy.sh openhands uninstall
 sudo bash deploy.sh mihomo host
 sudo bash deploy.sh mihomo host-update
 sudo bash deploy.sh proxy connect <容器名>
@@ -251,6 +256,7 @@ sudo bash deploy.sh proxy status [容器名]
 | `deploy.sh <服务> install` | 与上一条相同 |
 | `deploy.sh <服务> update` | 同步最新文件后执行服务更新脚本 |
 | `deploy.sh <服务> sync` | 只同步仓库文件，不启动或更新服务 |
+| `deploy.sh <服务> uninstall` | 仅支持已提供标准卸载脚本的应用；通常仅移除容器，持久化数据默认保留 |
 | `deploy.sh mihomo host/host-update` | 选择原生安装/升级 Mihomo 一体化 Web + Agent + Core（不调用 Docker） |
 | `deploy.sh proxy connect/disconnect <容器名>` | 动态接入/断开 Mihomo 的 proxy-net 内部共享网络，不修改业务 Compose |
 | `deploy.sh proxy status [容器名]` | 查看共享网络成员或单容器接入状态 |
