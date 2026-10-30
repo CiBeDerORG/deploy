@@ -10,6 +10,7 @@ on:
       - "portainer/app.yaml"
       - "sub2api/deploy/**"
       - "sub2api/app.yaml"
+      - "qoder2api-hub/**"
       - "lib/image-sources.sh"
       - ".env.example"
       - ".secrets.example"
