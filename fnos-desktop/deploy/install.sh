@@ -85,6 +85,7 @@ cat > "$UNIT_VNC" <<EOF_VNC
 [Unit]
 Description=fnOS Desktop native XFCE4 (TigerVNC)
 After=network.target
+RequiresMountsFor=$HOME_DIR
 [Service]
 Type=simple
 User=$FNOS_DESKTOP_USER
@@ -104,6 +105,7 @@ Description=fnOS Desktop native noVNC HTTPS gateway
 Requires=fnos-desktop-vnc.service
 After=fnos-desktop-vnc.service
 PartOf=fnos-desktop-vnc.service
+RequiresMountsFor=$STATE
 [Service]
 Type=simple
 User=$FNOS_DESKTOP_USER
