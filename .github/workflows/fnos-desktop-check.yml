@@ -1,0 +1,40 @@
+name: fnOS Desktop host install checks
+
+on:
+  push:
+    paths:
+      - 'fnos-desktop/**'
+      - '.github/workflows/fnos-desktop-check.yml'
+      - '.env.example'
+      - '.secrets.example'
+      - 'deploy.sh'
+  pull_request:
+    paths:
+      - 'fnos-desktop/**'
+      - '.github/workflows/fnos-desktop-check.yml'
+      - 'deploy.sh'
+
+jobs:
+  static-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: |
+          bash -n deploy.sh
+          for script in fnos-desktop/deploy/*.sh; do
+            bash -n "$script"
+          done
+      - name: Native safety guards
+        run: |
+          grep -q -- '--no-remove' fnos-desktop/deploy/install.sh
+          grep -q -- '-localhost yes' fnos-desktop/deploy/install.sh
+          grep -q -- '--ssl-only' fnos-desktop/deploy/install.sh
+          ! grep -Eq 'systemctl (set-default|isolate)|apt(-get)? (full-upgrade|dist-upgrade|upgrade)( |$)' fnos-desktop/deploy/*.sh
+      - name: Deployment registration
+        run: |
+          test -f fnos-desktop/deploy/install.sh
+          test -f fnos-desktop/deploy/update.sh
+          test -f fnos-desktop/deploy/manage.sh
+          grep -q 'FNOS_DESKTOP_HTTPS_PORT=7015' .env.example
+          grep -q 'FNOS_DESKTOP_VNC_PASSWORD=' .secrets.example
