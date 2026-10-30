@@ -4,11 +4,17 @@ on:
   push:
     paths:
       - "sub2api/**"
+      - "qoder2api-hub/**"
+      - ".env.example"
+      - ".secrets.example"
       - "mihomo/**"
       - ".github/workflows/compose-check.yml"
   pull_request:
     paths:
       - "sub2api/**"
+      - "qoder2api-hub/**"
+      - ".env.example"
+      - ".secrets.example"
       - "mihomo/**"
       - ".github/workflows/compose-check.yml"
 
@@ -33,6 +39,13 @@ jobs:
       MIHOMO_CORE_API_BIND_IP: "0.0.0.0"
       MIHOMO_API_SECRET: "test-api-secret"
       MIHOMO_CONTROL_TOKEN: "test-agent-token"
+      QODER2API_HUB_PORT: "8790"
+      QODER2API_HUB_BIND_IP: "127.0.0.1"
+      QODER2API_HUB_API_KEY: "test-qoder-api-key"
+      QODER2API_HUB_IMAGE: "ghcr.io/shuishuipingan/qoder2api-hub:latest"
+      QODER2API_HUB_HTTP_PROXY: ""
+      QODER2API_HUB_HTTPS_PROXY: ""
+      QODER2API_HUB_ALL_PROXY: ""
 
     steps:
       - name: Checkout
@@ -46,8 +59,10 @@ jobs:
         run: |
           set -euo pipefail
           docker compose -f sub2api/deploy/docker-compose.yaml config --quiet
+          docker compose -f qoder2api-hub/deploy/docker-compose.yaml config --quiet
           docker compose -f mihomo/deploy/docker-compose.yaml config --quiet
           docker compose -f sub2api/deploy/docker-compose.yaml config --format json > /tmp/sub2api-compose.json
+          docker compose -f qoder2api-hub/deploy/docker-compose.yaml config --format json > /tmp/qoder2api-hub-compose.json
           docker compose -f mihomo/deploy/docker-compose.yaml config --format json > /tmp/mihomo-compose.json
 
       - name: Assert safe default exposure and persistence
@@ -57,6 +72,7 @@ jobs:
           from pathlib import Path
 
           s = json.loads(Path('/tmp/sub2api-compose.json').read_text())
+          q = json.loads(Path('/tmp/qoder2api-hub-compose.json').read_text())
           m = json.loads(Path('/tmp/mihomo-compose.json').read_text())
           assert set(s['services']) == {'sub2api', 'postgres', 'redis'}
           assert not s['services']['postgres'].get('ports'), 'Postgres must not publish host ports'
@@ -65,6 +81,18 @@ jobs:
           assert s['services']['postgres']['environment']['PGDATA'] == '/var/lib/postgresql/data'
           for component in ('sub2api', 'postgres', 'redis'):
               assert s['services'][component]['volumes'], f'{component} must persist data'
+          assert set(q['services']) == {'qoder2api-hub'}
+          qoder = q['services']['qoder2api-hub']
+          assert qoder['image'] == 'ghcr.io/shuishuipingan/qoder2api-hub:latest'
+          assert qoder['container_name'] == 'qoder2api-hub'
+          assert qoder['ports'][0]['host_ip'] == '127.0.0.1'
+          assert qoder['ports'][0]['published'] == '8790' and qoder['ports'][0]['target'] == 8790
+          assert qoder['environment']['HOST'] == '0.0.0.0' and qoder['environment']['PORT'] == '8790'
+          assert qoder['environment']['API_KEY'] == 'test-qoder-api-key'
+          assert len(qoder['volumes']) == 2
+          assert {v['target'] for v in qoder['volumes']} == {'/app/accounts', '/app/usage'}
+          assert qoder['healthcheck'] and '/ping' in ' '.join(qoder['healthcheck']['test'])
+          assert qoder['restart'] == 'unless-stopped'
           assert set(m['services']) == {'mihomo'}
           mihomo = m['services']['mihomo']
           assert not mihomo.get('privileged') and mihomo.get('network_mode') != 'host'

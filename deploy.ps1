@@ -161,7 +161,7 @@ function Protect-SecretFile {
 }
 
 function Migrate-SensitiveConfig {
-    $sensitiveKeys = @('OPENCODE_SERVER_PASSWORD','FRPS_DASHBOARD_USER','FRPS_DASHBOARD_PASSWORD','PORTAINER_ADMIN_PASSWORD','GITHUB_RUNNER_TOKEN')
+    $sensitiveKeys = @('OPENCODE_SERVER_PASSWORD','FRPS_DASHBOARD_USER','FRPS_DASHBOARD_PASSWORD','PORTAINER_ADMIN_PASSWORD','GITHUB_RUNNER_TOKEN','QODER2API_HUB_API_KEY','QODER2API_HUB_HTTP_PROXY','QODER2API_HUB_HTTPS_PROXY','QODER2API_HUB_ALL_PROXY')
     if (-not (Test-Path -LiteralPath $script:GlobalEnv)) { return $false }
     $ordinary = Read-ConfigFile $script:GlobalEnv
     $private = if (Test-Path -LiteralPath $script:GlobalSecrets) { Read-ConfigFile $script:GlobalSecrets } else { @{} }
@@ -487,6 +487,10 @@ function Set-MirrorImages {
             $key = 'DEPLOY_EASYTIER_EXECUTOR_IMAGE'
             $image = Get-ConfigValue 'EASYTIER_EXECUTOR_IMAGE' 'ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center'
         }
+        'qoder2api-hub' {
+            $key = 'DEPLOY_QODER2API_HUB_IMAGE'
+            $image = Get-ConfigValue 'QODER2API_HUB_IMAGE' 'ghcr.io/shuishuipingan/qoder2api-hub:latest'
+        }
         mihomo {
             $key = 'DEPLOY_MIHOMO_IMAGE'
             $image = 'ghcr.io/metacubex/metacubexd-server:latest'
@@ -547,6 +551,7 @@ function Ensure-TaskDirectories {
         portainer { @('data') }
         flatnas { @('data','music','PC','APP','doc') }
         sub2api { @('data\app','data\postgres','data\redis') }
+        'qoder2api-hub' { @('data\accounts','data\usage') }
         mihomo { @('data') }
         default { @('data') }
     }
@@ -858,6 +863,12 @@ function Prepare-Task {
                 if ($length -lt 8 -or $length -gt 72) { throw 'SUB2API_ADMIN_PASSWORD 必须符合上游要求：8-72 UTF-8 字节。' }
             }
         }
+        'qoder2api-hub' {
+            $image = Get-ConfigValue 'QODER2API_HUB_IMAGE' 'ghcr.io/shuishuipingan/qoder2api-hub:latest'
+            if (-not $image) { throw 'QODER2API_HUB_IMAGE 不能为空。' }
+            $null = Test-Port 'QODER2API_HUB_PORT' (Get-ConfigValue 'QODER2API_HUB_PORT' '8790')
+            Test-IPv4 'QODER2API_HUB_BIND_IP' (Get-ConfigValue 'QODER2API_HUB_BIND_IP' '127.0.0.1')
+        }
         mihomo { Prepare-Mihomo $Task }
         default { }
     }
@@ -873,6 +884,7 @@ function Get-TaskContainers {
         portainer { return @('portainer') }
         flatnas { return @('flatnas') }
         sub2api { return @('sub2api','sub2api-postgres','sub2api-redis') }
+        'qoder2api-hub' { return @('qoder2api-hub') }
         mihomo { return @('mihomo') }
         default { return @() }
     }
@@ -1047,6 +1059,10 @@ function Invoke-Task {
         sub2api {
             Invoke-Compose $Task @('pull')
             Invoke-Compose $Task @('up','-d','--wait','--wait-timeout','240')
+        }
+        'qoder2api-hub' {
+            Invoke-Compose $Task @('pull','qoder2api-hub')
+            Invoke-Compose $Task @('up','-d','--no-deps','--force-recreate','--pull','never','--wait','--wait-timeout','120','qoder2api-hub')
         }
         mihomo {
             Invoke-Compose $Task @('pull','mihomo')

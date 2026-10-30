@@ -41,6 +41,7 @@ Windows 11 使用根目录的 `deploy.ps1`，直接调用 Windows 上的 Docker 
 .\deploy.ps1 portainer
 .\deploy.ps1 flatnas
 .\deploy.ps1 sub2api
+.\deploy.ps1 qoder2api-hub
 .\deploy.ps1 mihomo update
 ```
 
@@ -68,6 +69,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 list
 | Portainer CE | `7004/TCP` | Docker Compose | [portainer/README.md](./portainer/README.md) |
 | FlatNas | `7009/TCP` | Docker Compose | [flatnas/README.md](./flatnas/README.md) |
 | Sub2API | `7010/TCP` | Docker Compose（含 PostgreSQL、Redis） | [sub2api/README.md](./sub2api/README.md) |
+| Qoder2API Hub | `8790/TCP`（默认仅本机监听） | Docker Compose（官方 AMD64 / ARM64 镜像） | [qoder2api-hub/README.md](./qoder2api-hub/README.md) |
 | Mihomo / MetaCubeXD 完整版 | 代理 `7011/TCP`（宿主机）、Web/Agent `7012/TCP`、内核 API `7013/TCP` | Docker Compose **或原生 systemd** | [mihomo/README.md](./mihomo/README.md) |
 | GitHub Actions Runner | 无固定 Web 端口 | systemd | [github-runner/README.md](./github-runner/README.md) |
 
@@ -173,6 +175,7 @@ sudo bash deploy.sh easytier-automation-executor
 sudo bash deploy.sh portainer
 sudo bash deploy.sh flatnas
 sudo bash deploy.sh sub2api
+sudo bash deploy.sh qoder2api-hub
 sudo bash deploy.sh mihomo
 # 可选：Mihomo 无 Docker 的完整 Web/Agent/内核原生安装
 sudo bash deploy.sh mihomo host
@@ -804,6 +807,7 @@ EASYTIER_PRIVILEGED=true
 - FRPS Dashboard 建议设置强密码并限制公网来源。
 - Portainer 直接挂载 Docker Socket，管理入口应限制访问来源。
 - Sub2API 的 PostgreSQL / Redis 不对外发布，管理员入口在公网须通过 HTTPS 和访问控制保护。
+- Qoder2API Hub 默认只绑定本机；如改为局域网监听，必须先修改上游默认面板密码 admin，并通过防火墙限制来源。API Key 留空时由上游首次启动生成，保存在持久化账号目录。
 - MetaCubeXD 完整版：7011 代理仅宿主机回环；7012 Web/Agent 与 7013 内核 API 默认监听全部 IPv4 以便 NAS / EasyTier 管理；官方 CONTROL_TOKEN 会暴露给同源浏览器，不提供网页登录保护，必须通过防火墙或带认证的代理限制 Web 来源。内核 API 使用单独的 MIHOMO_API_SECRET。真实 .env/.secrets 不被模板覆盖。
 - FlatNas 默认不挂载 Docker Socket；如需开启 Docker 管理，必须限制访问来源并修改默认管理密码。
 - GitHub Runner 注册 Token 只在首次注册时使用，注册成功后可清空。

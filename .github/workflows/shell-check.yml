@@ -93,3 +93,7 @@ jobs:
       - name: Sub2API optional secret blank and persistence regression
         shell: bash
         run: bash sub2api/tests/optional-inputs.sh
+
+      - name: Qoder2API Hub install, data persistence and GHCR mirror regression
+        shell: bash
+        run: bash qoder2api-hub/tests/install.sh

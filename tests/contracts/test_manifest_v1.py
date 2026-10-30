@@ -11,7 +11,7 @@ from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = yaml.safe_load((ROOT / "schema/app-manifest-v1.schema.json").read_text(encoding="utf-8"))
 VALIDATOR = Draft202012Validator(SCHEMA, format_checker=FormatChecker())
-EXAMPLES = ["portainer", "sub2api"]
+EXAMPLES = ["portainer", "sub2api", "qoder2api-hub"]
 
 
 def load(name):
@@ -30,7 +30,7 @@ class DeployManifestTests(unittest.TestCase):
                 self.assertEqual(example["id"], name)
 
     def test_production_manifests_have_explicit_catalog_paths_and_match_fixtures(self):
-        # T03-02/T03-03 are real catalog entries, not only schema examples.
+        # Production catalog entries must match their checked-in schema fixtures.
         for name in EXAMPLES:
             with self.subTest(name=name):
                 published = ROOT / name / "app.yaml"

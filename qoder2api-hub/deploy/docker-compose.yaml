@@ -1,0 +1,28 @@
+name: qoder2api-hub
+services:
+  qoder2api-hub:
+    image: "${DEPLOY_QODER2API_HUB_IMAGE:-${QODER2API_HUB_IMAGE:-ghcr.io/shuishuipingan/qoder2api-hub:latest}}"
+    container_name: qoder2api-hub
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "${QODER2API_HUB_BIND_IP:-127.0.0.1}:${QODER2API_HUB_PORT:-8790}:8790"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8790"
+      API_KEY: "${QODER2API_HUB_API_KEY:-}"
+      HTTP_PROXY: "${QODER2API_HUB_HTTP_PROXY:-}"
+      HTTPS_PROXY: "${QODER2API_HUB_HTTPS_PROXY:-}"
+      ALL_PROXY: "${QODER2API_HUB_ALL_PROXY:-}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - ../data/accounts:/app/accounts
+      - ../data/usage:/app/usage
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,urllib.request;urllib.request.urlopen('http://127.0.0.1:%s/ping' % os.environ.get('PORT','8790'),timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    stop_grace_period: 30s
