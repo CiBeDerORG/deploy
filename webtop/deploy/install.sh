@@ -72,6 +72,7 @@ if [ -z "${WEBTOP_PASSWORD:-}" ]; then
 fi
 [ -n "$WEBTOP_PASSWORD" ] || fail "登录密码不能为空"
 install -d -m 0700 "$BASE_DIR/state" "$BASE_DIR/data"
+chown "$WEBTOP_PUID:$WEBTOP_PGID" "$BASE_DIR/data"
 printf '%s' "$WEBTOP_PASSWORD" > "$BASE_DIR/state/webtop_password"
 chmod 0600 "$BASE_DIR/state/webtop_password"
 DEPLOY_WEBTOP_IMAGE="$WEBTOP_IMAGE"
