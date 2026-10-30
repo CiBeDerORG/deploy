@@ -20,13 +20,13 @@
 - 架构、公共能力、跨平台或重构 → [ARCHITECTURE.md](docs/engineering/ARCHITECTURE.md)
 - 新增服务、安装/更新/卸载、Docker、持久化或**用户询问安装方式** → [DEPLOYMENT.md](docs/engineering/DEPLOYMENT.md)
 - 密码、Token、认证、配置解析、权限、密钥生成/保留 → [SECURITY.md](docs/engineering/SECURITY.md)
-- 代码修改的提交/PR/CI、跨 Agent 任务交接和交付报告 → [DELIVERY.md](docs/engineering/DELIVERY.md)
+- 代码修改的提交/PR/CI 和交付报告 → [DELIVERY.md](docs/engineering/DELIVERY.md)
 
 新增服务和安装文档变更通常同时涉及 Deployment、Security 与 Delivery，必须读取对应专项规范。历史强制条款已按原文迁移到专项规范，不能因根规则精简而忽略。
 
 ## 执行原则
 
-- **先理解、再修改、后验证**；小任务避免过度分析，大任务保存可恢复的任务状态。
+- **先理解、再修改、后验证**；小任务避免过度分析。
 - 普通常规任务在授权范围内自主推进；生产数据删除、权限扩大及其他高风险操作须明确授权。
 - 优先用脚本/CI 落实确定性质量门禁，不把提示词当作唯一验证手段。
 - 以真实完成状态报告交付，不把「已触发构建」写成「构建成功」，不把「已提交」写成「已合并」。
