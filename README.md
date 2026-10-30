@@ -64,6 +64,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 list
 | --- | --- | --- | --- |
 | fnOS Desktop（宿主机原生） | `7015/HTTPS`（noVNC） | **apt + systemd（不使用 Docker）** | [fnos-desktop/README.md](./fnos-desktop/README.md) |
 | LinuxServer Webtop | `7014/HTTPS` | Docker Compose（Debian XFCE / Selkies） | [webtop/README.md](./webtop/README.md) |
+| OpenHands Agent Canvas | `7016/HTTP`（`/canvas`） | Docker Compose（官方 GHCR 镜像） | [openhands/README.md](./openhands/README.md) |
 | OpenCode V2 | `7003/TCP` | Docker Compose | [opencode/README.md](./opencode/README.md) |
 | FRPS | `7000/TCP`，后台 `7001/TCP` | Docker Compose | [frps/README.md](./frps/README.md) |
 | EasyTier | Core `7005`，RPC `7006`，Web `7007`，Config `7008/UDP` | Docker / OpenWrt | [easytier/README.md](./easytier/README.md) |
@@ -171,6 +172,7 @@ bash deploy.sh list
 
 ```bash
 sudo bash deploy.sh opencode
+sudo bash deploy.sh openhands
 sudo bash deploy.sh frps
 sudo bash deploy.sh easytier
 sudo bash deploy.sh easytier-automation-executor
@@ -264,6 +266,9 @@ sudo bash deploy.sh proxy status [容器名]
 │   ├── .secrets
 │   ├── lib/image-sources.sh
 │   └── state/image-mirror.last
+├── openhands/
+│   ├── data/ workspace/
+│   └── deploy/
 ├── opencode/
 │   ├── config/
 │   ├── data/
@@ -359,6 +364,7 @@ DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
 | FlatNas | 当前为 Docker Hub 镜像，原样使用 |
 | Portainer | 当前为 Docker Hub 镜像，原样使用 |
 | Sub2API | 应用、PostgreSQL、Redis 当前均为 Docker Hub 镜像，三个地址均原样使用 |
+| OpenHands Agent Canvas | 官方 GHCR 镜像参与统一镜像源轮换 |
 | OpenCode | MCR 基础镜像原样使用；构建输出仍为 `opencode-local:latest` |
 
 轮换规则：
