@@ -54,8 +54,31 @@ resolved="$(compose config --images)" || fail "无法解析镜像"
 
 echo "OpenHands Agent Canvas $MODE，拉取镜像 $resolved"
 compose pull openhands || fail "镜像拉取失败，现有容器未变"
-compose up -d --no-deps --force-recreate --pull never --wait --wait-timeout 180 openhands ||
-  fail "容器启动或健康检查失败，请检查 docker logs openhands"
+if ! compose up -d --no-deps --force-recreate --pull never --wait --wait-timeout 180 openhands; then
+  # Fail closed: an unprotected Agent API must not remain accessible after
+  # failed startup/authentication health checks.
+  echo "OpenHands 启动或鉴权健康检查失败；正在停止容器，防止未授权 API 暴露" >&2
+  compose down || true
+  fail "容器启动或 API 鉴权检查失败，请检查 docker logs（容器已尝试停止）"
+fi
+# Verify the actual protected endpoint rejects requests without a key and
+# accepts only the configured credential. Never expose the secret in argv/logs.
+if ! docker exec openhands node -e '
+  const url = "http://127.0.0.1:8000/api/conversations/search";
+  Promise.all([
+    fetch(url),
+    fetch(url, {headers: {"X-Session-API-Key": process.env.OH_SESSION_API_KEYS_0}})
+  ]).then(([anonymous, authorized]) => {
+    if (anonymous.status !== 401 || authorized.status !== 200) {
+      console.error("OpenHands API auth check failed (anonymous/authorized HTTP):", anonymous.status, authorized.status);
+      process.exit(1);
+    }
+  }).catch(() => process.exit(1));
+'; then
+  echo "OpenHands API 访问控制异常；正在停止容器，防止未授权 API 暴露" >&2
+  compose down || true
+  fail "Agent Server API 密钥鉴权未通过，服务已尝试停止"
+fi
 compose ps
 echo "OpenHands 已启动：http://$OPENHANDS_BIND_IP:$OPENHANDS_PORT/canvas"
 echo "登录密钥在 $SECRETS_FILE 的 OPENHANDS_API_KEY"

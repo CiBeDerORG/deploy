@@ -14,6 +14,7 @@ on:
     paths:
       - "sub2api/**"
       - "qoder2api-hub/**"
+      - "openhands/**"
       - ".env.example"
       - ".secrets.example"
       - "mihomo/**"
@@ -95,7 +96,9 @@ jobs:
           assert oh['container_name'] == 'openhands'
           assert oh['ports'][0]['published'] == '7016' and oh['ports'][0]['target'] == 8000
           assert oh['environment']['LOCAL_BACKEND_API_KEY'] == 'test-openhands-key'
+          assert oh['environment']['OH_SESSION_API_KEYS_0'] == oh['environment']['LOCAL_BACKEND_API_KEY'], 'Agent Server must require the same API key'
           assert oh['environment']['AGENT_CANVAS_ALLOW_LAN_SESSION_KEY'] == 'false'
+          assert '/api/conversations/search' in ' '.join(oh['healthcheck']['test']), 'Healthcheck must reject unauthenticated Agent API'
           assert {v['target'] for v in oh['volumes']} == {'/home/openhands/.openhands', '/projects'}
           assert not oh.get('privileged') and oh.get('network_mode') != 'host'
           assert not any(v['target'] == '/var/run/docker.sock' for v in oh['volumes'])
