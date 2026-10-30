@@ -1,0 +1,21 @@
+name: webtop
+
+services:
+  webtop:
+    image: "${DEPLOY_WEBTOP_IMAGE:-${WEBTOP_IMAGE:-lscr.io/linuxserver/webtop:debian-xfce}}"
+    container_name: webtop
+    restart: unless-stopped
+    shm_size: "${WEBTOP_SHM_SIZE:-1gb}"
+    environment:
+      PUID: "${WEBTOP_PUID:-1000}"
+      PGID: "${WEBTOP_PGID:-1000}"
+      TZ: "${TZ:-Asia/Shanghai}"
+      LC_ALL: "${WEBTOP_LOCALE:-zh_CN.UTF-8}"
+      CUSTOM_USER: "${WEBTOP_CUSTOM_USER:-}"
+      PASSWORD: "${WEBTOP_PASSWORD:-}"
+    ports:
+      - "${WEBTOP_BIND_IP:-127.0.0.1}:${WEBTOP_PORT:-7014}:3001"
+    volumes:
+      - ../data/config:/config
+      - ../data/shared:/shared
+    stop_grace_period: 30s

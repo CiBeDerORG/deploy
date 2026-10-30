@@ -11,6 +11,7 @@ on:
       - "sub2api/deploy/**"
       - "sub2api/app.yaml"
       - "qoder2api-hub/**"
+      - "webtop/**"
       - "lib/image-sources.sh"
       - ".env.example"
       - ".secrets.example"

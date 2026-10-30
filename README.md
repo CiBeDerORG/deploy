@@ -42,6 +42,7 @@ Windows 11 使用根目录的 `deploy.ps1`，直接调用 Windows 上的 Docker 
 .\deploy.ps1 flatnas
 .\deploy.ps1 sub2api
 .\deploy.ps1 qoder2api-hub
+.\deploy.ps1 webtop
 .\deploy.ps1 mihomo update
 ```
 
@@ -70,8 +71,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 list
 | FlatNas | `7009/TCP` | Docker Compose | [flatnas/README.md](./flatnas/README.md) |
 | Sub2API | `7010/TCP` | Docker Compose（含 PostgreSQL、Redis） | [sub2api/README.md](./sub2api/README.md) |
 | Qoder2API Hub | `8790/TCP`（默认仅本机监听） | Docker Compose（官方 AMD64 / ARM64 镜像） | [qoder2api-hub/README.md](./qoder2api-hub/README.md) |
+| LinuxServer Webtop | `7014/TCP`（HTTPS，默认仅本机监听） | Docker Compose（Debian XFCE，AMD64 / ARM64） | [webtop/README.md](./webtop/README.md) |
 | Mihomo / MetaCubeXD 完整版 | 代理 `7011/TCP`（宿主机）、Web/Agent `7012/TCP`、内核 API `7013/TCP` | Docker Compose **或原生 systemd** | [mihomo/README.md](./mihomo/README.md) |
 | GitHub Actions Runner | 无固定 Web 端口 | systemd | [github-runner/README.md](./github-runner/README.md) |
+
+## Webtop 浏览器桌面
+
+Webtop 提供 Debian XFCE 浏览器桌面，默认通过 HTTPS `7014/TCP` 访问。服务默认绑定 `127.0.0.1`；要从其他电脑访问，需要在统一 `.env` 中调整 `WEBTOP_BIND_IP`，并建议同时配置 `WEBTOP_CUSTOM_USER` 与 `.secrets` 中的 `WEBTOP_PASSWORD`。上游使用自签名 HTTPS 证书，首次访问可能需要确认浏览器证书提示。桌面配置持久化在 `webtop/data/config`，文件交换目录映射到容器 `/shared`。详细配置与安全说明见 [webtop/README.md](./webtop/README.md)。
 
 ## 一、运行环境
 
@@ -176,6 +182,7 @@ sudo bash deploy.sh portainer
 sudo bash deploy.sh flatnas
 sudo bash deploy.sh sub2api
 sudo bash deploy.sh qoder2api-hub
+sudo bash deploy.sh webtop
 sudo bash deploy.sh mihomo
 # 可选：Mihomo 无 Docker 的完整 Web/Agent/内核原生安装
 sudo bash deploy.sh mihomo host
@@ -284,6 +291,9 @@ sudo bash deploy.sh proxy status [容器名]
 ├── sub2api/
 │   ├── data/app/ data/postgres/ data/redis/
 │   └── deploy/
+├── webtop/
+│   ├── data/config/ data/shared/
+│   └── deploy/
 ├── mihomo/
 │   ├── data/config.yaml
 │   └── deploy/
@@ -326,6 +336,7 @@ EASYTIER_WEB_PORT=7007
 EASYTIER_CONFIG_PORT=7008
 FLATNAS_HTTP_PORT=7009
 SUB2API_HTTP_PORT=7010
+WEBTOP_PORT=7014
 MIHOMO_MIXED_PORT=7011
 MIHOMO_API_PORT=7012
 MIHOMO_CORE_API_PORT=7013
@@ -355,6 +366,7 @@ DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
 | Portainer | 当前为 Docker Hub 镜像，原样使用 |
 | Sub2API | 应用、PostgreSQL、Redis 当前均为 Docker Hub 镜像，三个地址均原样使用 |
 | OpenCode | MCR 基础镜像原样使用；构建输出仍为 `opencode-local:latest` |
+| Webtop | 默认使用 LinuxServer LSCR 镜像，非 GHCR 地址原样使用，不参与 GHCR 镜像轮换 |
 
 轮换规则：
 

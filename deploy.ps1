@@ -491,6 +491,10 @@ function Set-MirrorImages {
             $key = 'DEPLOY_QODER2API_HUB_IMAGE'
             $image = Get-ConfigValue 'QODER2API_HUB_IMAGE' 'ghcr.io/shuishuipingan/qoder2api-hub:latest'
         }
+        webtop {
+            $key = 'DEPLOY_WEBTOP_IMAGE'
+            $image = Get-ConfigValue 'WEBTOP_IMAGE' 'lscr.io/linuxserver/webtop:debian-xfce'
+        }
         mihomo {
             $key = 'DEPLOY_MIHOMO_IMAGE'
             $image = 'ghcr.io/metacubex/metacubexd-server:latest'
@@ -552,6 +556,7 @@ function Ensure-TaskDirectories {
         flatnas { @('data','music','PC','APP','doc') }
         sub2api { @('data\app','data\postgres','data\redis') }
         'qoder2api-hub' { @('data\accounts','data\usage') }
+        webtop { @('data\config','data\shared') }
         mihomo { @('data') }
         default { @('data') }
     }
@@ -868,6 +873,324 @@ function Prepare-Task {
             if (-not $image) { throw 'QODER2API_HUB_IMAGE 不能为空。' }
             $null = Test-Port 'QODER2API_HUB_PORT' (Get-ConfigValue 'QODER2API_HUB_PORT' '8790')
             Test-IPv4 'QODER2API_HUB_BIND_IP' (Get-ConfigValue 'QODER2API_HUB_BIND_IP' '127.0.0.1')
+        }
+        webtop {
+            $image = Get-ConfigValue 'WEBTOP_IMAGE' 'lscr.io/linuxserver/webtop:debian-xfce'
+            if (-not $image) { throw 'WEBTOP_IMAGE 不能为空。' }
+            $null = Test-Port 'WEBTOP_PORT' (Get-ConfigValue 'WEBTOP_PORT' '7014')
+            $bind = Get-ConfigValue 'WEBTOP_BIND_IP' '127.0.0.1'
+            Test-IPv4 'WEBTOP_BIND_IP' $bind
+            foreach ($key in @('WEBTOP_PUID','WEBTOP_PGID')) {
+                if ((Get-ConfigValue $key '1000') -notmatch '^\d+$') { throw "$key 必须是数字。" }
+            }
+            $desktopUser = Get-ConfigValue 'WEBTOP_CUSTOM_USER'
+            $desktopPassword = Get-ConfigValue 'WEBTOP_PASSWORD'
+            if ([string]::IsNullOrEmpty($desktopUser) -xor [string]::IsNullOrEmpty($desktopPassword)) {
+                throw 'WEBTOP_CUSTOM_USER 与 WEBTOP_PASSWORD 必须同时设置或同时留空。'
+            }
+            if ($bind -ne '127.0.0.1' -and [string]::IsNullOrEmpty($desktopPassword)) {
+                Write-Warning 'Webtop 监听非回环地址但未启用登录认证；请限制可信网络访问或配置认证反向代理。'
+            }
+        }
+        mihomo { Prepare-Mihomo $Task }
+        default { }
+    }
+}
+
+function Get-TaskContainers {
+    param([string]$Task)
+    switch ($Task) {
+        opencode { return @('opencode') }
+        frps { return @('frps') }
+        easytier { return @('easytier') }
+        'easytier-automation-executor' { return @('easytier-automation-executor') }
+        portainer { return @('portainer') }
+        flatnas { return @('flatnas') }
+        sub2api { return @('sub2api','sub2api-postgres','sub2api-redis') }
+        'qoder2api-hub' { return @('qoder2api-hub') }
+        webtop { return @('webtop') }
+        mihomo { return @('mihomo') }
+        default { return @() }
+    }
+}
+
+function Test-TaskOwnership {
+    param([string]$Task)
+    $expected = Get-ComposeProjectName $Task
+    foreach ($name in (Get-TaskContainers $Task)) { Assert-ContainerOwner $name $expected }
+}
+
+function Ensure-ProxyNetwork {
+    $network = Get-DockerOutput @('network','inspect','proxy-net')
+    if ($null -eq $network) {
+        Invoke-Docker @('network','create','--driver','bridge','--internal','--label','org.cibeder.deploy.role=mihomo-proxy','proxy-net') | Out-Null
+        Write-Host '已创建 proxy-net。'
+        return
+    }
+    $driver = Get-DockerOutput @('network','inspect','--format','{{.Driver}}','proxy-net')
+    $internal = Get-DockerOutput @('network','inspect','--format','{{.Internal}}','proxy-net')
+    $scope = Get-DockerOutput @('network','inspect','--format','{{.Scope}}','proxy-net')
+    if ($driver -ne 'bridge' -or $internal -ne 'true' -or $scope -ne 'local') { throw '已有同名 proxy-net 不是 local internal bridge，拒绝接管。' }
+}
+
+function Invoke-ProxyCommand {
+    param([string[]]$Arguments)
+    Check-DockerRuntime
+    $action = if ($Arguments.Count -gt 0) { $Arguments[0] } else { '' }
+    $target = if ($Arguments.Count -gt 1) { $Arguments[1] } else { '' }
+    switch ($action) {
+        ensure {
+            if ($Arguments.Count -ne 1) { throw '用法：.\deploy.ps1 proxy ensure' }
+            Ensure-ProxyNetwork
+        }
+        connect {
+            if ($Arguments.Count -ne 2 -or -not $target) { throw '用法：.\deploy.ps1 proxy connect <容器名>' }
+            Ensure-ProxyNetwork
+            if (-not (Test-ContainerExists 'mihomo')) { throw '找不到 mihomo 容器，请先安装 Mihomo Docker 模式。' }
+            if ((Get-DockerOutput @('inspect','--format','{{.State.Status}}','mihomo')) -ne 'running') { throw 'Mihomo 容器未运行。' }
+            $targetId = Get-DockerOutput @('inspect','--format','{{.Id}}',$target)
+            if (-not $targetId) { throw "找不到目标容器：$target" }
+            $mihomoId = Get-DockerOutput @('inspect','--format','{{.Id}}','mihomo')
+            if ($targetId -eq $mihomoId) { throw '禁止修改 Mihomo 自身的网络连接。' }
+            $mode = Get-DockerOutput @('inspect','--format','{{.HostConfig.NetworkMode}}',$target)
+            if ($mode -eq 'host' -or $mode -eq 'none' -or $mode.StartsWith('container:')) { throw "$target 的 $mode 网络模式不支持动态接入。" }
+            $members = Get-DockerOutput @('network','inspect','--format','{{range $key, $_ := .Containers}}{{println $key}}{{end}}','proxy-net')
+            if ($members -notmatch [regex]::Escape($targetId)) { Invoke-Docker @('network','connect','proxy-net',$target) }
+            Write-Host "$target 已接入 proxy-net；应用需自行配置有认证的 mihomo:7890。"
+        }
+        disconnect {
+            if ($Arguments.Count -ne 2 -or -not $target) { throw '用法：.\deploy.ps1 proxy disconnect <容器名>' }
+            Ensure-ProxyNetwork
+            $targetId = Get-DockerOutput @('inspect','--format','{{.Id}}',$target)
+            if (-not $targetId) { throw "找不到目标容器：$target" }
+            $mihomoId = Get-DockerOutput @('inspect','--format','{{.Id}}','mihomo')
+            if ($targetId -eq $mihomoId) { throw '禁止修改 Mihomo 自身的网络连接。' }
+            $members = Get-DockerOutput @('network','inspect','--format','{{range $key, $_ := .Containers}}{{println $key}}{{end}}','proxy-net')
+            if ($members -match [regex]::Escape($targetId)) { Invoke-Docker @('network','disconnect','proxy-net',$target) }
+            Write-Host "$target 已断开或此前未连接 proxy-net。"
+        }
+        status {
+            if ($Arguments.Count -gt 2) { throw '用法：.\deploy.ps1 proxy status [容器名]' }
+            Ensure-ProxyNetwork
+            if ($target) {
+                $targetId = Get-DockerOutput @('inspect','--format','{{.Id}}',$target)
+                if (-not $targetId) { throw "找不到目标容器：$target" }
+                $members = Get-DockerOutput @('network','inspect','--format','{{range $key, $_ := .Containers}}{{println $key}}{{end}}','proxy-net')
+                if ($members -match [regex]::Escape($targetId)) { Write-Host "$target：已接入 proxy-net" }
+                else { Write-Host "$target：未接入 proxy-net" }
+            } else {
+                Write-Host (Get-DockerOutput @('network','inspect','--format','{{range .Containers}}{{println .Name}}{{end}}','proxy-net'))
+            }
+        }
+        default { throw '用法：.\deploy.ps1 proxy {ensure|connect|disconnect|status} [容器名]' }
+    }
+}
+
+function Invoke-Task {
+    param([string]$Task, [string]$Action = 'install')
+    if ($Action -in @('up','')) { $Action = 'install' }
+    if ($Action -eq 'pull') { $Action = 'update' }
+    if ($Action -in @('host','host-update')) {
+        if ($Task -ne 'mihomo') { throw 'host/host-update 仅支持 mihomo。' }
+        throw 'Mihomo host 是 Linux systemd 原生安装，不使用 Docker；此 Windows PowerShell 入口不会执行它。'
+    }
+    if ($Action -notin @('install','update','sync')) {
+        throw "不支持的操作：$Action。支持 install / update / sync；mihomo host 模式不属于 Windows Docker 部署。"
+    }
+    Sync-Task $Task
+    if ($Action -eq 'sync') { return }
+
+    $composeFile = Join-Path (Join-Path (Join-Path $script:SoftwareRoot $Task) 'deploy') 'docker-compose.yaml'
+    if (-not (Test-Path -LiteralPath $composeFile)) {
+        throw "$Task 不是 Docker Compose 服务。Windows PowerShell 入口不会调用任何 Bash 脚本；Linux/systemd 或 OpenWrt 业务请继续在对应 Linux 环境部署。"
+    }
+    $configResult = Ensure-GlobalConfig
+    Load-Configuration
+    if ($configResult.Created) {
+        Write-Host '统一配置已创建。请先编辑普通配置和敏感配置，再重新执行安装。'
+        Write-Host "普通配置：$($script:GlobalEnv)"
+        Write-Host "敏感配置：$($script:GlobalSecrets)"
+        return
+    }
+    Check-DockerRuntime
+    if ($Action -eq 'update' -and $Task -ne 'easytier-automation-executor') {
+        $firstContainer = Get-TaskContainers $Task | Select-Object -First 1
+        if ($firstContainer -and -not (Test-ContainerExists $firstContainer)) { throw "未找到 $Task 的现有容器；请先执行 .\deploy.ps1 $Task install。" }
+    }
+    Prepare-Task $Task $Action
+    Load-Configuration
+    Set-MirrorImages $Task
+    Test-TaskOwnership
+
+    $socket = $Task -eq 'flatnas' -and (Get-ConfigValue 'FLATNAS_DOCKER_SOCKET' 'false') -eq 'true'
+    Invoke-Compose $Task @('config','--quiet') -SocketOverride:$socket
+
+    switch ($Task) {
+        opencode {
+            Write-Host '构建 OpenCode 镜像...'
+            Invoke-Compose $Task @('build','--pull','--progress','plain','opencode')
+            if ($Action -eq 'update' -and (Test-ContainerExists 'opencode')) {
+                try { Invoke-Compose $Task @('stop','opencode') } catch { Write-Warning '停止 OpenCode 容器时返回错误，将继续尝试更新。' }
+            }
+            Invoke-Compose $Task @('up','-d','--wait','--wait-timeout','120','opencode')
+        }
+        frps {
+            Invoke-Compose $Task @('pull','frps')
+            if ($Action -eq 'update') {
+                try { Invoke-Compose $Task @('stop','frps') } catch { }
+            }
+            Invoke-Compose $Task @('up','-d','--wait','--wait-timeout','120','frps')
+        }
+        portainer {
+            Invoke-Compose $Task @('pull','portainer')
+            $upArgs = if ($Action -eq 'update') { @('up','-d','--wait','--wait-timeout','90','--no-deps','portainer') } else { @('up','-d','--wait','--wait-timeout','90','portainer') }
+            Invoke-Compose $Task $upArgs
+            $legacy = Join-Path (Join-Path $script:SoftwareRoot 'portainer\deploy') '.secrets\admin_password'
+            if (Test-Path -LiteralPath $legacy) {
+                Remove-Item -LiteralPath $legacy -Force
+                $parent = Split-Path -Parent $legacy
+                if ((Test-Path -LiteralPath $parent) -and @(Get-ChildItem -LiteralPath $parent -Force).Count -eq 0) { Remove-Item -LiteralPath $parent -Force }
+            }
+        }
+        flatnas {
+            Invoke-Compose $Task @('pull','flatnas') -SocketOverride:$socket
+            Invoke-Compose $Task @('up','-d','--wait','--wait-timeout','90','flatnas') -SocketOverride:$socket
+        }
+        easytier {
+            Invoke-Compose $Task @('pull','easytier')
+            Invoke-Compose $Task @('up','-d','--wait','--wait-timeout','90','easytier')
+        }
+        'easytier-automation-executor' {
+            Invoke-Compose $Task @('pull','easytier-automation-executor')
+            $image = Get-ConfigValue 'DEPLOY_EASYTIER_EXECUTOR_IMAGE' (Get-ConfigValue 'EASYTIER_EXECUTOR_IMAGE' 'ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center')
+            $arch = Get-DockerOutput @('image','inspect','--format','{{.Architecture}}',$image)
+            if ($arch -and $arch -ne 'amd64') { throw "执行器镜像架构为 $arch，预期 amd64；未替换容器。" }
+            Invoke-Compose $Task @('up','-d','--no-deps','--force-recreate','--pull','never','easytier-automation-executor')
+            $healthCode = 'import json, os, urllib.request; from automation_executor.auth import authorization; ip = os.environ.get("EASYTIER_EXECUTOR_BIND_IP", "127.0.0.1"); ip = "127.0.0.1" if ip == "0.0.0.0" else ip; port = os.environ.get("EASYTIER_EXECUTOR_PORT", "8766"); request = urllib.request.Request("http://%s:%s/internal/v1/health" % (ip, port), headers={"Authorization": authorization(os.environ["AUTOMATION_TOKEN"])}); response = urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request, timeout=2); data = json.load(response); assert data["protocol_version"] == 1 and data["executor_id"] and data["state"] == "ready"'
+            $ready = $false
+            $bindIp = Get-ConfigValue 'EASYTIER_EXECUTOR_BIND_IP' '127.0.0.1'
+            $port = Get-ConfigValue 'EASYTIER_EXECUTOR_PORT' '8766'
+            for ($attempt = 0; $attempt -lt 25; $attempt++) {
+                $health = Get-DockerOutput @('exec','-e',"EASYTIER_EXECUTOR_BIND_IP=$bindIp",'-e',"EASYTIER_EXECUTOR_PORT=$port",'easytier-automation-executor','python','-c',$healthCode)
+                if ($null -ne $health) { $ready = $true; break }
+                Start-Sleep -Seconds 1
+            }
+            if (-not $ready) {
+                try { Invoke-Compose $Task @('logs','--tail=80','easytier-automation-executor') } catch { }
+                throw '执行器未通过内部认证健康检查；请检查 docker logs easytier-automation-executor。Token 和 ADB 数据不会被删除。'
+            }
+        }
+        sub2api {
+            Invoke-Compose $Task @('pull')
+            Invoke-Compose $Task @('up','-d','--wait','--wait-timeout','240')
+        }
+        'qoder2api-hub' {
+            Invoke-Compose $Task @('pull','qoder2api-hub')
+            Invoke-Compose $Task @('up','-d','--no-deps','--force-recreate','--pull','never','--wait','--wait-timeout','120','qoder2api-hub')
+        }
+        webtop {
+            Invoke-Compose $Task @('pull','webtop')
+            Invoke-Compose $Task @('up','-d','--no-deps','--force-recreate','--pull','never','--wait','--wait-timeout','180','webtop')
+        }
+        mihomo {
+            Invoke-Compose $Task @('pull','mihomo')
+            Invoke-Compose $Task @('up','-d','--force-recreate','--wait','--wait-timeout','180','mihomo')
+            $healthy = $false
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+                $result = Get-DockerOutput @('exec','mihomo','node','-e','fetch("http://127.0.0.1:9090/version",{headers:{Authorization:"Bearer "+process.env.CLASH_SECRET}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))')
+                if ($null -ne $result) { $healthy = $true; break }
+                Start-Sleep -Seconds 1
+            }
+            if (-not $healthy) { throw 'Mihomo Web/Agent 已提交启动，但内核 API 未通过检查；请查看 docker logs mihomo。' }
+        }
+        default { throw "尚未实现 $Task 的 Windows 原生 Docker 部署处理。" }
+    }
+    Write-Host ''
+    Write-Host "[$Task] $Action 完成。"
+    try { Invoke-Compose $Task @('ps') -SocketOverride:$socket } catch { Write-Warning $_.Exception.Message }
+}
+
+function Show-Usage {
+    $usageText = @'
+用法：
+  .\deploy.ps1                       交互选择业务
+  .\deploy.ps1 list                  列出业务
+  .\deploy.ps1 env                   初始化/检查 Windows 全局配置
+  .\deploy.ps1 <业务>                 安装 Docker Compose 服务
+  .\deploy.ps1 <业务> install         安装
+  .\deploy.ps1 <业务> update          更新
+  .\deploy.ps1 <业务> sync            仅同步文件，不启动容器
+  .\deploy.ps1 proxy ensure           创建/验证 Mihomo 内部代理网络
+  .\deploy.ps1 proxy connect <容器>   接入代理网络
+  .\deploy.ps1 proxy disconnect <容器> 断开代理网络
+  .\deploy.ps1 proxy status [容器]    查看代理网络状态
+
+说明：
+  这是 Windows 原生 PowerShell 入口，不调用 Bash 或 WSL。
+  Docker 服务直接调用 Windows 上的 Docker CLI / Docker Compose。
+  Windows 默认软件根目录为 %LOCALAPPDATA%\CiBeDerORG\deploy\software。
+  可通过环境变量 SOFTWARE_ROOT 指定其他目录。
+  Linux systemd、OpenWrt 和 Mihomo host 原生模式不由此脚本执行。
+  EasyTier/执行器使用 Linux host 网络或 TUN 的配置在 Docker Desktop 上可能受限。
+'@
+    Write-Host $usageText
+}
+
+function Invoke-Main {
+    param([string[]]$Arguments)
+    if (-not $Arguments -or $Arguments.Count -eq 0) {
+        List-Tasks
+        $choice = Read-Host '请选择业务编号或名称（0 退出）'
+        if ($choice -in @('0','q','quit')) { return }
+        $task = Resolve-Task $choice
+        $action = Read-Host '操作 install/update/sync（默认 install）'
+        if ([string]::IsNullOrWhiteSpace($action)) { $action = 'install' }
+        Invoke-Task $task $action
+        return
+    }
+    switch ($Arguments[0]) {
+        { $_ -in @('-h','--help','help') } { Show-Usage; return }
+        list { List-Tasks; return }
+        env {
+            $result = Ensure-GlobalConfig
+            if ($result.Created) { Write-Host "统一配置已创建：$($script:GlobalEnv) / $($script:GlobalSecrets)" }
+            elseif ($result.Updated) { Write-Host "统一配置已更新：$($script:GlobalEnv) / $($script:GlobalSecrets)" }
+            else { Write-Host "统一配置已是最新：$($script:GlobalEnv) / $($script:GlobalSecrets)" }
+            return
+        }
+        proxy {
+            if ($Arguments.Count -lt 2) { throw '用法：.\deploy.ps1 proxy {ensure|connect|disconnect|status} [容器名]' }
+            Invoke-ProxyCommand -Arguments @($Arguments | Select-Object -Skip 1)
+            return
+        }
+        default {
+            if ($Arguments.Count -gt 2) { Show-Usage; throw '参数过多。' }
+            $task = Resolve-Task $Arguments[0]
+            $action = if ($Arguments.Count -gt 1) { $Arguments[1] } else { 'install' }
+            Invoke-Task $task $action
+        }
+    }
+}
+
+try {
+    Initialize-Paths
+    if ($CliArgs -and $CliArgs.Count -gt 0) { Invoke-Main -Arguments $CliArgs }
+    else { Invoke-Main -Arguments @() }
+} catch {
+    Write-Host ''
+    Write-Host ("[ERROR] " + $_.Exception.Message) -ForegroundColor Red
+    exit 1
+}
+) { throw "$key 必须是数字。" }
+            }
+            $desktopUser = Get-ConfigValue 'WEBTOP_CUSTOM_USER'
+            $desktopPassword = Get-ConfigValue 'WEBTOP_PASSWORD'
+            if ([string]::IsNullOrEmpty($desktopUser) -xor [string]::IsNullOrEmpty($desktopPassword)) {
+                throw 'WEBTOP_CUSTOM_USER 与 WEBTOP_PASSWORD 必须同时设置或同时留空。'
+            }
+            if ($bind -ne '127.0.0.1' -and [string]::IsNullOrEmpty($desktopPassword)) {
+                Write-Warning 'Webtop 监听非回环地址但未启用登录认证；请限制可信网络访问或配置认证反向代理。'
+            }
         }
         mihomo { Prepare-Mihomo $Task }
         default { }

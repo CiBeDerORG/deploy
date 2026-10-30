@@ -1,0 +1,121 @@
+# Production catalog manifest v1. Validated against the checked-in Deploy scripts.
+schema_version: 1
+id: webtop
+name: LinuxServer Webtop
+summary: Debian XFCE browser-accessible Linux desktop powered by LinuxServer Webtop
+category: productivity
+homepage: https://github.com/linuxserver/docker-webtop
+runtime:
+  kind: docker_compose
+  compose_project: webtop
+  compose_file: deploy/docker-compose.yaml
+  requires_root: true
+compatibility:
+  platforms: [linux, fnos]
+  architectures: [amd64, arm64]
+  requires_docker: true
+  requires_compose_v2: true
+package:
+  files:
+    - source: webtop/deploy/docker-compose.yaml
+      destination: webtop/deploy/docker-compose.yaml
+    - source: webtop/deploy/install.sh
+      destination: webtop/deploy/install.sh
+      mode: "0755"
+    - source: webtop/deploy/update.sh
+      destination: webtop/deploy/update.sh
+      mode: "0755"
+    - source: webtop/deploy/lib.sh
+      destination: webtop/deploy/lib.sh
+    - source: lib/image-sources.sh
+      destination: deploy/lib/image-sources.sh
+config:
+  - key: WEBTOP_IMAGE
+    label: Docker image
+    type: string
+    target: env
+    required: false
+    default: lscr.io/linuxserver/webtop:debian-xfce
+  - key: WEBTOP_BIND_IP
+    label: Bind address
+    type: ipv4
+    target: env
+    required: true
+    default: 127.0.0.1
+  - key: WEBTOP_PORT
+    label: Web desktop HTTPS port
+    type: port
+    target: env
+    required: true
+    default: 7014
+    minimum: 1
+    maximum: 65535
+  - key: WEBTOP_PUID
+    label: Host user ID
+    type: number
+    target: env
+    required: true
+    default: 1000
+  - key: WEBTOP_PGID
+    label: Host group ID
+    type: number
+    target: env
+    required: true
+    default: 1000
+  - key: WEBTOP_LOCALE
+    label: Desktop locale
+    type: string
+    target: env
+    required: false
+    default: zh_CN.UTF-8
+  - key: WEBTOP_SHM_SIZE
+    label: Shared memory size
+    type: string
+    target: env
+    required: false
+    default: 1gb
+  - key: WEBTOP_CUSTOM_USER
+    label: Optional desktop username
+    description: Set together with WEBTOP_PASSWORD to enable upstream HTTP Basic Authentication.
+    type: string
+    target: env
+    required: false
+    default: ""
+  - key: WEBTOP_PASSWORD
+    label: Optional desktop password
+    description: Leave blank together with WEBTOP_CUSTOM_USER to disable upstream authentication; keep the service on loopback or behind a protected proxy.
+    type: secret
+    target: secrets
+    required: false
+    default: ""
+ports:
+  - id: desktop-https
+    label: Browser desktop HTTPS
+    protocol: tcp
+    purpose: web
+    host_port_key: WEBTOP_PORT
+    bind_address_key: WEBTOP_BIND_IP
+    container_port: 3001
+    service: webtop
+    path: /
+actions:
+  install:
+    strategy: script
+    path: deploy/install.sh
+  update:
+    strategy: script
+    path: deploy/update.sh
+  uninstall:
+    strategy: compose_down
+    remove_orphans: false
+verification:
+  mode: docker_compose
+  required_services: [webtop]
+  state: running
+  timeout_seconds: 180
+data:
+  paths:
+    - webtop/data/config
+    - webtop/data/shared
+  named_volumes: []
+  default_retain: true

@@ -5,6 +5,7 @@ on:
     paths:
       - "sub2api/**"
       - "qoder2api-hub/**"
+      - "webtop/**"
       - ".env.example"
       - ".secrets.example"
       - "mihomo/**"
@@ -13,6 +14,7 @@ on:
     paths:
       - "sub2api/**"
       - "qoder2api-hub/**"
+      - "webtop/**"
       - ".env.example"
       - ".secrets.example"
       - "mihomo/**"
@@ -46,6 +48,15 @@ jobs:
       QODER2API_HUB_HTTP_PROXY: ""
       QODER2API_HUB_HTTPS_PROXY: ""
       QODER2API_HUB_ALL_PROXY: ""
+      WEBTOP_IMAGE: "lscr.io/linuxserver/webtop:debian-xfce"
+      WEBTOP_BIND_IP: "127.0.0.1"
+      WEBTOP_PORT: "7014"
+      WEBTOP_PUID: "1000"
+      WEBTOP_PGID: "1000"
+      WEBTOP_LOCALE: "zh_CN.UTF-8"
+      WEBTOP_SHM_SIZE: "1gb"
+      WEBTOP_CUSTOM_USER: "desktop"
+      WEBTOP_PASSWORD: "test-webtop-password"
 
     steps:
       - name: Checkout
@@ -60,9 +71,11 @@ jobs:
           set -euo pipefail
           docker compose -f sub2api/deploy/docker-compose.yaml config --quiet
           docker compose -f qoder2api-hub/deploy/docker-compose.yaml config --quiet
+          docker compose -f webtop/deploy/docker-compose.yaml config --quiet
           docker compose -f mihomo/deploy/docker-compose.yaml config --quiet
           docker compose -f sub2api/deploy/docker-compose.yaml config --format json > /tmp/sub2api-compose.json
           docker compose -f qoder2api-hub/deploy/docker-compose.yaml config --format json > /tmp/qoder2api-hub-compose.json
+          docker compose -f webtop/deploy/docker-compose.yaml config --format json > /tmp/webtop-compose.json
           docker compose -f mihomo/deploy/docker-compose.yaml config --format json > /tmp/mihomo-compose.json
 
       - name: Assert safe default exposure and persistence
@@ -74,6 +87,7 @@ jobs:
           s = json.loads(Path('/tmp/sub2api-compose.json').read_text())
           q = json.loads(Path('/tmp/qoder2api-hub-compose.json').read_text())
           m = json.loads(Path('/tmp/mihomo-compose.json').read_text())
+          w = json.loads(Path('/tmp/webtop-compose.json').read_text())
           assert set(s['services']) == {'sub2api', 'postgres', 'redis'}
           assert not s['services']['postgres'].get('ports'), 'Postgres must not publish host ports'
           assert not s['services']['redis'].get('ports'), 'Redis must not publish host ports'
@@ -81,6 +95,25 @@ jobs:
           assert s['services']['postgres']['environment']['PGDATA'] == '/var/lib/postgresql/data'
           for component in ('sub2api', 'postgres', 'redis'):
               assert s['services'][component]['volumes'], f'{component} must persist data'
+          assert set(w['services']) == {'webtop'}
+          webtop = w['services']['webtop']
+          assert webtop['image'] == 'lscr.io/linuxserver/webtop:debian-xfce'
+          assert webtop['container_name'] == 'webtop'
+          assert webtop['restart'] == 'unless-stopped'
+          assert webtop['shm_size']
+          assert webtop['environment']['PUID'] == '1000'
+          assert webtop['environment']['PGID'] == '1000'
+          assert webtop['environment']['LC_ALL'] == 'zh_CN.UTF-8'
+          assert webtop['environment']['CUSTOM_USER'] == 'desktop'
+          assert webtop['environment']['PASSWORD'] == 'test-webtop-password'
+          assert not webtop.get('privileged') and not webtop.get('devices')
+          assert webtop.get('network_mode') != 'host'
+          assert all('/var/run/docker.sock' not in v.get('source', '') for v in webtop.get('volumes', []))
+          assert {v['target'] for v in webtop['volumes']} == {'/config', '/shared'}
+          assert len(webtop['ports']) == 1
+          desktop_port = webtop['ports'][0]
+          assert desktop_port['host_ip'] == '127.0.0.1'
+          assert desktop_port['published'] == '7014' and desktop_port['target'] == 3001
           assert set(q['services']) == {'qoder2api-hub'}
           qoder = q['services']['qoder2api-hub']
           assert qoder['image'] == 'ghcr.io/shuishuipingan/qoder2api-hub:latest'
