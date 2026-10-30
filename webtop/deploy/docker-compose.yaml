@@ -1,0 +1,17 @@
+services:
+  webtop:
+    image: ${DEPLOY_WEBTOP_IMAGE}
+    container_name: webtop
+    environment:
+      PUID: "${WEBTOP_PUID}"
+      PGID: "${WEBTOP_PGID}"
+      TZ: "${TZ}"
+      CUSTOM_USER: "${WEBTOP_USER}"
+      FILE__PASSWORD: /run/secrets/webtop_password
+    volumes:
+      - ../data:/config
+      - ../state/webtop_password:/run/secrets/webtop_password:ro
+    ports:
+      - "${WEBTOP_BIND_IP}:${WEBTOP_HTTPS_PORT}:3001"
+    shm_size: "1gb"
+    restart: unless-stopped
