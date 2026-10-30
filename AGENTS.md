@@ -1,42 +1,32 @@
-# Project rules for automated contributors
+# Deploy — AI Agent Engineering Rules
 
-## Credential handling (mandatory)
+> 此文件是项目级 AI Agent 常驻规则和按需加载入口。具体规范按任务读取；不要在每次会话无条件加载所有文档。详细规则为强制约束，迁移至专项规范不表示降级或废止。
 
-- Never invent or add password, token, or secret length, character-set, complexity, or format restrictions. Only enforce a restriction when the official upstream service, API, or protocol explicitly requires it. Document the specific upstream requirement and source alongside any new validation; recommendations are not mandatory requirements.
-- Respect the exact nonempty value the user configured. Never silently replace, normalize, truncate, hash, reformat, rotate, or overwrite user credentials. Encoding/escaping for transport or config serialization is permitted only if the consuming service receives the same original value after decoding.
-- Generate a random value only when the corresponding setting is explicitly documented as optional and the user leaves it empty; persist it without printing or logging it. Never regenerate a configured nonempty value during install/update.
-- Where a config format cannot losslessly represent an input, report the limitation instead of silently changing the credential. Handle special characters safely in YAML, Compose, shell, URLs and other serialization boundaries.
-- Distinguish upstream-native options from variables defined by this deploy wrapper in documentation and user-facing error messages.
-- Regression tests must include user-chosen passwords with punctuation, quotes, spaces and non-ASCII text, preservation of an existing value, and blank-value generation.
-- This rule applies project-wide to future changes, not only Mihomo. Review any new credential validation against it before merging.
+## 核心约束（Always-On）
 
-## Optional inputs and deployment-time generation (mandatory)
+1. **Architecture First**：修改前核对仓库现状、依赖和现有实现；优先复用公共能力，禁止未经授权的架构重构。
+2. **Minimal Change**：采用最小变更集，保持向后兼容；不得覆盖其他开发者/Agent 的工作。
+3. **Lifecycle Contract**：新增服务须符合统一入口、安装/更新/卸载契约、配置与数据持久化策略；只声明已实现的命令。
+4. **Secure by Default**：保留用户现有凭据原值，不擅自增加密码限制；可安全生成的可选密钥首次留空时生成并持久化，后续更新不覆盖；默认卸载保留数据。
+5. **Idempotency**：安装与更新须支持安全重试，避免重复实例、配置覆盖及意外数据删除。
+6. **Evidence-Based Verification**：不臆测上游能力，不虚构命令或测试结论；根据风险执行适用检查，保留事实证据。
+7. **Git & CI**：开发前检查分支及相关既有 CI；失败优先按关联性修复。提交、Push、PR、合并依授权与质量门禁执行；无需持续等待 CI，不得绕过保护规则。
+8. **Delivery Contract**：每次任务交付报告完成项、待办/风险、分支、Commit、PR、合并状态、构建链接及真实验证状态。
 
-- Mark optional inputs explicitly in the example templates and README. Empty values (`KEY=`, `KEY=""`, `KEY=''`, or an omitted key) MUST NOT fail installation just because they are blank. Do not introduce unconditional nonempty assertions, pairwise required checks, or arbitrary format/length restrictions for optional inputs.
-- When a downstream runtime requires a concrete secret (e.g. a database password) but the deploy wrapper promises optional input, resolve blank inputs **before** Compose/runtime validation: either generate and persist a secure value when documented to do so, or pass blank through to the official upstream bootstrap when upstream explicitly generates it. Compose `:?` may validate the resolved runtime value, never demand that the user pre-populate an optional template.
-- Respect any nonempty user value byte-for-byte, and do not regenerate it on install or update. The serializer must also support quoted-empty and whitespace around `=` that the project's config reader interprets as empty. In ambiguous configurations such as duplicate definitions, fail safely without overwriting an existing nonempty entry.
-- If upstream independently permits optional settings to be omitted, the deploy wrapper must not force them to be provided together; apply upstream-mandated validation only to nonempty values and cite its implementation.
-- Add regression coverage for each optional-secret group: raw and quoted empty values, omitted keys, first-install persistence, idempotent re-install, separately omitted admin fields, and preservation of nonempty user credentials. Avoid printing generated or user-supplied credentials in CI logs.
+## 按需加载（Task-Based Routing）
 
-## Deployment guide contract (mandatory)
+仅阅读与当前任务相关的规范；跨领域任务可加载多个文件：
 
-Whenever a new application/service is added to this repository, its installer or deployment instructions are changed, **or** a user asks how to install or deploy a supported application, the contributor's final answer MUST include all six sections below. All commands, defaults, and claimed behavior must be verified against the current repository, not guessed:
+- 架构、公共能力、跨平台或重构 → [ARCHITECTURE.md](docs/engineering/ARCHITECTURE.md)
+- 新增服务、安装/更新/卸载、Docker、持久化或**用户询问安装方式** → [DEPLOYMENT.md](docs/engineering/DEPLOYMENT.md)
+- 密码、Token、认证、配置解析、权限、密钥生成/保留 → [SECURITY.md](docs/engineering/SECURITY.md)
+- 代码修改的提交/PR/CI、跨 Agent 任务交接和交付报告 → [DELIVERY.md](docs/engineering/DELIVERY.md)
 
-1. **Configuration files and examples**: exact `<SOFTWARE_ROOT>/deploy/.env` and `<SOFTWARE_ROOT>/deploy/.secrets` paths for the target OS, a copy-pastable example with every relevant key and default, which values are required/optional, and how to edit them. Ordinary settings belong in `.env`; credentials belong in `.secrets`. Show custom image, port, bind IP, persistent directories, and first-run account settings when applicable; NEVER show real secret values in examples.
-2. **Configuration and runtime requirements**: OS and architecture support, Docker and Compose versions or native dependencies, CPU/RAM/disk constraints only when documented or validated, port conflicts and network/firewall/HTTPS restrictions, mount ownership and permissions, external service dependencies, and any mandatory settings. Explain which checks are requirements versus recommendations; do not invent minimum hardware specs or force extra config.
-3. **Credential/password requirements**: for each password, API key, token, or secret, identify whether manually supplied credentials are **required**, **optional**, **auto-generated on first install**, or **generated by upstream**. State any *official upstream-enforced* length/character/format policy, citing upstream documentation or implementation when adding validation; if upstream has no documented restriction, explicitly say no additional restriction is imposed by deploy. Identify where a generated secret is stored and how the user can retrieve it securely after installation (a command showing only the relevant value, with a warning not to share it); never log or echo credentials by default.
-4. **Installation commands**: check out/pull the correct branch, run `deploy.sh env` where supported, edit configuration, invoke the actual install command, and state the service URL/port plus a status or smoke-test command.
-5. **Uninstallation commands**: provide a real, executable uninstall command, explicitly distinguishing service/container removal from the optional **irreversible data purge**; document which data, workspaces, images, credentials, and global config remain. Never silently erase persistent data.
-6. **Update commands**: show the actual update command and whether configuration, passwords and persistent volumes are preserved. Do not claim Windows `deploy.ps1` support based on the Linux Bash installer.
+新增服务和安装文档变更通常同时涉及 Deployment、Security 与 Delivery，必须读取对应专项规范。历史强制条款已按原文迁移到专项规范，不能因根规则精简而忽略。
 
-**Automatic credentials for all new applications (mandatory when technically supported):**
-- Design new installers so passwords, tokens, and API keys that the deployment wrapper can safely create are **optional inputs**. An empty or omitted value must trigger cryptographically secure first-install generation and persistent storage **before** Docker Compose or runtime validation, unless the official upstream service explicitly handles secure first-run generation itself. Respect upstream-required policies when choosing generated values.
-- Generated credentials must be written to `<SOFTWARE_ROOT>/deploy/.secrets` (root-owned, mode 0600) or another upstream-defined persistent credential store; document that location and the retrieval method. Do not put them in tracked templates, normal `.env`, shell trace, ordinary logs, CI output, or Git history.
-- Preserve every existing nonempty value byte-for-byte on reinstall and update; do not unilaterally rotate secrets. Handle `KEY=`, `KEY=""`, `KEY=''`, and omitted keys consistently as blank, and reject ambiguous duplicate assignments rather than guessing which key wins.
-- Some credentials cannot be generated locally (external account OAuth authorizations, provider-issued personal access tokens, cloud registration keys, etc.). Clearly mark these as **must be obtained manually from the provider**, show setup instructions, and never generate an unusable placeholder or claim auto-generation.
-- Do not manufacture password complexity or length requirements; only validate official upstream constraints. Document why any nonblank value must be validated. Prefer letting upstream create its own bootstrap credentials when this is reliable, persistent and documented, and explain secure retrieval and rotation semantics.
-- Add regression tests for generated-secret persistence, repeat install/update, blank/quoted/omitted values, existing user credentials with spaces/quotes/Unicode, no secret leakage, and safe failure if generation or storage fails.
+## 执行原则
 
-New Docker applications MUST ship a documented `<app>/deploy/uninstall.sh` or another verified uninstall entry point, ideally `sudo bash deploy.sh <app> uninstall`. Default uninstall must only stop/remove the application's own resources; never remove unrelated containers, shared networks, images, passwords, project code or user data. If an existing service has no uninstall action, explicitly say so and give a verified alternative; **never invent a supported command**.
-
-Every newly added service's README must include all six sections and the documented automatic credential flow. The final answer must follow the same contract even when the user merely asks "how do I install it?". Where Linux/fnOS and Windows commands differ, label the platform. A branch-only implementation must be identified as such until merged into the default branch. When modifying source, report the branch, commit/PR links, and available CI results; never claim tests or live deployment passed without verification.
+- **先理解、再修改、后验证**；小任务避免过度分析，大任务保存可恢复的任务状态。
+- 普通常规任务在授权范围内自主推进；生产数据删除、权限扩大及其他高风险操作须明确授权。
+- 优先用脚本/CI 落实确定性质量门禁，不把提示词当作唯一验证手段。
+- 以真实完成状态报告交付，不把「已触发构建」写成「构建成功」，不把「已提交」写成「已合并」。
