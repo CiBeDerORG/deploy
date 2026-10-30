@@ -108,6 +108,7 @@ usage() {
   bash deploy.sh <业务类型> install    同上
   bash deploy.sh <业务类型> update     同步最新文件后执行 update.sh
   bash deploy.sh <业务类型> sync       仅同步文件，不启动/更新容器
+  sudo bash deploy.sh <业务类型> uninstall  卸载支持此操作的业务（默认保留数据）
   sudo bash deploy.sh mihomo host       原生 systemd 安装完整 Web/Agent/内核（不使用 Docker）
   sudo bash deploy.sh mihomo host-update 更新原生安装（不影响 Docker）
   sudo bash deploy.sh fnos-desktop      宿主机安装 XFCE4 / TigerVNC / noVNC（不使用 Docker）
@@ -545,9 +546,19 @@ run_task() {
             [ "$task" = mihomo ] || { echo "host/host-update 仅支持 mihomo" >&2; return 1; }
             script="$target_dir/deploy/host-install.sh"
             ;;
-        status|start|stop|restart|logs|uninstall)
+        status|start|stop|restart|logs)
             [ "$task" = fnos-desktop ] || { echo "管理操作仅支持 fnos-desktop" >&2; return 1; }
             script="$target_dir/deploy/manage.sh"
+            ;;
+        uninstall)
+            if [ "$task" = fnos-desktop ]; then
+                script="$target_dir/deploy/manage.sh"
+            elif [ -f "$ROOT_DIR/$task/deploy/uninstall.sh" ]; then
+                script="$target_dir/deploy/uninstall.sh"
+            else
+                echo "$task 尚未提供标准卸载脚本，请查看其 README 中的卸载说明。" >&2
+                return 1
+            fi
             ;;
         sync)
             sync_task "$task"
@@ -555,7 +566,7 @@ run_task() {
             ;;
         *)
             echo "不支持的操作：$action" >&2
-            echo "支持：install / update / sync；mihomo 另支持 host / host-update；fnos-desktop 另支持 status/start/stop/restart/logs/uninstall" >&2
+            echo "支持：install / update / sync；有 uninstall.sh 的业务支持 uninstall；mihomo 另支持 host / host-update；fnos-desktop 另支持 status/start/stop/restart/logs/uninstall" >&2
             return 1
             ;;
     esac
@@ -604,6 +615,8 @@ interactive() {
         read -r -p '操作 install/update/sync/host/host-update（默认 Docker install）：' action || return 0
     elif [ "$task" = fnos-desktop ]; then
         read -r -p '操作 install/update/sync/status/start/stop/restart/logs/uninstall（默认原生 install）：' action || return 0
+    elif [ -f "$ROOT_DIR/$task/deploy/uninstall.sh" ]; then
+        read -r -p '操作 install/update/sync/uninstall（默认 install）：' action || return 0
     else
         read -r -p '操作 install/update/sync（默认 install）：' action || return 0
     fi

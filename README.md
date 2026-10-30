@@ -17,6 +17,21 @@
 
 > `.env` / `.secrets` 是运行配置，不应提交到 Git。仓库中的 `.env.example` 与 `.secrets.example` 只是模板。
 
+## 部署回答与维护规范
+
+**全局强制规范**见 [AGENTS.md](./AGENTS.md)。以后**新增应用、更新安装脚本，或用户询问安装方式**，文档与回答都必须提供以下信息：
+
+1. **配置文件及示例**：`<SOFTWARE_ROOT>/deploy/.env`（普通配置）、`<SOFTWARE_ROOT>/deploy/.secrets`（密码、Token 等敏感配置）的实际路径、完整示例、默认值、必填/可选项。
+2. **配置与运行要求**：支持的系统/架构、Docker/Compose 或其他依赖、端口、防火墙及 HTTPS、磁盘挂载权限、必要的外部服务；只注明有依据的硬件最低要求。
+3. **密码/密钥要求和自动生成机制**：每个凭据说明是否必填、能否留空自动生成、是否由上游生成、上游强制长度/字符/格式要求、生成后的安全保存位置和查看方法。**新应用的本地可生成凭据默认可留空，首次安装安全自动生成并持久化；再次安装或更新不重置。** 未知的密码限制不自行发明，外部平台签发的 OAuth/PAT 等不能假装能自动生成。
+4. **安装命令**：拉取正确分支、`sudo bash deploy.sh env`、配置操作、完整安装命令及访问/验证方式。
+5. **卸载命令**：提供真正可执行的卸载方法，区分仅移除服务与永久删除持久化数据，默认不删数据。
+6. **更新命令**：提供更新步骤，明确是否保留数据和密钥。
+
+默认 fnOS 配置目录为 `/vol3/1000/software/deploy/`；其他 Linux 默认 `/software/deploy/`。真实凭据严禁提交 Git，不应在标准日志或回答里明文打印。Windows `deploy.ps1` 与 Linux `deploy.sh` 是不同入口，只有已经实现的功能才能给出对应命令。
+
+目前 `uninstall` 仅适用于已提供 `deploy/uninstall.sh` 的业务与专用原生桌面项目，不能假定所有历史服务均支持统一卸载。
+
 ## Windows 11 原生部署（PowerShell）
 
 Windows 11 使用根目录的 `deploy.ps1`，直接调用 Windows 上的 Docker CLI / Docker Compose；不会启动 WSL Bash，也不会执行仓库中的 `.sh` 安装脚本。Linux / fnOS 仍使用原有 `deploy.sh`，两套入口互不替换。
@@ -64,6 +79,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 list
 | --- | --- | --- | --- |
 | fnOS Desktop（宿主机原生） | `7015/HTTPS`（noVNC） | **apt + systemd（不使用 Docker）** | [fnos-desktop/README.md](./fnos-desktop/README.md) |
 | LinuxServer Webtop | `7014/HTTPS` | Docker Compose（Debian XFCE / Selkies） | [webtop/README.md](./webtop/README.md) |
+| OpenHands Agent Canvas | `7016/HTTP`（`/canvas`） | Docker Compose（官方 GHCR 镜像） | [openhands/README.md](./openhands/README.md) |
 | OpenCode V2 | `7003/TCP` | Docker Compose | [opencode/README.md](./opencode/README.md) |
 | FRPS | `7000/TCP`，后台 `7001/TCP` | Docker Compose | [frps/README.md](./frps/README.md) |
 | EasyTier | Core `7005`，RPC `7006`，Web `7007`，Config `7008/UDP` | Docker / OpenWrt | [easytier/README.md](./easytier/README.md) |
@@ -171,6 +187,7 @@ bash deploy.sh list
 
 ```bash
 sudo bash deploy.sh opencode
+sudo bash deploy.sh openhands
 sudo bash deploy.sh frps
 sudo bash deploy.sh easytier
 sudo bash deploy.sh easytier-automation-executor
@@ -231,6 +248,7 @@ sudo bash deploy.sh <服务名>
 sudo bash deploy.sh <服务名> install
 sudo bash deploy.sh <服务名> update
 sudo bash deploy.sh <服务名> sync
+sudo bash deploy.sh openhands uninstall
 sudo bash deploy.sh mihomo host
 sudo bash deploy.sh mihomo host-update
 sudo bash deploy.sh proxy connect <容器名>
@@ -249,6 +267,7 @@ sudo bash deploy.sh proxy status [容器名]
 | `deploy.sh <服务> install` | 与上一条相同 |
 | `deploy.sh <服务> update` | 同步最新文件后执行服务更新脚本 |
 | `deploy.sh <服务> sync` | 只同步仓库文件，不启动或更新服务 |
+| `deploy.sh <服务> uninstall` | 仅支持已提供标准卸载脚本的应用；通常仅移除容器，持久化数据默认保留 |
 | `deploy.sh mihomo host/host-update` | 选择原生安装/升级 Mihomo 一体化 Web + Agent + Core（不调用 Docker） |
 | `deploy.sh proxy connect/disconnect <容器名>` | 动态接入/断开 Mihomo 的 proxy-net 内部共享网络，不修改业务 Compose |
 | `deploy.sh proxy status [容器名]` | 查看共享网络成员或单容器接入状态 |
@@ -264,6 +283,9 @@ sudo bash deploy.sh proxy status [容器名]
 │   ├── .secrets
 │   ├── lib/image-sources.sh
 │   └── state/image-mirror.last
+├── openhands/
+│   ├── data/ workspace/
+│   └── deploy/
 ├── opencode/
 │   ├── config/
 │   ├── data/
@@ -359,6 +381,7 @@ DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
 | FlatNas | 当前为 Docker Hub 镜像，原样使用 |
 | Portainer | 当前为 Docker Hub 镜像，原样使用 |
 | Sub2API | 应用、PostgreSQL、Redis 当前均为 Docker Hub 镜像，三个地址均原样使用 |
+| OpenHands Agent Canvas | 官方 GHCR 镜像参与统一镜像源轮换 |
 | OpenCode | MCR 基础镜像原样使用；构建输出仍为 `opencode-local:latest` |
 
 轮换规则：

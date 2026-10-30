@@ -97,3 +97,7 @@ jobs:
       - name: Qoder2API Hub install, data persistence and GHCR mirror regression
         shell: bash
         run: bash qoder2api-hub/tests/install.sh
+
+      - name: OpenHands optional secret and credential regression
+        shell: bash
+        run: sudo bash openhands/tests/config.sh

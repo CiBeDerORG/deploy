@@ -1,0 +1,25 @@
+name: openhands
+services:
+  openhands:
+    image: "${DEPLOY_OPENHANDS_IMAGE}"
+    container_name: openhands
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "${OPENHANDS_BIND_IP:-0.0.0.0}:${OPENHANDS_PORT:-7016}:8000"
+    environment:
+      PORT: "8000"
+      LOCAL_BACKEND_API_KEY: "${OPENHANDS_API_KEY}"
+      AGENT_CANVAS_ALLOW_LAN_SESSION_KEY: "false"
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - ../data:/home/openhands/.openhands
+      - ../workspace:/projects
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/canvas').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    stop_grace_period: 30s
