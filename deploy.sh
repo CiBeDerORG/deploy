@@ -110,6 +110,8 @@ usage() {
   bash deploy.sh <业务类型> sync       仅同步文件，不启动/更新容器
   sudo bash deploy.sh mihomo host       原生 systemd 安装完整 Web/Agent/内核（不使用 Docker）
   sudo bash deploy.sh mihomo host-update 更新原生安装（不影响 Docker）
+  sudo bash deploy.sh fnos-desktop      宿主机安装 XFCE4 / TigerVNC / noVNC（不使用 Docker）
+  sudo bash deploy.sh fnos-desktop update  更新桌面服务（不升级整个系统）
   bash deploy.sh env                    初始化/检查 <SOFTWARE_ROOT>/deploy/.env 和 .secrets
   sudo bash deploy.sh proxy connect <容器名>     动态接入 Mihomo 内部代理网络
   sudo bash deploy.sh proxy disconnect <容器名>  断开该代理网络（不改变其他网络）
