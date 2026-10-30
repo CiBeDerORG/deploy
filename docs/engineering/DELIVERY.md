@@ -1,15 +1,13 @@
 # Deploy — Git, CI & Delivery Policy
 
-> 按需读取：提交代码、分支开发、PR、合并、CI、发布、任务交接、交付报告。
+> 按需读取：提交代码、分支开发、PR、合并、CI、发布、交付报告。
 
 Every newly added service's README must include all six sections and the documented automatic credential flow. The final answer must follow the same contract even when the user merely asks "how do I install it?". Where Linux/fnOS and Windows commands differ, label the platform. A branch-only implementation must be identified as such until merged into the default branch. When modifying source, report the branch, commit/PR links, and available CI results; never claim tests or live deployment passed without verification.
 
-## Git 与多 Agent 协作
+## Git 与变更隔离
 
 - 修改前确认当前分支、工作区、目标基线与其他参与者的改动，禁止覆盖或丢弃无关的未提交工作。
 - 代码修改采用适合项目的功能分支、原子提交和 PR；合并遵守授权和受保护分支策略，目标为集成到 `main`。不可将已推送误报为已合并。
-- 跨会话或跨 Agent 的长任务记录任务目标、验收标准、当前负责人、分支/Commit、完成项、待办、阻塞及 CI 状态；不必复制聊天记录。
-- 并发任务优先使用独立分支或 Git Worktree；冲突由明确的集成负责人协调，不得互相覆盖工作结果。
 
 ## 非阻塞 CI 与质量门禁
 
