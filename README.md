@@ -55,13 +55,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 list
 
 - 需要已启动的 Docker Desktop 和 Docker Compose v2。
 - Windows 配置与数据目录和 Linux 默认的 `/software` 分开，避免误用 Linux 路径或覆盖另一套配置。
-- Linux systemd 服务、OpenWrt 原生安装以及 `mihomo host` 不由 Windows PowerShell 入口执行。
+- Linux systemd 服务、OpenWrt 原生安装以及 `mihomo host`、`fnos-desktop` 不由 Windows PowerShell 入口执行。
 - EasyTier / 手机执行器依赖 Linux host networking、TUN 或设备网络能力；Docker Desktop 上的兼容性与 Linux 主机不同，部署前需确认相应功能可用。
 
 ## 服务一览
 
 | 服务 | 默认端口 / 入口 | 部署方式 | 详细文档 |
 | --- | --- | --- | --- |
+| fnOS Desktop（宿主机原生） | `7015/HTTPS`（noVNC） | **apt + systemd（不使用 Docker）** | [fnos-desktop/README.md](./fnos-desktop/README.md) |
 | LinuxServer Webtop | `7014/HTTPS` | Docker Compose（Debian XFCE / Selkies） | [webtop/README.md](./webtop/README.md) |
 | OpenCode V2 | `7003/TCP` | Docker Compose | [opencode/README.md](./opencode/README.md) |
 | FRPS | `7000/TCP`，后台 `7001/TCP` | Docker Compose | [frps/README.md](./frps/README.md) |
@@ -178,6 +179,8 @@ sudo bash deploy.sh flatnas
 sudo bash deploy.sh sub2api
 sudo bash deploy.sh qoder2api-hub
 sudo bash deploy.sh webtop
+# fnOS 宿主机原生 XFCE4（会安装系统软件包；不需 Docker）
+sudo bash deploy.sh fnos-desktop
 sudo bash deploy.sh mihomo
 # 可选：Mihomo 无 Docker 的完整 Web/Agent/内核原生安装
 sudo bash deploy.sh mihomo host
