@@ -35,7 +35,7 @@ for bin in tigervncserver tigervncpasswd websockify dbus-launch startxfce4 opens
   command -v "$bin" >/dev/null || fail "安装后找不到 $bin"
 done
 [ -d /usr/share/novnc ] || fail "未找到 noVNC 静态文件目录"
-install -d -m 0700 "$STATE" "$MODULE/data"
+install -d -m 0711 "$STATE" "$MODULE/data"
 if ! getent passwd "$FNOS_DESKTOP_USER" >/dev/null; then
   useradd --create-home --home-dir "$HOME_DIR" --shell /bin/bash "$FNOS_DESKTOP_USER" ||
     fail "创建桌面用户失败"
