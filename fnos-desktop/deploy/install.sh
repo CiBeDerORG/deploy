@@ -23,7 +23,7 @@ elif [ -f "$STATE/owned-user" ]; then
   fail "安装记录中的用户不存在，请先排查后重装"
 fi
 echo "将安装宿主机 XFCE4 + TigerVNC + noVNC；不安装显示管理器，不执行全系统 upgrade"
-packages=(xfce4 xfce4-terminal thunar dbus-x11 tigervnc-standalone-server tigervnc-tools tigervnc-common novnc websockify fonts-noto-cjk openssl)
+packages=(xfce4 xfce4-terminal thunar dbus-x11 tigervnc-standalone-server tigervnc-tools novnc websockify fonts-noto-cjk openssl)
 if [ "$FNOS_DESKTOP_APT_UPDATE" = true ]; then
   apt-get update || fail "apt-get update 失败，请检查系统软件源"
 fi
@@ -31,7 +31,7 @@ apt-get -s --no-install-recommends --no-remove install "${packages[@]}" >/dev/nu
   fail "APT 预检失败：可能存在依赖冲突或删除系统包的风险"
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --no-remove "${packages[@]}" ||
   fail "APT 软件包安装失败，未更改 fnOS 默认启动"
-for bin in tigervncserver websockify dbus-launch startxfce4 openssl chpasswd; do
+for bin in tigervncserver tigervncpasswd websockify dbus-launch startxfce4 openssl python3; do
   command -v "$bin" >/dev/null || fail "安装后找不到 $bin"
 done
 [ -d /usr/share/novnc ] || fail "未找到 noVNC 静态文件目录"
@@ -44,25 +44,23 @@ fi
 group="$(id -gn "$FNOS_DESKTOP_USER")"
 install -d -m 0700 -o "$FNOS_DESKTOP_USER" -g "$group" "$HOME_DIR/.vnc"
 if [ -z "$FNOS_DESKTOP_VNC_PASSWORD" ]; then
-  FNOS_DESKTOP_VNC_PASSWORD="$(openssl rand -hex 16)" || fail "生成认证密码失败"
+  FNOS_DESKTOP_VNC_PASSWORD="$(python3 -c 'import secrets,string; a=string.ascii_letters+string.digits; print("".join(secrets.choice(a) for _ in range(8)))')" ||
+    fail "密码生成失败"
   sed -i '/^FNOS_DESKTOP_VNC_PASSWORD=/d' "$SECRETS_FILE"
   printf '\nFNOS_DESKTOP_VNC_PASSWORD=%s\n' "$FNOS_DESKTOP_VNC_PASSWORD" >> "$SECRETS_FILE"
   chmod 0600 "$SECRETS_FILE"
-  echo "已生成 32 位随机桌面密码，保存在 $SECRETS_FILE"
+  echo "已生成 VNC 密码，保存在 $SECRETS_FILE"
 fi
-[ "${#FNOS_DESKTOP_VNC_PASSWORD}" -ge 8 ] && [ "${#FNOS_DESKTOP_VNC_PASSWORD}" -le 128 ] ||
-  fail "桌面密码长度必须为 8-128 个字符（推荐至少 12 个）"
-[[ "$FNOS_DESKTOP_VNC_PASSWORD" != *$'\n'* ]] ||
-  fail "桌面密码不允许包含换行符"
-[ -f /etc/pam.d/tigervnc ] ||
-  fail "缺少 TigerVNC 的 PAM 认证配置 /etc/pam.d/tigervnc"
-# The Plain VNC security type verifies the entire Unix account password via
-# PAM, rather than the legacy eight-byte VncAuth challenge. noVNC supports it.
-# Only a project-owned non-root account is ever changed; not the NAS admin.
-printf '%s:%s\n' "$FNOS_DESKTOP_USER" "$FNOS_DESKTOP_VNC_PASSWORD" |
-  chpasswd || fail "无法为独立桌面用户设置认证密码"
-# A leftover VncAuth password file from older versions is no longer required.
-rm -f -- "$HOME_DIR/.vnc/passwd"
+[[ "$FNOS_DESKTOP_VNC_PASSWORD" =~ ^[A-Za-z0-9]{8}$ ]] ||
+  fail "VNC 密码必须是 8 位 ASCII 字母数字；VncAuth 超过 8 位不会增加安全性"
+# Write TigerVNC's obfuscated password file, never expose plaintext in ps or logs.
+pass_tmp="$(mktemp "$HOME_DIR/.vnc/.passwd.XXXXXX")"
+if ! printf '%s\n' "$FNOS_DESKTOP_VNC_PASSWORD" | tigervncpasswd -f > "$pass_tmp"; then
+  rm -f "$pass_tmp"; fail "密码生成失败"
+fi
+chown "$FNOS_DESKTOP_USER:$group" "$pass_tmp"
+chmod 0600 "$pass_tmp"
+mv -f "$pass_tmp" "$HOME_DIR/.vnc/passwd"
 # Stage as root in the root-owned state directory, then atomically rename over
 # any user-created symlink; never open a user-controlled destination as root.
 startup_tmp="$(mktemp "$STATE/.xstartup.XXXXXX")"
@@ -94,7 +92,7 @@ User=$FNOS_DESKTOP_USER
 Group=$group
 Environment=HOME=$HOME_DIR
 WorkingDirectory=$HOME_DIR
-ExecStart=/usr/bin/tigervncserver :1 -fg -localhost yes -SecurityTypes Plain -PlainUsers $FNOS_DESKTOP_USER -PAMService tigervnc -geometry $FNOS_DESKTOP_RESOLUTION -depth 24 -xstartup $HOME_DIR/.vnc/xstartup
+ExecStart=/usr/bin/tigervncserver :1 -fg -localhost yes -SecurityTypes VncAuth -PasswordFile $HOME_DIR/.vnc/passwd -geometry $FNOS_DESKTOP_RESOLUTION -depth 24 -xstartup $HOME_DIR/.vnc/xstartup
 ExecStop=-/usr/bin/tigervncserver -kill :1
 Restart=on-failure
 RestartSec=5
