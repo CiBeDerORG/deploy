@@ -61,14 +61,18 @@ fi
 chown "$FNOS_DESKTOP_USER:$group" "$pass_tmp"
 chmod 0600 "$pass_tmp"
 mv -f "$pass_tmp" "$HOME_DIR/.vnc/passwd"
-cat > "$HOME_DIR/.vnc/xstartup" <<'EOF_XSTARTUP'
+# Stage as root in the root-owned state directory, then atomically rename over
+# any user-created symlink; never open a user-controlled destination as root.
+startup_tmp="$(mktemp "$STATE/.xstartup.XXXXXX")"
+cat > "$startup_tmp" <<'EOF_XSTARTUP'
 #!/bin/sh
 unset SESSION_MANAGER
 unset DBUS_SESSION_BUS_ADDRESS
 exec dbus-launch --exit-with-session startxfce4
 EOF_XSTARTUP
-chown "$FNOS_DESKTOP_USER:$group" "$HOME_DIR/.vnc/xstartup"
-chmod 0750 "$HOME_DIR/.vnc/xstartup"
+chown "$FNOS_DESKTOP_USER:$group" "$startup_tmp"
+chmod 0750 "$startup_tmp"
+mv -fT -- "$startup_tmp" "$HOME_DIR/.vnc/xstartup"
 if [ ! -s "$STATE/tls.crt" ] || [ ! -s "$STATE/tls.key" ]; then
   openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 825 \
     -keyout "$STATE/tls.key" -out "$STATE/tls.crt" -subj "/CN=fnos-desktop" >/dev/null 2>&1 ||
