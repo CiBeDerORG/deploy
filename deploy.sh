@@ -112,6 +112,7 @@ usage() {
   sudo bash deploy.sh mihomo host-update 更新原生安装（不影响 Docker）
   sudo bash deploy.sh fnos-desktop      宿主机安装 XFCE4 / TigerVNC / noVNC（不使用 Docker）
   sudo bash deploy.sh fnos-desktop update  更新桌面服务（不升级整个系统）
+  sudo bash deploy.sh fnos-desktop status|start|stop|restart|logs|uninstall  管理宿主机桌面
   bash deploy.sh env                    初始化/检查 <SOFTWARE_ROOT>/deploy/.env 和 .secrets
   sudo bash deploy.sh proxy connect <容器名>     动态接入 Mihomo 内部代理网络
   sudo bash deploy.sh proxy disconnect <容器名>  断开该代理网络（不改变其他网络）
@@ -544,13 +545,17 @@ run_task() {
             [ "$task" = mihomo ] || { echo "host/host-update 仅支持 mihomo" >&2; return 1; }
             script="$target_dir/deploy/host-install.sh"
             ;;
+        status|start|stop|restart|logs|uninstall)
+            [ "$task" = fnos-desktop ] || { echo "管理操作仅支持 fnos-desktop" >&2; return 1; }
+            script="$target_dir/deploy/manage.sh"
+            ;;
         sync)
             sync_task "$task"
             return 0
             ;;
         *)
             echo "不支持的操作：$action" >&2
-            echo "支持：install / update / sync；mihomo 另支持 host / host-update" >&2
+            echo "支持：install / update / sync；mihomo 另支持 host / host-update；fnos-desktop 另支持 status/start/stop/restart/logs/uninstall" >&2
             return 1
             ;;
     esac
@@ -575,6 +580,8 @@ run_task() {
     echo "执行：$script"
     if [ "$action" = host-update ]; then
         run_root bash "$script" update
+    elif [ "$task" = fnos-desktop ] && [[ "$action" =~ ^(status|start|stop|restart|logs|uninstall)$ ]]; then
+        run_root bash "$script" "$action"
     else
         run_root bash "$script"
     fi
@@ -595,6 +602,8 @@ interactive() {
     task="$(resolve_task "$choice")" || return 1
     if [ "$task" = mihomo ]; then
         read -r -p '操作 install/update/sync/host/host-update（默认 Docker install）：' action || return 0
+    elif [ "$task" = fnos-desktop ]; then
+        read -r -p '操作 install/update/sync/status/start/stop/restart/logs/uninstall（默认原生 install）：' action || return 0
     else
         read -r -p '操作 install/update/sync（默认 install）：' action || return 0
     fi
