@@ -11,13 +11,18 @@ services:
     environment:
       PORT: "8000"
       LOCAL_BACKEND_API_KEY: "${OPENHANDS_API_KEY}"
+      # Upstream Docker entrypoint currently skips exporting this variable when
+      # LOCAL_BACKEND_API_KEY is supplied; without it protected APIs are open.
+      # Keep the agent-server's actual validation key identical to the UI key.
+      OH_SESSION_API_KEYS_0: "${OPENHANDS_API_KEY}"
       AGENT_CANVAS_ALLOW_LAN_SESSION_KEY: "false"
       TZ: "${TZ:-Asia/Shanghai}"
     volumes:
       - ../data:/home/openhands/.openhands
       - ../workspace:/projects
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/canvas').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      # Do not mark an unauthenticated agent-server as healthy even if UI loads.
+      test: ["CMD", "node", "-e", "Promise.all([fetch('http://127.0.0.1:8000/canvas'),fetch('http://127.0.0.1:8000/api/conversations/search')]).then(([ui,api])=>process.exit(ui.ok&&api.status===401?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 10
