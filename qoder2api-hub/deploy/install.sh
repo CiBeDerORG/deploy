@@ -55,6 +55,6 @@ compose up -d --no-deps --force-recreate --pull never --wait --wait-timeout 120 
 compose ps
 echo "Qoder2API Hub 已启动：http://$QODER2API_HUB_BIND_IP:$QODER2API_HUB_PORT"
 if [ -z "$QODER2API_HUB_API_KEY" ]; then
-    echo "API Key 留空：首次启动由上游自动生成并保存在 accounts/settings.json；可按上游文档从首次启动日志读取。"
+    echo 'API Key 留空：首次启动由上游自动生成；读取命令：docker logs qoder2api-hub 2>&1 | grep -i "api key"'
 fi
 echo "安全提醒：上游面板初始密码为 admin；首次登录后立即修改。"
