@@ -32,7 +32,10 @@ class ManifestValidationTests(unittest.TestCase):
         return path, yaml.safe_load(path.read_text(encoding="utf-8"))
 
     def mutate(self, name, changer):
-        path, data = self.fixture(name)
+        # 每次变异都从只读仓库样本开始，避免同一测试中的多个负例互相污染。
+        path, _ = self.fixture(name)
+        baseline = ROOT / "schema/examples" / f"{name}.app.yaml"
+        data = yaml.safe_load(baseline.read_text(encoding="utf-8"))
         changer(data)
         path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
                         encoding="utf-8")
