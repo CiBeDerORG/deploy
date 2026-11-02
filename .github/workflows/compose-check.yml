@@ -3,6 +3,7 @@ name: Deployment Compose Check
 on:
   push:
     paths:
+      - "easynettopo/**"
       - "sub2api/**"
       - "qoder2api-hub/**"
       - "openhands/**"
@@ -12,6 +13,7 @@ on:
       - ".github/workflows/compose-check.yml"
   pull_request:
     paths:
+      - "easynettopo/**"
       - "sub2api/**"
       - "qoder2api-hub/**"
       - "openhands/**"
@@ -64,6 +66,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          docker compose --env-file /dev/null -f easynettopo/deploy/docker-compose.yaml config --quiet
           docker compose -f sub2api/deploy/docker-compose.yaml config --quiet
           docker compose -f qoder2api-hub/deploy/docker-compose.yaml config --quiet
           docker compose -f openhands/deploy/docker-compose.yaml config --quiet

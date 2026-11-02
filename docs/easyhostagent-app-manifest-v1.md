@@ -79,7 +79,8 @@ Deploy/                             ← 仅 EasyTier 中央管理端 git clone/p
 
 - `strategy: script`：必须指定**相对于应用目录**的 `path`，且对应 `package.files.destination` 必须正好是 `<id>/<path>`。Agent 不接受调用方指定脚本参数或其他任意执行命令；只执行可信 manifest 定义的脚本与允许的固定参数。
 - `strategy: compose_down`：通过已验证的 Compose 项目和 `runtime.compose_file` 执行正常 `docker compose down`；禁止自动添加 `-v` 或尝试回滚。遇到 Docker 同名但不属于该受管实例的资源，必须拒绝，不能静默接管。
-- V1 建议 `install`、`update` 仅 `script`，`uninstall` 仅 `compose_down`；脚本型卸载必须将删除边界明确列为后续扩展，并独立验收。
+- 在已有 Git 源上架新应用时，把 `app.yaml` 放在仓库根目录的 `<应用ID>/` 下，把 Compose 文件、脚本和共享依赖列入 `package.files`。普通参数和敏感参数分别在仓库根的 `.env.example`、`.secrets.example` 登记键名。没有参数时，模板可仅包含说明注释。商店使用清单生成表单，Agent 执行时写入实际值。
+- 商店安装使用 `script`。卸载可用现有的 `compose_down`，也可在包内声明独立的卸载脚本。安装和卸载共用一个脚本时，声明 `uninstall: {strategy: script, path: deploy/install.sh, argv: [uninstall]}`。脚本应只移除本项目服务，保留数据和配置；命令参数不能取自网页输入。
 - `update` 缺失时商店标记不可更新；`uninstall` 缺失时不能冒充支持卸载。基础 start/stop/restart 由 Docker 适配器统一实现。
 - 错误时留存日志和现场：**不自动回滚镜像、配置、容器或数据**。任务失败状态必须可见并且不可作为“卸载成功”触发服务删除。
 

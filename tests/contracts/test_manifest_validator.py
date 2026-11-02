@@ -169,6 +169,12 @@ class ManifestValidationTests(unittest.TestCase):
                    "Auto-generation")
 
     def test_rejects_install_or_uninstall_command_injection(self):
+        path, data = self.fixture("portainer")
+        data["actions"]["uninstall"] = dict(strategy="script", path="deploy/install.sh", argv=["uninstall"])
+        path.write_text(yaml.safe_dump(data), encoding="utf-8")
+        self.assertEqual(validate(path, self.root)["id"], "portainer")
+        self.fails("sub2api", lambda d: d["actions"].update(
+            uninstall=dict(strategy="script", path="deploy/install.sh")), "explicit uninstall")
         self.fails("portainer",
                    lambda d: d["actions"]["install"].update({"argv": [";rm -rf /"]}),
                    "Unapproved")

@@ -26,7 +26,6 @@ BLOCKED_NAMES = {".env", ".secrets", ".git", ".ssh", "id_rsa", "id_ed25519"}
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_PACKAGE_BYTES = 24 * 1024 * 1024
 COMPOSE_VAR = re.compile(r"\$\{([A-Z][A-Z0-9_]*)(?::[^}]*)?\}")
-ALLOWED_SCRIPT_ARGS = {"install": {"install"}, "update": {"update"}, "uninstall": set()}
 
 
 class ManifestError(ValueError):
@@ -254,14 +253,16 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
 
     for action_name, action in data["actions"].items():
         strategy = action["strategy"]
-        require((strategy == "script" and action_name != "uninstall") or
+        require(strategy == "script" or
                 (strategy == "compose_down" and action_name == "uninstall"),
                 f"Action strategy not allowed in v1: {action_name}")
         require(not action.get("remove_orphans"), "Removing orphan containers not authorized in v1")
         argv = action.get("argv", [])
-        require(len(argv) <= 1 and all(a in ALLOWED_SCRIPT_ARGS[action_name] for a in argv),
+        require(not argv or (strategy == "script" and argv == [action_name]),
                 f"Unapproved script arguments: {action_name}")
         if strategy == "script":
+            if action_name == "uninstall" and action["path"] == data["actions"]["install"].get("path"):
+                require(argv == ["uninstall"], "Shared install script requires explicit uninstall argument")
             script_dest = app + "/" + action["path"]
             require(script_dest in files, f"Action script not included in package: {action_name}")
             require(action["path"].endswith(".sh"), f"Non-shell script unsupported: {action_name}")

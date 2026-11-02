@@ -471,6 +471,7 @@ sync_task() {
         --exclude='./backup'
     )
     [ "$task" != mihomo ] || sync_excludes+=(--exclude='./runtime')
+    [ "$task" != easynettopo ] || sync_excludes+=(--exclude='./ssh')
 
     [ -d "$source_dir" ] || {
         echo "源目录不存在：$source_dir" >&2
