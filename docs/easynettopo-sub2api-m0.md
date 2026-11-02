@@ -1,10 +1,12 @@
 # Sub2API → EasyNetTopo / EasyHostAgent M0 集成契约
 
+> 当前需求索引：本项目 [R001 分级需求](requirements/easynettopo-sub2api/requirement.md) 与 [T001 分级任务](requirements/easynettopo-sub2api/tasks.md)。本文是协议与资源细节，不负责动态 Task 状态；2026-11-02 更新链接到现行 main。
+
 > 状态：待审静态接口基线；**不是可用的远程安装器**。
 > 官方应用描述：[`sub2api/app.yaml`](../sub2api/app.yaml)
 > Schema：[`schema/app-manifest-v1.schema.json`](../schema/app-manifest-v1.schema.json)
 > 校验器：[`tools/validate_app_manifest.py`](../tools/validate_app_manifest.py)
-> EasyNetTopo M0：[跨仓库协议说明](https://github.com/CiBeDerORG/EasyNetTopo/blob/docs/platform-integration-m0/docs/architecture/m0-cross-repo-contracts.md)
+> EasyNetTopo M0：[跨仓库协议说明](https://github.com/CiBeDerORG/EasyNetTopo/blob/main/docs/architecture/m0-cross-repo-contracts.md)
 
 ## 1. 既有 CLI 行为不变
 
