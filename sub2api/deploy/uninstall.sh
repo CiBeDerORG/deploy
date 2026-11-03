@@ -17,6 +17,6 @@ for name in sub2api sub2api-postgres sub2api-redis; do
     verify_container_owner "$name" sub2api
 done
 cd "$DEPLOY_DIR"
-# 不附加 --volumes 或删除任何 data 目录；用户数据默认保留。
+# 仅执行 Compose down，不请求删除卷或用户数据目录。
 docker compose -f "$DEPLOY_DIR/docker-compose.yaml" down
 echo "Sub2API 已卸载，数据与配置保留于 $BASE_DIR"
