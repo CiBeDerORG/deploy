@@ -103,7 +103,7 @@ class ManifestValidationTests(unittest.TestCase):
 
     def test_sourced_local_shell_dependency_must_be_packaged(self):
         self.fails("sub2api",
-                   lambda d: d["package"]["files"].pop(3),
+                   lambda d: d["package"]["files"].pop(4),
                    "Sourced install dependency")
 
     def test_compatibility_requires_docker_and_compose_v2(self):
