@@ -13,7 +13,7 @@ load_settings() {
         case "$key" in
             EASYNETTOPO_ADMIN_USERNAME|EASYNETTOPO_ADMIN_PASSWORD)
                 [[ "$kind" == secrets ]] || fail "$key 只能写在 .secrets" ;;
-            EASYNETTOPO_HTTP_PORT|EASYNETTOPO_IMAGE|EASYNETTOPO_GIT_ALLOWED_HOSTS|EASYNETTOPO_GIT_ALLOW_HTTP|TZ)
+            EASYNETTOPO_HTTP_PORT|EASYNETTOPO_BIND_IP|EASYNETTOPO_IMAGE|EASYNETTOPO_GIT_ALLOWED_HOSTS|EASYNETTOPO_GIT_ALLOW_HTTP|TZ)
                 [[ "$kind" == env ]] || fail "$key 应写在 .env" ;;
             *) continue ;;
         esac
