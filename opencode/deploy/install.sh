@@ -233,8 +233,13 @@ esac
 
 # 密码留空时首次安全生成并持久化；已有非空密码一律保持不变。
 generate_opencode_password() {
+    local value tmp matches
+    matches="$(grep -Ec '^[[:space:]]*OPENCODE_SERVER_PASSWORD[[:space:]]*=' "$SECRETS_FILE" || true)"
+    if (( matches > 1 )); then
+        echo "OpenCode 密码存在重复定义，拒绝选择或覆盖任何值。" >&2
+        return 1
+    fi
     [[ -z "${OPENCODE_SERVER_PASSWORD:-}" ]] || return 0
-    local value tmp
     value="$(od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]')"
     [[ "$value" =~ ^[a-f0-9]{64}$ ]] || { echo "无法生成 OpenCode 密码" >&2; return 1; }
     tmp="$(mktemp "${SECRETS_FILE}.tmp.XXXXXXXX")"
