@@ -1,6 +1,6 @@
 # EasyHostAgent · 原生部署（Linux / fnOS）
 
-EasyHostAgent 是直接运行在宿主机上的 Go systemd 服务，不是 Docker 容器。EasyNetTopo 主动通过 HTTP 或 HTTPS 调用应用安装、卸载、状态查询接口，**不需要心跳**。本模块复用 upstream 原生安装器，直接从 GitHub Release 下载对应 CPU 的二进制，并校验 SHA-256，不在目标机器本地构建。
+EasyHostAgent 是直接运行在宿主机上的 Go systemd 服务，不是 Docker 容器。EasyNetTopo 主动通过 HTTP 或 HTTPS 调用应用安装、卸载、状态查询接口，**不需要心跳**。本模块复用 upstream 原生安装器，由 deploy 公共下载模块获取 GitHub Release 对应 CPU 的二进制并验证 SHA-256，不在目标机器本地构建。
 
 ## 1. 配置文件
 
@@ -9,6 +9,9 @@ EasyHostAgent 是直接运行在宿主机上的 Go systemd 服务，不是 Docke
 运行 `sudo bash deploy.sh env` 后用 `sudoedit /software/deploy/.env`（fnOS 修改相应路径），设置：
 
 ```dotenv
+# 与 DOCKER_IMAGE_SOURCE 相同的 original/mirror 模式，但独立控制 Release 文件。
+GITHUB_RELEASE_SOURCE=mirror
+GITHUB_RELEASE_MIRRORS=ghproxy,ghfast,ghproxy-net
 # GitHub Actions 构建的开发版 Release，发布包附有 SHA-256。
 EASYHOSTAGENT_RELEASE=v0.1.0-appstore.dev
 # 可选，手动上传时填写绝对路径；留空从 GitHub Release 下载。
@@ -24,7 +27,9 @@ EASYHOSTAGENT_SOFTWARE_ROOT=
 EASYHOSTAGENT_APP_GRANTS=
 ```
 
-若服务器无法连接 GitHub，可把对应架构的两个文件上传到同一目录，例如 `/software/easyhostagent/easyhostagent-linux-amd64` 和 `/software/easyhostagent/easyhostagent-linux-amd64.sha256`，随后设置 `EASYHOSTAGENT_LOCAL_BINARY=/software/easyhostagent/easyhostagent-linux-amd64`。安装脚本在安装前校验 SHA-256；上传的文件保留原样，不需要手工更改可执行权限。留空仍按 `EASYHOSTAGENT_RELEASE` 下载。两种模式统一使用 `sudo bash deploy.sh easyhostagent install` 和 `update`。**本地文件及同名校验文件必须来自可信 GitHub Release。**
+若服务器无法连接 GitHub，可把对应架构的两个文件上传到同一目录，例如 `/software/easyhostagent/easyhostagent-linux-amd64` 和 `/software/easyhostagent/easyhostagent-linux-amd64.sha256`，随后设置 `EASYHOSTAGENT_LOCAL_BINARY=/software/easyhostagent/easyhostagent-linux-amd64`。安装脚本在安装前校验 SHA-256；上传的文件保留原样，不需要手工更改可执行权限。留空仍按 `EASYHOSTAGENT_RELEASE` 下载，`GITHUB_RELEASE_SOURCE=mirror` 时自动轮换站点。两种模式统一使用 `sudo bash deploy.sh easyhostagent install` 和 `update`。**本地文件及同名校验文件必须来自可信 GitHub Release。**
+
+**GitHub Release 文件加速**：在统一 `.env` 中设置 `GITHUB_RELEASE_SOURCE=mirror`，`GITHUB_RELEASE_MIRRORS` 默认顺序为 `ghproxy,ghfast,ghproxy-net`，分别对应 `gh-proxy.org`、`ghfast.top`、`ghproxy.net`。每次在线安装/更新从上一次首选站的下一个站开始；下载失败或 SHA-256 不一致则尝试下一站，最后尝试 GitHub 原站。轮换状态保存在 `<SOFTWARE_ROOT>/deploy/state/github-release-mirror.last`，不影响 Docker 的 `DOCKER_IMAGE_SOURCE`。`original` 仅直连官方，指定 `EASYHOSTAGENT_LOCAL_BINARY` 时不下载文件也不推进轮换。第三方代理不能等同于官方可信发布源；滚动开发版资产还可能存在缓存滞后，重要环境建议使用不可变版本并核对官方校验值。
 
 安装后将配置同步到 `/etc/easyhostagent/agent.env`，保留其中其他非托管配置项。安装、更新不会重置 Agent 身份、配对授权或已有应用状态。开发版 `v0.1.0-appstore.dev` 是**发布资产可更新的滚动标签**；生产机器建议改为明确、不可变的正式版本号。相应的 AMD64 / ARM64 二进制、同名 `.sha256` 均由 GitHub Actions 生成。
 
@@ -90,4 +95,4 @@ git pull --ff-only origin feat/docker-app-store
 sudo bash deploy.sh easyhostagent update
 ```
 
-更新时按 `EASYHOSTAGENT_LOCAL_BINARY` 选择使用本地包或 GitHub Release，并验证 SHA-256 后替换二进制，再同步 Agent 配置项并重启 systemd；现有身份、配对凭据、应用目录和 Docker 容器保留。更新过程中如发生下载或校验错误，官方原生安装器会在替换二进制前退出。已存在由其他安装器管理的同名服务时会拒绝接管。如果此前已安装 EasyHostAgent Docker 容器，须先安全停止并移除该旧容器；新安装器会检测同名容器并拒绝同时运行，避免两个 Agent 共用端口与身份数据。
+更新时按 `EASYHOSTAGENT_LOCAL_BINARY` 选择使用本地包或 GitHub Release，并验证 SHA-256 后替换二进制，再同步 Agent 配置项并重启 systemd；现有身份、配对凭据、应用目录和 Docker 容器保留。更新过程中如发生下载或校验错误，公共下载模块会切换来源；全部失败则在替换二进制前退出。已存在由其他安装器管理的同名服务时会拒绝接管。如果此前已安装 EasyHostAgent Docker 容器，须先安全停止并移除该旧容器；新安装器会检测同名容器并拒绝同时运行，避免两个 Agent 共用端口与身份数据。
