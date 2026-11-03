@@ -80,7 +80,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 list
 | fnOS Desktop（宿主机原生） | `7015/HTTPS`（noVNC） | **apt + systemd（不使用 Docker）** | [fnos-desktop/README.md](./fnos-desktop/README.md) |
 | LinuxServer Webtop | `7014/HTTPS` | Docker Compose（Debian XFCE / Selkies） | [webtop/README.md](./webtop/README.md) |
 | OpenHands Agent Canvas | `7016/HTTP`（`/canvas`） | Docker Compose（官方 GHCR 镜像） | [openhands/README.md](./openhands/README.md) |
-| EasyNetTopo | `127.0.0.1:7017` | 单容器 Docker Compose，支持自定义初始管理员和 GHCR 镜像轮换 | [部署与首次登录](./easynettopo/README.md) |
+| EasyNetTopo | `7017/HTTP`（监听 IP 可配置） | 单容器 Docker Compose，支持 GHCR 镜像轮换 | [部署与首次登录](./easynettopo/README.md) |
+| EasyHostAgent | `7018/HTTP 或 HTTPS`（可配置） | Linux/fnOS 原生 systemd，GitHub Release 双架构预构建包，不使用 Docker 容器 | [原生部署说明](./easyhostagent/README.md) |
 | OpenCode V2 | `7003/TCP` | Docker Compose | [opencode/README.md](./opencode/README.md) |
 | FRPS | `7000/TCP`，后台 `7001/TCP` | Docker Compose | [frps/README.md](./frps/README.md) |
 | EasyTier | Core `7005`，RPC `7006`，Web `7007`，Config `7008/UDP` | Docker / OpenWrt | [easytier/README.md](./easytier/README.md) |
@@ -710,6 +711,21 @@ sudo bash deploy.sh github-runner
 注册成功后可以清空真实 `.secrets` 中的 `GITHUB_RUNNER_TOKEN`。
 
 详细说明：[github-runner/README.md](./github-runner/README.md)
+
+### EasyHostAgent · 原生主机执行器
+
+使用 GitHub Actions 构建并发布的 Linux AMD64/ARM64 原生二进制，安装脚本会下载并验证 SHA-256。不需要在宿主机编译。普通配置统一写入 `.env`：
+
+```dotenv
+EASYHOSTAGENT_RELEASE=v0.1.0-appstore.dev
+EASYHOSTAGENT_TRANSPORT=https
+EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018
+EASYHOSTAGENT_DATA_DIR=/var/lib/easyhostagent
+EASYHOSTAGENT_SOFTWARE_ROOT=
+EASYHOSTAGENT_APP_GRANTS=
+```
+
+执行 `sudo bash deploy.sh easyhostagent install`、`sudo bash deploy.sh easyhostagent update`、`sudo bash deploy.sh easyhostagent uninstall`。只有按需安装、卸载、状态查询，没有心跳；需要在可信网络使用 HTTP 时将 `EASYHOSTAGENT_TRANSPORT=http`，并限制防火墙访问。卸载保留 Agent 身份、配对与应用数据。详见 [EasyHostAgent 安装与配置](./easyhostagent/README.md)。
 
 ## 七、查看状态与日志
 
