@@ -25,3 +25,39 @@ agent_load_env() {
         printf -v "$key" '%s' "$value"
     done < "$file"
 }
+
+agent_valid_path() {
+    local name="$1" value="$2"
+    [[ "$value" == /* && "$value" != "/" && "$value" =~ ^/[a-zA-Z0-9/_:.-]+$ ]] ||
+        agent_fail "$name 必须是安全的绝对路径"
+    [[ "/$value/" != *"/../"* && "/$value/" != *"/./"* ]] || agent_fail "$name 不允许路径穿越"
+}
+
+agent_validate_env() {
+    EASYHOSTAGENT_RELEASE="${EASYHOSTAGENT_RELEASE:-v0.1.0-appstore.dev}"
+    EASYHOSTAGENT_TRANSPORT="${EASYHOSTAGENT_TRANSPORT:-https}"
+    EASYHOSTAGENT_LISTEN_ADDRESS="${EASYHOSTAGENT_LISTEN_ADDRESS:-0.0.0.0:7014}"
+    EASYHOSTAGENT_LOG_LEVEL="${EASYHOSTAGENT_LOG_LEVEL:-info}"
+    EASYHOSTAGENT_DATA_DIR="${EASYHOSTAGENT_DATA_DIR:-/var/lib/easyhostagent}"
+    EASYHOSTAGENT_SOFTWARE_ROOT="${EASYHOSTAGENT_SOFTWARE_ROOT:-$SOFTWARE_ROOT}"
+    EASYHOSTAGENT_APP_GRANTS="${EASYHOSTAGENT_APP_GRANTS:-}"
+    [[ "$EASYHOSTAGENT_RELEASE" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?$ ]] ||
+        agent_fail "Release 版本格式不合法"
+    case "$EASYHOSTAGENT_TRANSPORT" in http|https) ;; *) agent_fail "传输模式应为 http 或 https" ;; esac
+    case "$EASYHOSTAGENT_LOG_LEVEL" in debug|info|warn|error) ;; *) agent_fail "日志等级无效" ;; esac
+    [[ "$EASYHOSTAGENT_LISTEN_ADDRESS" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}$ ]] ||
+        agent_fail "监听地址应为 IPv4:端口"
+    local host="${EASYHOSTAGENT_LISTEN_ADDRESS%:*}" port="${EASYHOSTAGENT_LISTEN_ADDRESS##*:}" octet
+    local -a octets=()
+    IFS='.' read -r -a octets <<< "$host"
+    for octet in "${octets[@]}"; do
+        (( 10#$octet <= 255 )) || agent_fail "IPv4 地址段非法"
+    done
+    (( 10#$port > 0 && 10#$port <= 65535 )) || agent_fail "端口应为 1–65535"
+    agent_valid_path EASYHOSTAGENT_SOFTWARE_ROOT "$EASYHOSTAGENT_SOFTWARE_ROOT"
+    agent_valid_path EASYHOSTAGENT_DATA_DIR "$EASYHOSTAGENT_DATA_DIR"
+    [[ "$EASYHOSTAGENT_DATA_DIR" != "$EASYHOSTAGENT_SOFTWARE_ROOT" ]] ||
+        agent_fail "数据目录不能等于软件根目录"
+    [[ "$EASYHOSTAGENT_APP_GRANTS" =~ ^[A-Za-z0-9,/._-]*$ ]] ||
+        agent_fail "授权请使用逗号分隔 控制端UUID/来源UUID"
+}
