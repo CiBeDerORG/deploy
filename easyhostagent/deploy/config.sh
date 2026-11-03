@@ -12,7 +12,7 @@ agent_load_env() {
         key="${line%%=*}"
         key="${key%"${key##*[![:space:]]}"}"
         case "$key" in
-            EASYHOSTAGENT_IMAGE|EASYHOSTAGENT_LOCAL_BINARY|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_APP_GRANTS) ;;
+            EASYHOSTAGENT_RELEASE|EASYHOSTAGENT_LOCAL_BINARY|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_APP_GRANTS) ;;
             *) continue ;;
         esac
         [[ ! ${seen[$key]+ok} ]] || agent_fail "重复配置：$key"
@@ -34,7 +34,7 @@ agent_valid_path() {
 }
 
 agent_validate_env() {
-    EASYHOSTAGENT_IMAGE="${EASYHOSTAGENT_IMAGE:-ghcr.io/cibederorg/easyhostagent:feat-docker-app-store}"
+    EASYHOSTAGENT_RELEASE="${EASYHOSTAGENT_RELEASE:-v0.1.0-appstore.dev}"
     EASYHOSTAGENT_LOCAL_BINARY="${EASYHOSTAGENT_LOCAL_BINARY:-}"
     EASYHOSTAGENT_TRANSPORT="${EASYHOSTAGENT_TRANSPORT:-https}"
     EASYHOSTAGENT_LISTEN_ADDRESS="${EASYHOSTAGENT_LISTEN_ADDRESS:-0.0.0.0:7018}"
@@ -42,8 +42,8 @@ agent_validate_env() {
     EASYHOSTAGENT_DATA_DIR="${EASYHOSTAGENT_DATA_DIR:-/var/lib/easyhostagent}"
     EASYHOSTAGENT_SOFTWARE_ROOT="${EASYHOSTAGENT_SOFTWARE_ROOT:-$SOFTWARE_ROOT}"
     EASYHOSTAGENT_APP_GRANTS="${EASYHOSTAGENT_APP_GRANTS:-}"
-    [[ "$EASYHOSTAGENT_IMAGE" =~ ^[A-Za-z0-9][A-Za-z0-9._/@:-]*$ ]] ||
-        agent_fail "Docker 镜像引用格式不合法"
+    [[ "$EASYHOSTAGENT_RELEASE" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?$ ]] ||
+        agent_fail "Release 版本格式不合法"
     if [[ -n "$EASYHOSTAGENT_LOCAL_BINARY" ]]; then
         agent_valid_path EASYHOSTAGENT_LOCAL_BINARY "$EASYHOSTAGENT_LOCAL_BINARY"
     fi
