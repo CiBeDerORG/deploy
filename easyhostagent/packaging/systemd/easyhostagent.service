@@ -1,0 +1,26 @@
+[Unit]
+Description=EasyHostAgent (EasyTier host management agent)
+Documentation=https://github.com/CiBeDerORG/EasyHostAgent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/local/bin/easyhostagent
+EnvironmentFile=-/etc/easyhostagent/agent.env
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+UMask=0077
+LimitNOFILE=65536
+NoNewPrivileges=true
+
+# Only GET /v1/health and GET /v1/identity exist before T01-04 pairing.
+# Management requests are NOT enabled without authenticated controller binding.
+# ProtectSystem/ProtectHome are reserved for Docker/Compose path compatibility.
+
+[Install]
+WantedBy=multi-user.target
