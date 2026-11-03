@@ -81,7 +81,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 list
 | LinuxServer Webtop | `7014/HTTPS` | Docker Compose（Debian XFCE / Selkies） | [webtop/README.md](./webtop/README.md) |
 | OpenHands Agent Canvas | `7016/HTTP`（`/canvas`） | Docker Compose（官方 GHCR 镜像） | [openhands/README.md](./openhands/README.md) |
 | EasyNetTopo | `7017/HTTP`（监听 IP 可配置） | 单容器 Docker Compose，支持 GHCR 镜像轮换 | [部署与首次登录](./easynettopo/README.md) |
-| EasyHostAgent | `7018/HTTP 或 HTTPS`（可配置） | Linux/fnOS 单容器 Docker Compose，GitHub Actions 构建 GHCR AMD64/ARM64 镜像 | [镜像部署说明](./easyhostagent/README.md) |
+| EasyHostAgent | `7018/HTTP 或 HTTPS`（可配置） | Linux/fnOS 原生 systemd，GitHub Release 双架构二进制，可选离线安装包 | [原生部署说明](./easyhostagent/README.md) |
 | OpenCode V2 | `7003/TCP` | Docker Compose | [opencode/README.md](./opencode/README.md) |
 | FRPS | `7000/TCP`，后台 `7001/TCP` | Docker Compose | [frps/README.md](./frps/README.md) |
 | EasyTier | Core `7005`，RPC `7006`，Web `7007`，Config `7008/UDP` | Docker / OpenWrt | [easytier/README.md](./easytier/README.md) |
@@ -714,10 +714,11 @@ sudo bash deploy.sh github-runner
 
 ### EasyHostAgent · 原生主机执行器
 
-使用 GitHub Actions 构建并发布的 Linux AMD64/ARM64 GHCR 镜像，由 Docker Compose 直接拉取部署，不需要宿主机编译 Go。普通配置统一写入 `.env`：
+使用 GitHub Actions 构建的 Linux AMD64/ARM64 原生二进制，可从 Release 下载或使用上传的本地安装包。普通配置统一写入 `.env`：
 
 ```dotenv
-EASYHOSTAGENT_IMAGE=ghcr.io/cibederorg/easyhostagent:feat-docker-app-store
+EASYHOSTAGENT_RELEASE=v0.1.0-appstore.dev
+EASYHOSTAGENT_LOCAL_BINARY=
 EASYHOSTAGENT_TRANSPORT=https
 EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018
 EASYHOSTAGENT_DATA_DIR=/var/lib/easyhostagent
