@@ -20,6 +20,9 @@ bash deploy.sh list | grep -Fx easyhostagent >/dev/null || bash deploy.sh list |
 bash deploy.sh env >/dev/null
 file="$SOFTWARE_ROOT/deploy/.env"
 test -f "$file"
+test -f "$SOFTWARE_ROOT/deploy/lib/release-sources.sh"
+grep -qx "GITHUB_RELEASE_SOURCE=original" "$file"
+grep -qx "GITHUB_RELEASE_MIRRORS=ghproxy,ghfast,ghproxy-net" "$file"
 grep -qx 'EASYHOSTAGENT_TRANSPORT=https' "$file"
 grep -qx 'EASYHOSTAGENT_LOCAL_BINARY=' "$file"
 grep -qx 'EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018' "$file"
