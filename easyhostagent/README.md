@@ -61,13 +61,13 @@ sudo bash deploy.sh easyhostagent pairing
 
 配对码是**本机按需自动生成**的临时凭据，配对成功后的控制端 Token 由 Agent 签发并保存在控制端和 Agent 各自的受保护状态中；它们**不在**统一 `.secrets` 中填写，也不应放进命令参数或聊天记录。配对完成后，可把 `EASYHOSTAGENT_APP_GRANTS` 配置为 `控制端UUID/来源UUID/应用ID`，只授权指定应用；旧格式 `控制端UUID/来源UUID` 仍兼容，但会授权该来源下所有应用。
 
-**fnOS 只授权 Sub2API 与 Portainer** 时，先把新版 Agent 更新成功，然后在 fnOS 的 Deploy 仓库运行：
+**fnOS 授权指定应用** 时，先把新版 Agent 更新成功，然后在 fnOS 的 Deploy 仓库运行：
 
 ```bash
-sudo bash deploy.sh easyhostagent grant <控制端UUID> <来源UUID> sub2api portainer
+sudo bash deploy.sh easyhostagent grant <控制端UUID> <来源UUID> sub2api portainer mihomo opencode
 ```
 
-这两个 UUID 可在 EasyNetTopo 页面查看/复制；该命令仅限本机 root 运行，自动去重追加到 `.env` 和 `/etc/easyhostagent/agent.env`、重启 Agent，失败时恢复原配置。不会重新下载 Agent，也不会修改原有配对 Token。先前若已配置来源级宽授权，该命令不会擅自撤销宽授权。点击应用商店的「刷新状态」检查生效。
+UUID 可在 EasyNetTopo 页面查看/复制；该命令仅限本机 root 运行，自动去重追加到 `.env` 和 `/etc/easyhostagent/agent.env`、重启 Agent，失败时恢复原配置。不会重新下载 Agent，也不会修改原有配对 Token。先前若已配置来源级宽授权，该命令不会擅自撤销宽授权。点击应用商店的「刷新状态」检查生效。
 
 ## 4. 安装和检查
 
@@ -110,12 +110,14 @@ sudo bash deploy.sh easyhostagent uninstall
 cd /software/deploy
 git pull --ff-only origin feat/docker-app-store
 sudo bash deploy.sh easyhostagent update
+# 忽略已配置的 EASYHOSTAGENT_LOCAL_BINARY，强制重新下载并校验当前 Release：
+sudo bash deploy.sh easyhostagent force-update
 ```
 
-更新时按 `EASYHOSTAGENT_LOCAL_BINARY` 选择使用本地包或 GitHub Release，并验证 SHA-256 后替换二进制，再同步 Agent 配置项并重启 systemd；现有身份、配对凭据、应用目录和 Docker 容器保留。更新过程中如发生下载或校验错误，公共下载模块会切换来源；全部失败则在替换二进制前退出。已存在由其他安装器管理的同名服务时会拒绝接管。如果此前已安装 EasyHostAgent Docker 容器，须先安全停止并移除该旧容器；新安装器会检测同名容器并拒绝同时运行，避免两个 Agent 共用端口与身份数据。
+普通更新按 `EASYHOSTAGENT_LOCAL_BINARY` 选择使用本地包或 GitHub Release；`force-update` 无视本地包设置，强制重新下载当前 `EASYHOSTAGENT_RELEASE` 指向的发布资产并校验 SHA-256，并验证 SHA-256 后替换二进制，再同步 Agent 配置项并重启 systemd；现有身份、配对凭据、应用目录和 Docker 容器保留。更新过程中如发生下载或校验错误，公共下载模块会切换来源；全部失败则在替换二进制前退出。已存在由其他安装器管理的同名服务时会拒绝接管。如果此前已安装 EasyHostAgent Docker 容器，须先安全停止并移除该旧容器；新安装器会检测同名容器并拒绝同时运行，避免两个 Agent 共用端口与身份数据。
 
 ## 7. 原有 Deploy 应用的受控接管
 
-在已授权的 fnOS 主机中，**只有 Sub2API 和 Portainer** 可以选择「接管原有 Deploy 部署」。Agent 要求 Docker Compose 项目名、所有容器的 Compose 工作目录与配置文件路径分别匹配 `<SOFTWARE_ROOT>/<应用ID>/deploy/docker-compose.yaml`，且该目录存在原始的 `install.sh`、`update.sh` 和 `uninstall.sh`，才能执行明确确认的接管动作。接管只写 Agent 本地管理记录，不重装、不搬迁数据、不覆盖密码或应用配置。之后的更新/卸载使用原始 Deploy 目录里的受控脚本；卸载仍保留数据并需页面二次确认。
+在已授权的 fnOS 主机中，**Sub2API、Portainer、Mihomo、OpenCode（Docker）** 可以选择「接管原有 Deploy 部署」。Agent 要求 Docker Compose 项目名、所有容器的 Compose 工作目录与配置文件路径分别匹配 `<SOFTWARE_ROOT>/<应用ID>/deploy/docker-compose.yaml`，且该目录存在原始的 `install.sh`、`update.sh` 和 `uninstall.sh`，才能执行明确确认的接管动作。接管只写 Agent 本地管理记录，不重装、不搬迁数据、不覆盖密码或应用配置。之后的更新/卸载使用原始 Deploy 目录里的受控脚本；卸载仍保留数据并需页面二次确认。
 
-如果页面提示「原有 Deploy 脚本缺失」，应先在 fnOS 更新 Deploy 仓库，并针对原应用执行 `sudo bash deploy.sh sub2api sync` 或 `sudo bash deploy.sh portainer sync`，再刷新状态。不要改动已有的 `data`、`.env`、`.secrets`。非这两个应用、来源身份冲突、Compose 目录不匹配的项目仍禁止接管。
+如果页面提示「原有 Deploy 脚本缺失」，应先在 fnOS 更新 Deploy 仓库，并针对原应用执行 对应应用的 `sudo bash deploy.sh <应用ID> sync`，再刷新状态。不要改动已有的 `data`、`.env`、`.secrets`。来源身份冲突、Compose 目录不匹配的项目仍禁止接管。历史 OpenCode 若无 Compose `name: opencode`，运行中的旧 `deploy` 项目仅显示只读运行状态，不能未经迁移直接接管，以防重建同名容器。新安装的 Docker 应用使用 Agent 独立的隔离目录；卸载保留工作区和凭据。\n\nEasyHostAgent 本身是 systemd 原生服务：EasyNetTopo 的 Agent 卡片会自动关联已连通状态，安装、普通更新、强制更新和卸载提供可信主机终端命令（不能通过尚未安装的 Agent 完成远程安装）。卸载本机 Agent 会立即中断与控制端的连接，不应误报为远程执行成功。
