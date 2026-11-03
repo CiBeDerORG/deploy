@@ -11,8 +11,14 @@ export EASYHOSTAGENT_TEST_BINARY="$tmp/easyhostagent-fake"
 mkdir -p "$EASYHOSTAGENT_STAGING_ROOT"
 cat > "$EASYHOSTAGENT_TEST_BINARY" <<'BIN'
 #!/bin/sh
-if [ "${1:-}" = "-version" ]; then echo "test-agent"; exit 0; fi
-exit 1
+case "${1:-}" in
+    -version) echo "test-agent"; exit 0 ;;
+    -pairing-code)
+        printf 'Agent ID: test-agent-uuid\nTLS SPKI SHA-256: test-fingerprint\nOne-time pairing code: test-single-use-code\nExpires (UTC): 2030-01-01T00:00:00Z\n'
+        printf 'PAIRING_DATA_DIR=%s\n' "${EASYHOSTAGENT_DATA_DIR:-}"
+        exit 0 ;;
+    *) exit 1 ;;
+esac
 BIN
 chmod 0755 "$EASYHOSTAGENT_TEST_BINARY"
 cd "$repo"
@@ -34,6 +40,22 @@ test -x "$EASYHOSTAGENT_STAGING_ROOT/usr/local/bin/easyhostagent"
 grep -qx 'EASYHOSTAGENT_TRANSPORT=https' "$native"
 grep -qx "EASYHOSTAGENT_SOFTWARE_ROOT=$SOFTWARE_ROOT" "$native"
 test "$(stat -c '%a' "$native")" = 600
+
+# pairing 只调用原生 Agent，在没有安装/同步操作时读取原生 EnvironmentFile。
+# 临时覆盖测试环境内的原生数据目录，确认不会错误生成默认目录下的另一份身份。
+cp -- "$native" "$tmp/native.env.backup"
+sed -i 's#^EASYHOSTAGENT_DATA_DIR=.*#EASYHOSTAGENT_DATA_DIR=/test-only/agent/data#' "$native"
+pairing_output="$(bash deploy.sh easyhostagent pairing)" || { echo "pairing 命令执行失败" >&2; exit 1; }
+grep -Fq 'Agent ID: test-agent-uuid' <<< "$pairing_output"
+grep -Fq 'TLS SPKI SHA-256: test-fingerprint' <<< "$pairing_output"
+grep -Fq 'One-time pairing code: test-single-use-code' <<< "$pairing_output"
+grep -Fq 'Expires (UTC): 2030-01-01T00:00:00Z' <<< "$pairing_output"
+grep -Fq 'PAIRING_DATA_DIR=/test-only/agent/data' <<< "$pairing_output"
+cp -- "$tmp/native.env.backup" "$native"
+if bash deploy.sh easynettopo pairing > "$tmp/wrong-task.log" 2>&1; then
+    echo "配对操作不应允许其他业务" >&2; exit 1
+fi
+grep -Fq 'pairing 仅支持 easyhostagent' "$tmp/wrong-task.log"
 
 # 持久化身份、未知本地配置在更新时必须保留。
 persisted="$EASYHOSTAGENT_STAGING_ROOT/var/lib/easyhostagent/identity.json"
