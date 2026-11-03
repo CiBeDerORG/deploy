@@ -23,8 +23,6 @@ EASYHOSTAGENT_LOG_LEVEL=info
 EASYHOSTAGENT_DATA_DIR=/var/lib/easyhostagent
 # 留空时使用统一 SOFTWARE_ROOT。
 EASYHOSTAGENT_SOFTWARE_ROOT=
-# 可选：控制端UUID/来源UUID，多个以逗号分隔。
-EASYHOSTAGENT_APP_GRANTS=
 ```
 
 若服务器无法连接 GitHub，可把对应架构的两个文件上传到同一目录，例如 `/software/easyhostagent/easyhostagent-linux-amd64` 和 `/software/easyhostagent/easyhostagent-linux-amd64.sha256`，随后设置 `EASYHOSTAGENT_LOCAL_BINARY=/software/easyhostagent/easyhostagent-linux-amd64`。安装脚本在安装前校验 SHA-256；上传的文件保留原样，不需要手工更改可执行权限。留空仍按 `EASYHOSTAGENT_RELEASE` 下载，`GITHUB_RELEASE_SOURCE=mirror` 时自动轮换站点。两种模式统一使用 `sudo bash deploy.sh easyhostagent install` 和 `update`。**本地文件及同名校验文件必须来自可信 GitHub Release。**
@@ -38,10 +36,10 @@ EASYHOSTAGENT_APP_GRANTS=
 - 系统：Linux / fnOS，systemd 作为 init；CPU：AMD64 或 ARM64。
 - 安装依赖：root、Bash、curl、sha256sum、install、mktemp、flock、systemctl；运行 Docker 应用管理功能还需本机可用的 Docker Engine。
 - 监听：默认 `0.0.0.0:7018`，开放范围由防火墙限制。只有在信任隔离网络并配置访问来源限制时才改 `EASYHOSTAGENT_TRANSPORT=http`；HTTP 明文会暴露一次性配对码、Bearer Token 和操作参数，严禁未经保护直接对公网开放。HTTPS 使用 Agent 的自签名证书及 EasyNetTopo 的固定公钥指纹校验。
-- 进程以 root 运行以便操作本机 Docker；数据默认在 `/var/lib/easyhostagent`（系统安装器保留），受管应用在 `<SOFTWARE_ROOT>/.easyhostagent-apps/`。
+- 进程以 root 运行以管理本机 Docker；数据默认在 `/var/lib/easyhostagent`。标准 Deploy 应用安装到 `<SOFTWARE_ROOT>/<应用ID>/deploy/`，升级前已安装的隔离应用仍保留其原目录。
 - Agent 无主动心跳、无定时上报；状态按需查询。未提供强制 CPU/RAM 最小值。
 
-## 3. 凭据与应用授权
+## 3. 配对认证（无需逐应用授权）
 
 无需输入管理员密码。Agent 首次启动在数据目录生成自身 UUID 和 TLS 身份；在 Agent 所在机器可信终端查看：
 
@@ -59,15 +57,9 @@ sudo bash deploy.sh easyhostagent pairing
 
 该命令不安装、不更新、不下载、不重启 Agent；检查本机 `easyhostagent.service` 正在运行，再从 `/etc/easyhostagent/agent.env` 安全读取实际数据目录，调用原生 `-pairing-code`，打印 Agent ID、TLS 公钥指纹、一次性配对码与 UTC 到期时间。**每次运行都会签发新的 10 分钟一次性码，使上一枚尚未使用的配对码失效**；现有 Agent 身份和已配对控制端授权不会因此被清除。只在可信本机终端运行，不要把输出粘贴到日志、CI 或公开聊天中。
 
-配对码是**本机按需自动生成**的临时凭据，配对成功后的控制端 Token 由 Agent 签发并保存在控制端和 Agent 各自的受保护状态中；它们**不在**统一 `.secrets` 中填写，也不应放进命令参数或聊天记录。配对完成后，可把 `EASYHOSTAGENT_APP_GRANTS` 配置为 `控制端UUID/来源UUID/应用ID`，只授权指定应用；旧格式 `控制端UUID/来源UUID` 仍兼容，但会授权该来源下所有应用。
+配对码是**本机按需自动生成**的临时凭据。配对成功后，控制端 Token 由 Agent 签发并分别安全保存；它们不写入统一 `.secrets`，也不应放进公开日志或聊天。
 
-**fnOS 授权指定应用** 时，先把新版 Agent 更新成功，然后在 fnOS 的 Deploy 仓库运行：
-
-```bash
-sudo bash deploy.sh easyhostagent grant <控制端UUID> <来源UUID> sub2api portainer mihomo opencode
-```
-
-UUID 可在 EasyNetTopo 页面查看/复制；该命令仅限本机 root 运行，自动去重追加到 `.env` 和 `/etc/easyhostagent/agent.env`、重启 Agent，失败时恢复原配置。不会重新下载 Agent，也不会修改原有配对 Token。先前若已配置来源级宽授权，该命令不会擅自撤销宽授权。点击应用商店的「刷新状态」检查生效。
+**无需执行 `deploy.sh easyhostagent grant`，也无需配置 `EASYHOSTAGENT_APP_GRANTS`。** 已配对且通过令牌校验的 EasyNetTopo 可以管理可信 Git 应用源中的应用。升级前配置文件中已有的 `EASYHOSTAGENT_APP_GRANTS` 会保留但被新版 Agent 忽略；更新不会重置原配对身份。应用操作依然执行固定 Git 包校验、Compose 身份检查、路径隔离和卸载二次确认。
 
 ## 4. 安装和检查
 
@@ -116,8 +108,12 @@ sudo bash deploy.sh easyhostagent force-update
 
 普通更新按 `EASYHOSTAGENT_LOCAL_BINARY` 选择使用本地包或 GitHub Release；`force-update` 无视本地包设置，强制重新下载当前 `EASYHOSTAGENT_RELEASE` 指向的发布资产并校验 SHA-256，并验证 SHA-256 后替换二进制，再同步 Agent 配置项并重启 systemd；现有身份、配对凭据、应用目录和 Docker 容器保留。更新过程中如发生下载或校验错误，公共下载模块会切换来源；全部失败则在替换二进制前退出。已存在由其他安装器管理的同名服务时会拒绝接管。如果此前已安装 EasyHostAgent Docker 容器，须先安全停止并移除该旧容器；新安装器会检测同名容器并拒绝同时运行，避免两个 Agent 共用端口与身份数据。
 
-## 7. 原有 Deploy 应用的受控接管
+## 7. Deploy 应用目录与自动关联
 
-在已授权的 fnOS 主机中，**Sub2API、Portainer、Mihomo、OpenCode（Docker）** 可以选择「接管原有 Deploy 部署」。Agent 要求 Docker Compose 项目名、所有容器的 Compose 工作目录与配置文件路径分别匹配 `<SOFTWARE_ROOT>/<应用ID>/deploy/docker-compose.yaml`，且该目录存在原始的 `install.sh`、`update.sh` 和 `uninstall.sh`，才能执行明确确认的接管动作。接管只写 Agent 本地管理记录，不重装、不搬迁数据、不覆盖密码或应用配置。之后的更新/卸载使用原始 Deploy 目录里的受控脚本；卸载仍保留数据并需页面二次确认。
+标准 Docker 应用通过 deploy 仓库各自目录的 `app.yaml` 声明元数据、安装、更新、卸载和配置项。EasyNetTopo 同步可信来源后自动发现新应用；新安装应用使用 `<SOFTWARE_ROOT>/<应用ID>/deploy/`，调用来源中已适配的脚本，统一配置仍保存在 `<SOFTWARE_ROOT>/deploy/.env` 和 `.secrets`，默认卸载保留数据。
 
-如果页面提示「原有 Deploy 脚本缺失」，应先在 fnOS 更新 Deploy 仓库，并针对原应用执行 对应应用的 `sudo bash deploy.sh <应用ID> sync`，再刷新状态。不要改动已有的 `data`、`.env`、`.secrets`。来源身份冲突、Compose 目录不匹配的项目仍禁止接管。历史 OpenCode 若无 Compose `name: opencode`，运行中的旧 `deploy` 项目仅显示只读运行状态，不能未经迁移直接接管，以防重建同名容器。新安装的 Docker 应用使用 Agent 独立的隔离目录；卸载保留工作区和凭据。\n\nEasyHostAgent 本身是 systemd 原生服务：EasyNetTopo 的 Agent 卡片会自动关联已连通状态，安装、普通更新、强制更新和卸载提供可信主机终端命令（不能通过尚未安装的 Agent 完成远程安装）。卸载本机 Agent 会立即中断与控制端的连接，不应误报为远程执行成功。
+之前通过 `sudo bash deploy.sh <应用ID> install` 安装的 Compose 项目，只要 Docker 项目名、工作目录及配置文件路径严格匹配 `<SOFTWARE_ROOT>/<应用ID>/deploy/docker-compose.yaml`，且原始部署脚本存在且安全，EasyNetTopo 会使用已校验的固定 Git 应用包**自动建立管理关联**，无需逐个授权或手动点击接管。原有数据、密码和容器不因建立关联而改变。应用目录不匹配、来源冲突以及旧 OpenCode 项目名为 `deploy` 的情况，仅显示只读状态，不自动接管。
+
+如果旧部署脚本缺失或不安全，可明确确认强制更新，由 Agent 从固定 Git 包按清单修复允许的普通部署文件，再执行更新；不会写入 `.env`、`.secrets` 或 `data`。新应用和旧应用都应通过可信来源版本、应用 ID 和 Compose 身份验证。
+
+EasyHostAgent 自身是 systemd 原生服务，不可在尚未运行时依赖自身安装，也不能直接通过自身完成卸载。EasyNetTopo 仍通过原生 Agent 卡片提供安装、更新、强制更新和卸载的主机终端命令。

@@ -14,7 +14,7 @@ source "$HERE/config.sh"
 
 # 以统一 .env 为来源，不信任外部传入的同名环境变量。
 unset EASYHOSTAGENT_RELEASE EASYHOSTAGENT_LOCAL_BINARY EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS
-unset EASYHOSTAGENT_LOG_LEVEL EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT EASYHOSTAGENT_APP_GRANTS
+unset EASYHOSTAGENT_LOG_LEVEL EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT
 agent_load_env "$SOFTWARE_ROOT/deploy/.env"
 agent_validate_env
 command -v flock >/dev/null || agent_fail "缺少 flock"
@@ -101,14 +101,14 @@ agent_merge_native_config() {
     local file="$1" tmp line key
     local -A written=()
     local -a keys=(EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT EASYHOSTAGENT_LOG_LEVEL
-                   EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS EASYHOSTAGENT_APP_GRANTS)
+                   EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS)
     [[ -f "$file" && ! -L "$file" ]] || agent_fail "原生配置文件丢失或不是普通文件"
     tmp="$(mktemp "${file}.XXXXXX")"
     chmod 0600 "$tmp"
     while IFS= read -r line || [[ -n "$line" ]]; do
         key="${line%%=*}"
         case "$key" in
-            EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_APP_GRANTS)
+            EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS)
                 if [[ ${written[$key]+yes} ]]; then
                     rm -f -- "$tmp"
                     agent_fail "原生配置存在重复键：$key"
@@ -137,7 +137,7 @@ if [[ -z "$staging" ]]; then
         agent_fail "Agent 未进入 active 状态"
 fi
 echo "EasyHostAgent 已部署，传输：$EASYHOSTAGENT_TRANSPORT，监听：$EASYHOSTAGENT_LISTEN_ADDRESS"
-echo "原生配置：$native_config；身份、授权和已安装应用保留"
+echo "原生配置：$native_config；配对身份与已安装应用记录保留（无需逐应用授权）"
 if [[ "$EASYHOSTAGENT_TRANSPORT" == http ]]; then
     echo "注意：HTTP 为明文管理接口，必须在防火墙限制可信来源，禁止直接暴露公网。"
 fi

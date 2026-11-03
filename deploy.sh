@@ -111,7 +111,6 @@ usage() {
   sudo bash deploy.sh <业务类型> uninstall  卸载支持此操作的业务（默认保留数据）
   sudo bash deploy.sh easyhostagent force-update  强制在线重新下载并校验指定 Release，保留配对与凭据
   sudo bash deploy.sh easyhostagent pairing  本机生成并打印最新一次性配对信息（不安装、不更新）
-  sudo bash deploy.sh easyhostagent grant <控制端UUID> <来源UUID> sub2api portainer  仅在本机授予指定应用权限
   sudo bash deploy.sh mihomo host       原生 systemd 安装完整 Web/Agent/内核（不使用 Docker）
   sudo bash deploy.sh mihomo host-update 更新原生安装（不影响 Docker）
   sudo bash deploy.sh fnos-desktop      宿主机安装 XFCE4 / TigerVNC / noVNC（不使用 Docker）
