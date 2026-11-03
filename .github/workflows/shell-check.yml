@@ -89,6 +89,9 @@ jobs:
       - name: 核验 EasyNetTopo 凭据、重试与镜像轮换
         run: sudo bash easynettopo/tests/deployment.sh
 
+      - name: 核验 EasyHostAgent 原生安装、HTTP 和卸载
+        run: sudo bash easyhostagent/tests/deployment.sh
+
       - name: Sub2API upstream admin password policy regression
         shell: bash
         run: bash sub2api/tests/password-policy.sh
