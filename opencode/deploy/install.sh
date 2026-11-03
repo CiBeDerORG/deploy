@@ -235,12 +235,12 @@ esac
 generate_opencode_password() {
     [[ -z "${OPENCODE_SERVER_PASSWORD:-}" ]] || return 0
     local value tmp
-    value="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \\n')"
+    value="$(od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]')"
     [[ "$value" =~ ^[a-f0-9]{64}$ ]] || { echo "无法生成 OpenCode 密码" >&2; return 1; }
     tmp="$(mktemp "${SECRETS_FILE}.tmp.XXXXXXXX")"
     chmod 0600 "$tmp"
     awk '!/^[[:space:]]*OPENCODE_SERVER_PASSWORD[[:space:]]*=/' "$SECRETS_FILE" > "$tmp"
-    printf 'OPENCODE_SERVER_PASSWORD=%s\\n' "$value" >> "$tmp"
+    printf 'OPENCODE_SERVER_PASSWORD=%s\n' "$value" >> "$tmp"
     chown root:root "$tmp"
     chmod 0600 "$tmp"
     mv -f -- "$tmp" "$SECRETS_FILE"
