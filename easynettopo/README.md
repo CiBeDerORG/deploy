@@ -21,6 +21,7 @@ sudo bash deploy.sh env
 ```dotenv
 TZ=Asia/Shanghai
 EASYNETTOPO_HTTP_PORT=7017
+EASYNETTOPO_BIND_IP=0.0.0.0
 EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-docker-app-store
 EASYNETTOPO_GIT_ALLOWED_HOSTS=github.com
 EASYNETTOPO_GIT_ALLOW_HTTP=false
@@ -32,7 +33,7 @@ DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
 
 ## 2. 运行要求
 
-Linux 或 fnOS，amd64 或 arm64，运行中的 Docker Engine，支持 `up --wait`、`--pull never` 的 Docker Compose，以及 Bash、`flock` 和常用 Linux 工具。安装脚本使用 root，应用容器以 UID/GID `10001:10001` 运行。容器内 Go 进程通过 `EASYNETTOPO_ALLOW_CONTAINER_BIND=true` 显式允许监听 `0.0.0.0:8080`；宿主机端口仍严格绑定 `127.0.0.1:7017`，**不会直接对局域网/公网开放**。其他设备访问时，应在宿主机通过受保护的 HTTPS 反向代理转发到本地端口。
+Linux 或 fnOS，amd64 或 arm64，运行中的 Docker Engine，支持 `up --wait`、`--pull never` 的 Docker Compose，以及 Bash、`flock` 和常用 Linux 工具。安装脚本使用 root，应用容器以 UID/GID `10001:10001` 运行。容器内 Go 进程通过 `EASYNETTOPO_ALLOW_CONTAINER_BIND=true` 显式允许监听 `0.0.0.0:8080`；宿主机发布地址由统一 `.env` 的 `EASYNETTOPO_BIND_IP` 控制：设置 `0.0.0.0` 时监听所有 IPv4 网卡，局域网及具备网络路由/防火墙放行条件的远端设备可以用服务器真实 IP 的 `7017` 端口访问；设置 `127.0.0.1` 时只允许宿主机本地访问。**0.0.0.0 不代表只开放内网，也不代表自动获得公网访问权限。当前服务直接提供 HTTP，账号密码会经明文链路传输，严禁无保护地暴露公网；请通过防火墙限制可信来源，并为公网入口配置 HTTPS 反向代理。**
 
 数据库及控制端状态保存在 `<SOFTWARE_ROOT>/easynettopo/data/`，私有 Git 源的 SSH 配置在 `<SOFTWARE_ROOT>/easynettopo/ssh/`，只读挂入容器。安装脚本会为新目录设置 `10001:10001`、权限 `0700`。对私有仓库，需要给该目录配置只读 SSH 凭据和经核对的 `known_hosts`。
 
@@ -70,7 +71,7 @@ curl -fsS http://127.0.0.1:7017/api/v1/health
 curl -fsS http://127.0.0.1:7017/api/v1/auth/status
 ```
 
-健康接口成功且初始化状态含 `"initialized":true` 后，用配置的账号密码登录。调整端口后，检查命令也要使用新端口。部署完成后可用 `sudo docker ps -a --filter name=easynettopo` 核对：正常情况下只有 `easynettopo` 容器。
+健康接口成功且初始化状态含 `"initialized":true` 后，用配置的账号密码登录。调整端口后，检查命令也要使用新端口。若配置 `EASYNETTOPO_BIND_IP=0.0.0.0`，同网段设备可尝试访问 `http://<服务器内网IP>:7017`，实际连通性仍取决于服务器及云平台防火墙。部署完成后可用 `sudo docker ps -a --filter name=easynettopo` 核对：正常情况下只有 `easynettopo` 容器。
 
 **从旧版双容器升级**：更新 `deploy` 仓库及 EasyNetTopo 发布镜像后，直接执行上面的安装命令或下面的更新命令。安装脚本通过 `docker compose up --remove-orphans` 仅清理由本项目管理的旧 `easynettopo-gateway` 容器；不会清除数据库、SSH 配置或管理员密码。若使用自建 `easynettopo:local` 镜像，必须先根据最新 EasyNetTopo 源码重新构建（旧镜像不支持单容器监听授权）。
 
@@ -88,4 +89,4 @@ sudo bash deploy.sh easynettopo uninstall
 sudo bash deploy.sh easynettopo update
 ```
 
-更新保留数据库及凭据。使用 `easynettopo:local` 时，先用最新工作区源码重新运行本地构建命令，再执行更新。
+更新保留数据库及凭据，并按当前 `.env` 中的 `EASYNETTOPO_BIND_IP` 重新绑定宿主机端口。GitHub Actions 发布的默认 GHCR 分支镜像无需在目标机器编译，更新命令会直接重新拉取；如选用自建 `easynettopo:local`，则需自行更新该镜像。
