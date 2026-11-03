@@ -434,6 +434,18 @@ sudo bash deploy.sh easytier update
 
 此配置只控制 GHCR 容器镜像地址，不负责 npm、Git、Release 下载等其他网络请求；Docker 构建内的 HTTP 代理继续使用原有 `BUILD_HTTP_PROXY` / `BUILD_HTTPS_PROXY` 配置。
 
+### GitHub Release 文件下载加速
+
+与容器镜像源独立配置，统一写入 `<SOFTWARE_ROOT>/deploy/.env`：
+
+```dotenv
+GITHUB_RELEASE_SOURCE=mirror
+GITHUB_RELEASE_MIRRORS=ghproxy,ghfast,ghproxy-net
+```
+
+`original`（默认）直连 GitHub；`mirror` 按列表轮换首选来源，支持 `ghproxy`（gh-proxy.org）、`ghfast`（ghfast.top）、`ghproxy-net`（ghproxy.net）。下载或 SHA-256 校验失败自动尝试下一站，全部失败后回退 GitHub 官方。轮换记录为 `deploy/state/github-release-mirror.last`，与 GHCR 镜像轮换互不影响。当前已接入 EasyHostAgent 的在线 Release 二进制安装/更新；使用 `EASYHOSTAGENT_LOCAL_BINARY` 手动上传时不触发下载。第三方加速站的校验文件本身不具备独立的可信度；正式环境应核对官方校验值并优先固定不可变版本。
+
+
 ### .secrets
 
 默认模板：
