@@ -16,17 +16,24 @@ SECRETS_FILE="$SOFTWARE_ROOT/deploy/.secrets"
 source "$DEPLOY_DIR/config.sh"
 
 # 凭据只从 .secrets 读取；普通设置只从统一 .env 读取。
-unset EASYNETTOPO_ADMIN_USERNAME EASYNETTOPO_ADMIN_PASSWORD EASYNETTOPO_IMAGE EASYNETTOPO_HTTP_PORT
+unset EASYNETTOPO_ADMIN_USERNAME EASYNETTOPO_ADMIN_PASSWORD EASYNETTOPO_IMAGE EASYNETTOPO_HTTP_PORT EASYNETTOPO_BIND_IP
 unset EASYNETTOPO_GIT_ALLOWED_HOSTS EASYNETTOPO_GIT_ALLOW_HTTP TZ
 [[ -f "$ENV_FILE" ]] || fail "请先执行 sudo bash deploy.sh env"
 load_settings "$ENV_FILE" env
 export EASYNETTOPO_HTTP_PORT="${EASYNETTOPO_HTTP_PORT:-7017}"
+export EASYNETTOPO_BIND_IP="${EASYNETTOPO_BIND_IP:-0.0.0.0}"
 export EASYNETTOPO_GIT_ALLOWED_HOSTS="${EASYNETTOPO_GIT_ALLOWED_HOSTS:-github.com}"
 export EASYNETTOPO_GIT_ALLOW_HTTP="${EASYNETTOPO_GIT_ALLOW_HTTP:-false}"
 export TZ="${TZ:-Asia/Shanghai}"
 export DEPLOY_EASYNETTOPO_IMAGE="${EASYNETTOPO_IMAGE:-ghcr.io/cibederorg/easynettopo:feat-docker-app-store}"
 [[ "$EASYNETTOPO_HTTP_PORT" =~ ^[0-9]{1,5}$ ]] && (( 10#$EASYNETTOPO_HTTP_PORT >= 1 && 10#$EASYNETTOPO_HTTP_PORT <= 65535 )) ||
     fail "端口应为 1–65535 的整数"
+# 仅接受有效的 IPv4 主机绑定地址，避免 Compose 误解析端口或配置注入。
+[[ "$EASYNETTOPO_BIND_IP" =~ ^([0-9]{1,3}\\.){3}[0-9]{1,3}$ ]] || fail "EASYNETTOPO_BIND_IP 必须为 IPv4 地址（如 0.0.0.0 或 127.0.0.1）"
+IFS='.' read -r -a bind_octets <<< "$EASYNETTOPO_BIND_IP"
+for octet in "${bind_octets[@]}"; do
+    (( 10#$octet <= 255 )) || fail "EASYNETTOPO_BIND_IP 含无效的 IPv4 地址段"
+done
 [[ "$DEPLOY_EASYNETTOPO_IMAGE" =~ ^[a-zA-Z0-9][a-zA-Z0-9._/@:-]*$ ]] || fail "镜像引用无效"
 case "$EASYNETTOPO_GIT_ALLOW_HTTP" in true|false) ;; *) fail "EASYNETTOPO_GIT_ALLOW_HTTP 只能填 true 或 false" ;; esac
 
@@ -96,3 +103,7 @@ fi
 compose up -d --remove-orphans --pull never --wait --wait-timeout 180
 bootstrap_admin
 echo "EasyNetTopo 已就绪：http://127.0.0.1:$EASYNETTOPO_HTTP_PORT"
+echo "宿主机监听：$EASYNETTOPO_BIND_IP:$EASYNETTOPO_HTTP_PORT"
+if [[ "$EASYNETTOPO_BIND_IP" == 0.0.0.0 ]]; then
+    echo "提示：可通过服务器 IPv4 地址访问；请使用防火墙限制来源，公网使用 HTTPS。"
+fi
