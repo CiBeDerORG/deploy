@@ -29,7 +29,7 @@ export DEPLOY_EASYNETTOPO_IMAGE="${EASYNETTOPO_IMAGE:-ghcr.io/cibederorg/easynet
 [[ "$EASYNETTOPO_HTTP_PORT" =~ ^[0-9]{1,5}$ ]] && (( 10#$EASYNETTOPO_HTTP_PORT >= 1 && 10#$EASYNETTOPO_HTTP_PORT <= 65535 )) ||
     fail "端口应为 1–65535 的整数"
 # 仅接受有效的 IPv4 主机绑定地址，避免 Compose 误解析端口或配置注入。
-[[ "$EASYNETTOPO_BIND_IP" =~ ^([0-9]{1,3}\\.){3}[0-9]{1,3}$ ]] || fail "EASYNETTOPO_BIND_IP 必须为 IPv4 地址（如 0.0.0.0 或 127.0.0.1）"
+[[ "$EASYNETTOPO_BIND_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || fail "EASYNETTOPO_BIND_IP 必须为 IPv4 地址（如 0.0.0.0 或 127.0.0.1）"
 IFS='.' read -r -a bind_octets <<< "$EASYNETTOPO_BIND_IP"
 for octet in "${bind_octets[@]}"; do
     (( 10#$octet <= 255 )) || fail "EASYNETTOPO_BIND_IP 含无效的 IPv4 地址段"
