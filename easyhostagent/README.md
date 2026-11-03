@@ -90,4 +90,4 @@ git pull --ff-only origin feat/docker-app-store
 sudo bash deploy.sh easyhostagent update
 ```
 
-更新时重新拉取 `EASYHOSTAGENT_RELEASE` 的 GitHub 发布包、校验 SHA-256 并替换二进制，然后同步上面的 Agent 配置项并重启 systemd；现有身份、配对凭据、应用目录和 Docker 容器保留。更新过程中如发生下载或校验错误，官方原生安装器会在替换二进制前退出。已存在由其他安装器管理的同名服务时会拒绝接管。
+更新时按 `EASYHOSTAGENT_LOCAL_BINARY` 选择使用本地包或 GitHub Release，并验证 SHA-256 后替换二进制，再同步 Agent 配置项并重启 systemd；现有身份、配对凭据、应用目录和 Docker 容器保留。更新过程中如发生下载或校验错误，官方原生安装器会在替换二进制前退出。已存在由其他安装器管理的同名服务时会拒绝接管。如果此前已安装 EasyHostAgent Docker 容器，须先安全停止并移除该旧容器；新安装器会检测同名容器并拒绝同时运行，避免两个 Agent 共用端口与身份数据。
