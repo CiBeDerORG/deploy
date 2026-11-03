@@ -24,6 +24,9 @@ package:
     - source: sub2api/deploy/update.sh
       destination: sub2api/deploy/update.sh
       mode: "0755"
+    - source: sub2api/deploy/uninstall.sh
+      destination: sub2api/deploy/uninstall.sh
+      mode: "0755"
     - source: sub2api/deploy/lib.sh
       destination: sub2api/deploy/lib.sh
     - source: lib/image-sources.sh
@@ -109,8 +112,8 @@ actions:
     strategy: script
     path: deploy/update.sh
   uninstall:
-    strategy: compose_down
-    remove_orphans: false
+    strategy: script
+    path: deploy/uninstall.sh
 verification:
   mode: docker_compose
   required_services: [sub2api, postgres, redis]
