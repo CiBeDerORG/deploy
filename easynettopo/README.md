@@ -1,6 +1,6 @@
 # EasyNetTopo 部署
 
-从 deploy 仓库根目录运行以下命令。EasyNetTopo 和网关由同一个 Compose 项目管理。默认镜像 `ghcr.io/cibederorg/easynettopo:feat-docker-app-store` 由通用应用商店分支构建，支持 amd64 和 arm64。已有安装要切换到此版本时，先修改统一 `.env` 中的 `EASYNETTOPO_IMAGE`，再执行更新。
+从 deploy 仓库根目录运行以下命令。EasyNetTopo 使用单个 Go 容器直接提供前端页面和 HTTP API，不再依赖 Caddy 网关。默认镜像 `ghcr.io/cibederorg/easynettopo:feat-docker-app-store` 由通用应用商店分支构建，支持 amd64 和 arm64。已有安装要切换到此版本时，先修改统一 `.env` 中的 `EASYNETTOPO_IMAGE`，再执行更新。
 
 ## 1. 配置文件
 
@@ -28,11 +28,11 @@ DOCKER_IMAGE_SOURCE=original
 DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
 ```
 
-需要加速时，把 `DOCKER_IMAGE_SOURCE` 改为 `mirror`。安装和更新每次按公共轮换规则选一站。EasyNetTopo 的 GHCR 镜像使用该站，Docker Hub 的网关镜像 `caddy:2.10-alpine` 保留原地址。服务端原始镜像配置保留在 `.env`。可选加速站与使用限制见[仓库镜像源说明](../README.md)。
+需要加速时，把 `DOCKER_IMAGE_SOURCE` 改为 `mirror`。安装和更新按公共轮换规则为 EasyNetTopo 的 GHCR 镜像选择加速站；不再拉取 Caddy 镜像。原始镜像配置保留在 `.env`。可选加速站与使用限制见[仓库镜像源说明](../README.md)。
 
 ## 2. 运行要求
 
-Linux 或 fnOS，amd64 或 arm64，运行中的 Docker Engine，支持 `up --wait`、`--pull never` 的 Docker Compose，以及 Bash、`flock` 和常用 Linux 工具。安装脚本使用 root，应用容器以 UID/GID `10001:10001` 运行。宿主机需要有空闲的本地端口，默认是 `127.0.0.1:7017`。其他设备访问时，可在宿主机配置 HTTPS 反向代理转发到该地址。
+Linux 或 fnOS，amd64 或 arm64，运行中的 Docker Engine，支持 `up --wait`、`--pull never` 的 Docker Compose，以及 Bash、`flock` 和常用 Linux 工具。安装脚本使用 root，应用容器以 UID/GID `10001:10001` 运行。容器内 Go 进程通过 `EASYNETTOPO_ALLOW_CONTAINER_BIND=true` 显式允许监听 `0.0.0.0:8080`；宿主机端口仍严格绑定 `127.0.0.1:7017`，**不会直接对局域网/公网开放**。其他设备访问时，应在宿主机通过受保护的 HTTPS 反向代理转发到本地端口。
 
 数据库及控制端状态保存在 `<SOFTWARE_ROOT>/easynettopo/data/`，私有 Git 源的 SSH 配置在 `<SOFTWARE_ROOT>/easynettopo/ssh/`，只读挂入容器。安装脚本会为新目录设置 `10001:10001`、权限 `0700`。对私有仓库，需要给该目录配置只读 SSH 凭据和经核对的 `known_hosts`。
 
@@ -62,7 +62,7 @@ sudo sed -n 's/^EASYNETTOPO_ADMIN_PASSWORD=//p' /software/deploy/.secrets
 sudo docker build -t easynettopo:local ../EasyNetTopo
 ```
 
-然后在 `.env` 中设置 `EASYNETTOPO_IMAGE=easynettopo:local`。此模式使用本机已构建的控制端镜像，网关仍由 Docker 拉取。
+然后在 `.env` 中设置 `EASYNETTOPO_IMAGE=easynettopo:local`。此模式只使用本机已构建的控制端镜像，不再拉取网关。
 
 ```bash
 sudo bash deploy.sh easynettopo install
@@ -70,7 +70,9 @@ curl -fsS http://127.0.0.1:7017/api/v1/health
 curl -fsS http://127.0.0.1:7017/api/v1/auth/status
 ```
 
-健康接口成功且初始化状态含 `"initialized":true` 后，用配置的账号密码登录。调整端口后，检查命令也要使用新端口。
+健康接口成功且初始化状态含 `"initialized":true` 后，用配置的账号密码登录。调整端口后，检查命令也要使用新端口。部署完成后可用 `sudo docker ps -a --filter name=easynettopo` 核对：正常情况下只有 `easynettopo` 容器。
+
+**从旧版双容器升级**：更新 `deploy` 仓库及 EasyNetTopo 发布镜像后，直接执行上面的安装命令或下面的更新命令。安装脚本通过 `docker compose up --remove-orphans` 仅清理由本项目管理的旧 `easynettopo-gateway` 容器；不会清除数据库、SSH 配置或管理员密码。若使用自建 `easynettopo:local` 镜像，必须先根据最新 EasyNetTopo 源码重新构建（旧镜像不支持单容器监听授权）。
 
 ## 5. 卸载
 
@@ -78,7 +80,7 @@ curl -fsS http://127.0.0.1:7017/api/v1/auth/status
 sudo bash deploy.sh easynettopo uninstall
 ```
 
-卸载移除本项目的容器及项目网络，保留数据库、Git SSH 配置、镜像和统一配置文件。重新安装可以沿用原数据。
+卸载移除 EasyNetTopo 容器、项目网络以及可能残留的旧版 Caddy 网关容器，保留数据库、Git SSH 配置、镜像和统一配置文件。重新安装可以沿用原数据。
 
 ## 6. 更新
 
