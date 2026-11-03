@@ -430,33 +430,33 @@ resolve_task() {
 }
 
 sync_shared_libraries() {
-    local source_file="$ROOT_DIR/lib/image-sources.sh"
     local target_dir="$GLOBAL_ENV_DIR/lib"
-    local target_file="$target_dir/image-sources.sh"
-    local staged_file
-
-    [ -f "$source_file" ] || {
-        echo "公共镜像源模块不存在：$source_file，请完整更新 deploy 仓库。" >&2
-        return 1
-    }
+    local source_file target_file staged_file module
+    local -a modules=(image-sources.sh release-sources.sh)
     run_root mkdir -p "$target_dir" || return $?
 
-    # 仓库本身可能就在 <SOFTWARE_ROOT>/deploy，避免覆盖正在使用的源文件。
-    if [ "$source_file" -ef "$target_file" ]; then
-        return 0
-    fi
-
-    staged_file="$(run_root mktemp "$target_dir/.image-sources.XXXXXX")" || return $?
-    if ! run_root cp -- "$source_file" "$staged_file" ||
-       ! run_root chown root:root "$staged_file" ||
-       ! run_root chmod 0644 "$staged_file" ||
-       ! run_root mv -f -- "$staged_file" "$target_file"; then
-        run_root rm -f -- "$staged_file"
-        echo "同步公共镜像源模块失败：$target_file" >&2
-        return 1
-    fi
+    for module in "${modules[@]}"; do
+        source_file="$ROOT_DIR/lib/$module"
+        target_file="$target_dir/$module"
+        [ -f "$source_file" ] || {
+            echo "公共下载模块缺失：$source_file，请完整更新 deploy 仓库。" >&2
+            return 1
+        }
+        # 仓库可能位于 <SOFTWARE_ROOT>/deploy，禁止将同一文件复制覆盖自身。
+        if [ -e "$target_file" ] && [ "$source_file" -ef "$target_file" ]; then
+            continue
+        fi
+        staged_file="$(run_root mktemp "$target_dir/.shared-library.XXXXXXXX")" || return $?
+        if ! run_root cp -- "$source_file" "$staged_file" ||
+           ! run_root chown root:root "$staged_file" ||
+           ! run_root chmod 0644 "$staged_file" ||
+           ! run_root mv -f -- "$staged_file" "$target_file"; then
+            run_root rm -f -- "$staged_file"
+            echo "同步公共下载模块失败：$target_file" >&2
+            return 1
+        fi
+    done
 }
-
 sync_task() {
     local task="$1"
     local source_dir="$ROOT_DIR/$task"
