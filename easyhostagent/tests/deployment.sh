@@ -63,7 +63,10 @@ printf 'persisted-identity' > "$persisted"
 printf 'CUSTOM_AGENT_SETTING=keep\n' >> "$native"
 sed -i 's/^EASYHOSTAGENT_TRANSPORT=.*/EASYHOSTAGENT_TRANSPORT=http/' "$file"
 sed -i 's/^EASYHOSTAGENT_LISTEN_ADDRESS=.*/EASYHOSTAGENT_LISTEN_ADDRESS=127.0.0.1:7018/' "$file"
-sed -i 's#^EASYHOSTAGENT_APP_GRANTS=.*#EASYHOSTAGENT_APP_GRANTS=11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222#' "$file"
+# 历史用户的授权配置即使存在也仅作兼容保留；新安装不再创建该键。
+legacy_grant='11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222'
+printf 'EASYHOSTAGENT_APP_GRANTS=%s\n' "$legacy_grant" >> "$file"
+printf 'EASYHOSTAGENT_APP_GRANTS=%s\n' "$legacy_grant" >> "$native"
 # 离线模式使用上传的程序和同名 SHA-256，模拟真实用户切换安装来源。
 uploaded="$tmp/easyhostagent-linux-amd64"
 cp "$EASYHOSTAGENT_TEST_BINARY" "$uploaded"
@@ -81,7 +84,9 @@ bash deploy.sh easyhostagent update > "$tmp/update.log" 2>&1 || { cat "$tmp/upda
 grep -qx 'EASYHOSTAGENT_TRANSPORT=http' "$native"
 grep -qx 'EASYHOSTAGENT_LISTEN_ADDRESS=127.0.0.1:7018' "$native"
 grep -qx 'CUSTOM_AGENT_SETTING=keep' "$native"
-grep -Fq '11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222' "$native"
+grep -Fxq "EASYHOSTAGENT_APP_GRANTS=$legacy_grant" "$native"
+# 老配置值只保留，不应重复写入或自动扩大授权范围。
+test "$(grep -c '^EASYHOSTAGENT_APP_GRANTS=' "$native")" -eq 1
 test "$(cat "$persisted")" = persisted-identity
 
 # 不接受注入、无效端口或重复配置；失败不得破坏已生效的 Agent 配置。
