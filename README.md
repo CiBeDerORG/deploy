@@ -738,7 +738,7 @@ EASYHOSTAGENT_SOFTWARE_ROOT=
 EASYHOSTAGENT_APP_GRANTS=
 ```
 
-执行 `sudo bash deploy.sh easyhostagent install`、`sudo bash deploy.sh easyhostagent update`、`sudo bash deploy.sh easyhostagent uninstall`。只有按需安装、卸载、状态查询，没有心跳；需要在可信网络使用 HTTP 时将 `EASYHOSTAGENT_TRANSPORT=http`，并限制防火墙访问。卸载只移除 Agent 的 systemd 服务和原生二进制，保留身份、配对、应用数据和其他 Docker 应用。详见 [EasyHostAgent 安装与配置](./easyhostagent/README.md)。
+执行 `sudo bash deploy.sh easyhostagent install`、`sudo bash deploy.sh easyhostagent update`、`sudo bash deploy.sh easyhostagent uninstall`。 配对时执行 `sudo bash deploy.sh easyhostagent pairing`，从本机原生配置生成并打印最新一次性配对信息（含 Agent ID、公钥指纹及 UTC 到期时间），无需同步或重新安装；重新生成会使旧配对码失效。只有按需安装、卸载、状态查询，没有心跳；需要在可信网络使用 HTTP 时将 `EASYHOSTAGENT_TRANSPORT=http`，并限制防火墙访问。卸载只移除 Agent 的 systemd 服务和原生二进制，保留身份、配对、应用数据和其他 Docker 应用。详见 [EasyHostAgent 安装与配置](./easyhostagent/README.md)。
 
 ## 七、查看状态与日志
 
