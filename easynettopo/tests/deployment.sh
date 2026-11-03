@@ -21,7 +21,7 @@ case "$1" in
     *) exit 44 ;;
 esac
 [[ "$1 $2 $3" == 'compose --env-file /dev/null' ]]
-printf '%s %s %s\n' "$DEPLOY_EASYNETTOPO_IMAGE" "$DEPLOY_EASYNETTOPO_GATEWAY_IMAGE" "$*" >> "$DEPLOY_TEST_DIR/docker-calls"
+printf '%s %s %s\n' "$DEPLOY_EASYNETTOPO_IMAGE" "$EASYNETTOPO_BIND_IP" "$*" >> "$DEPLOY_TEST_DIR/docker-calls"
 case " $* " in
     *' exec -T easynettopo wget '*)
         if [[ -e "$DEPLOY_TEST_DIR/initialized" ]]; then echo '{"initialized":true}'; else echo '{"initialized":false}'; fi ;;
@@ -44,16 +44,25 @@ bash deploy.sh env >/dev/null
 settings="$SOFTWARE_ROOT/deploy/.env"
 secrets="$SOFTWARE_ROOT/deploy/.secrets"
 sed -i 's/^DOCKER_IMAGE_SOURCE=.*/DOCKER_IMAGE_SOURCE=mirror/' "$settings"
+grep -qx 'EASYNETTOPO_BIND_IP=0.0.0.0' "$settings"
 password='密 码#= "x" @$()!'\'''
 printf 'EASYNETTOPO_ADMIN_USERNAME =operator_01\r\nEASYNETTOPO_ADMIN_PASSWORD="%s"\r\nOTHER_TEST_KEY=keep\n' "$password" > "$secrets"
 deploy_app() { bash deploy.sh easynettopo "$1" >> "$tmp/output" 2>&1 || { cat "$tmp/output" >&2; return 1; }; }
 deploy_app install
 printf 'operator_01\n%s\n' "$password" | cmp - "$tmp/stdin"
-grep -F 'ghcr.dockerproxy.net/cibederorg/easynettopo:feat-docker-app-store caddy:2.10-alpine ' "$tmp/docker-calls" > /dev/null
+grep -F 'ghcr.dockerproxy.net/cibederorg/easynettopo:feat-docker-app-store 0.0.0.0 ' "$tmp/docker-calls" > /dev/null
 if grep -F -- "$password" "$tmp/docker-calls" "$tmp/output" >/dev/null; then exit 1; fi
 sed -i '/EASYNETTOPO_ADMIN_PASSWORD/c\EASYNETTOPO_ADMIN_PASSWORD=' "$secrets"
+sed -i 's/^EASYNETTOPO_BIND_IP=.*/EASYNETTOPO_BIND_IP=127.0.0.1/' "$settings"
 deploy_app update
-grep -F 'gh-proxy.com/docker/ghcr.io/cibederorg/easynettopo:feat-docker-app-store caddy:2.10-alpine ' "$tmp/docker-calls" >/dev/null
+grep -F 'gh-proxy.com/docker/ghcr.io/cibederorg/easynettopo:feat-docker-app-store 127.0.0.1 ' "$tmp/docker-calls" >/dev/null
+sed -i 's/^EASYNETTOPO_BIND_IP=.*/EASYNETTOPO_BIND_IP=300.168.1.4/' "$settings"
+if bash deploy.sh easynettopo install > "$tmp/invalid-ip-output" 2>&1; then
+    echo '无效监听 IPv4 未被拒绝' >&2
+    exit 1
+fi
+grep -F 'EASYNETTOPO_BIND_IP 含无效的 IPv4 地址段' "$tmp/invalid-ip-output" >/dev/null
+sed -i 's/^EASYNETTOPO_BIND_IP=.*/EASYNETTOPO_BIND_IP=0.0.0.0/' "$settings"
 test "$(grep -c ' admin init --stdin$' "$tmp/docker-calls")" -eq 1
 grep -qx 'EASYNETTOPO_ADMIN_PASSWORD=' "$secrets"
 deploy_app uninstall
@@ -82,6 +91,10 @@ done
 sed -i 's|^EASYNETTOPO_IMAGE=.*|EASYNETTOPO_IMAGE=easynettopo:local|' "$settings"
 before="$(cat "$SOFTWARE_ROOT/deploy/state/image-mirror.last")"
 deploy_app install
-grep -F 'easynettopo:local caddy:2.10-alpine ' "$tmp/docker-calls" | grep -F ' pull gateway' >/dev/null
+grep -F 'easynettopo:local 0.0.0.0 ' "$tmp/docker-calls" | grep -F ' up -d --remove-orphans ' >/dev/null
+if grep -F 'easynettopo:local 0.0.0.0 ' "$tmp/docker-calls" | grep -F ' pull' > /dev/null; then
+    echo '本地镜像安装不应拉取旧网关或远端镜像' >&2
+    exit 1
+fi
 test "$before" = "$(cat "$SOFTWARE_ROOT/deploy/state/image-mirror.last")"
-printf '%s\n' 'EasyNetTopo 安装、更新、卸载、凭据保留与镜像轮换通过'
+printf '%s\n' 'EasyNetTopo 单容器安装、监听 IP、更新、卸载、凭据保留与镜像轮换通过'
