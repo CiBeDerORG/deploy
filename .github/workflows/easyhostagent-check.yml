@@ -1,4 +1,4 @@
-name: EasyHostAgent 原生部署检查
+name: EasyHostAgent GHCR 容器部署检查
 
 on:
   push:
