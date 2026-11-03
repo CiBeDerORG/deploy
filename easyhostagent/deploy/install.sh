@@ -53,9 +53,9 @@ fi
 installer_args=(--software-root "$EASYHOSTAGENT_SOFTWARE_ROOT" --data-dir "$EASYHOSTAGENT_DATA_DIR"
                 --log-level "$EASYHOSTAGENT_LOG_LEVEL" --no-start)
 if [[ -n "$staging" ]]; then
-    # 隔离测试使用明确提供的本地程序，不访问 GitHub、systemd 或 Docker。
-    installer_args+=(--staging-root "$staging" --binary "$test_binary")
-elif [[ -n "$EASYHOSTAGENT_LOCAL_BINARY" ]]; then
+    installer_args+=(--staging-root "$staging")
+fi
+if [[ -n "$EASYHOSTAGENT_LOCAL_BINARY" ]]; then
     binary="$EASYHOSTAGENT_LOCAL_BINARY"
     checksum="$binary.sha256"
     [[ -f "$binary" && ! -L "$binary" && -r "$binary" ]] || agent_fail "本地安装包不存在或不可读：$binary"
@@ -71,6 +71,9 @@ elif [[ -n "$EASYHOSTAGENT_LOCAL_BINARY" ]]; then
     trap 'rm -f -- "$tmp_binary"' EXIT
     install -m 0755 -- "$binary" "$tmp_binary"
     installer_args+=(--binary "$tmp_binary")
+elif [[ -n "$staging" ]]; then
+    # 隔离测试默认用指定的替身二进制，绝不访问生产 systemd。
+    installer_args+=(--binary "$test_binary")
 else
     installer_args+=(--release "$EASYHOSTAGENT_RELEASE")
 fi
