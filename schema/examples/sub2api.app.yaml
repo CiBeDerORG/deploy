@@ -1,4 +1,4 @@
-# Contract fixture only. T03-03 will add the production sub2api/app.yaml.
+# Production catalog manifest v1. Validated against the checked-in Deploy scripts.
 schema_version: 1
 id: sub2api
 name: Sub2API
@@ -23,6 +23,9 @@ package:
       mode: "0755"
     - source: sub2api/deploy/update.sh
       destination: sub2api/deploy/update.sh
+      mode: "0755"
+    - source: sub2api/deploy/uninstall.sh
+      destination: sub2api/deploy/uninstall.sh
       mode: "0755"
     - source: sub2api/deploy/lib.sh
       destination: sub2api/deploy/lib.sh
@@ -109,8 +112,8 @@ actions:
     strategy: script
     path: deploy/update.sh
   uninstall:
-    strategy: compose_down
-    remove_orphans: false
+    strategy: script
+    path: deploy/uninstall.sh
 verification:
   mode: docker_compose
   required_services: [sub2api, postgres, redis]
