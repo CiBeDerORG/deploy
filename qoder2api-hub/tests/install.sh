@@ -6,6 +6,9 @@ command -v sudo >/dev/null 2>&1 || { echo "sudo required"; exit 1; }
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 tmp="$(mktemp -d)"
 trap 'sudo rm -rf -- "$tmp"' EXIT
+# Keep CI diagnostics useful even for intentionally silent assertions.
+TEST_PHASE=setup
+trap 'rc=$?; printf "Qoder2API regression failed at line %s (%s, exit %s)\\n" "$LINENO" "$TEST_PHASE" "$rc" >&2' ERR
 software="$tmp/software"
 mkdir -p "$software/deploy/lib" "$software/qoder2api-hub/deploy" "$tmp/bin"
 cp "$ROOT/lib/image-sources.sh" "$software/deploy/lib/image-sources.sh"
@@ -51,13 +54,17 @@ chmod +x "$tmp/bin/docker"
 touch "$tmp/docker.log" "$tmp/container-state"
 chmod 0666 "$tmp/docker.log" "$tmp/container-state"
 rm -f "$tmp/container-state"
+TEST_PHASE=first-install
 installer="$software/qoder2api-hub/deploy/install.sh"
 sudo env PATH="$tmp/bin:$PATH" MOCK_DOCKER_LOG="$tmp/docker.log" MOCK_CONTAINER_STATE="$tmp/container-state" bash "$installer" install > "$tmp/install.log" 2>&1 || { cat "$tmp/install.log"; exit 1; }
+TEST_PHASE=first-install-assertions
 grep -q '镜像来源：加速站 dockerproxy' "$tmp/install.log"
 grep -q 'ghcr.dockerproxy.net/shuishuipingan/qoder2api-hub:latest' "$tmp/install.log"
 test -d "$software/qoder2api-hub/data/accounts"
 test -d "$software/qoder2api-hub/data/usage"
+TEST_PHASE=update
 sudo env PATH="$tmp/bin:$PATH" MOCK_DOCKER_LOG="$tmp/docker.log" MOCK_CONTAINER_STATE="$tmp/container-state" bash "$installer" update > "$tmp/update.log" 2>&1 || { cat "$tmp/update.log"; exit 1; }
+TEST_PHASE=update-assertions
 grep -q '镜像来源：加速站 ghproxy' "$tmp/update.log"
 grep -q 'gh-proxy.com/docker/ghcr.io/shuishuipingan/qoder2api-hub:latest' "$tmp/update.log"
 grep -Fx 'pull:ghcr.dockerproxy.net/shuishuipingan/qoder2api-hub:latest' "$tmp/docker.log" >/dev/null
