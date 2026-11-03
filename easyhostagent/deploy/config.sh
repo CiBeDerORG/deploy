@@ -12,7 +12,7 @@ agent_load_env() {
         key="${line%%=*}"
         key="${key%"${key##*[![:space:]]}"}"
         case "$key" in
-            EASYHOSTAGENT_IMAGE|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_APP_GRANTS) ;;
+            EASYHOSTAGENT_IMAGE|EASYHOSTAGENT_LOCAL_BINARY|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_APP_GRANTS) ;;
             *) continue ;;
         esac
         [[ ! ${seen[$key]+ok} ]] || agent_fail "重复配置：$key"
@@ -35,6 +35,7 @@ agent_valid_path() {
 
 agent_validate_env() {
     EASYHOSTAGENT_IMAGE="${EASYHOSTAGENT_IMAGE:-ghcr.io/cibederorg/easyhostagent:feat-docker-app-store}"
+    EASYHOSTAGENT_LOCAL_BINARY="${EASYHOSTAGENT_LOCAL_BINARY:-}"
     EASYHOSTAGENT_TRANSPORT="${EASYHOSTAGENT_TRANSPORT:-https}"
     EASYHOSTAGENT_LISTEN_ADDRESS="${EASYHOSTAGENT_LISTEN_ADDRESS:-0.0.0.0:7018}"
     EASYHOSTAGENT_LOG_LEVEL="${EASYHOSTAGENT_LOG_LEVEL:-info}"
@@ -43,6 +44,9 @@ agent_validate_env() {
     EASYHOSTAGENT_APP_GRANTS="${EASYHOSTAGENT_APP_GRANTS:-}"
     [[ "$EASYHOSTAGENT_IMAGE" =~ ^[A-Za-z0-9][A-Za-z0-9._/@:-]*$ ]] ||
         agent_fail "Docker 镜像引用格式不合法"
+    if [[ -n "$EASYHOSTAGENT_LOCAL_BINARY" ]]; then
+        agent_valid_path EASYHOSTAGENT_LOCAL_BINARY "$EASYHOSTAGENT_LOCAL_BINARY"
+    fi
     case "$EASYHOSTAGENT_TRANSPORT" in http|https) ;; *) agent_fail "传输模式应为 http 或 https" ;; esac
     case "$EASYHOSTAGENT_LOG_LEVEL" in debug|info|warn|error) ;; *) agent_fail "日志等级无效" ;; esac
     [[ "$EASYHOSTAGENT_LISTEN_ADDRESS" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}$ ]] ||
