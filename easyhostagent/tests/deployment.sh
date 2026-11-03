@@ -58,6 +58,14 @@ if bash deploy.sh easyhostagent update > "$tmp/duplicate.log" 2>&1; then
 fi
 sed -i '$d' "$file"
 
+# 已安装后的统一配置不能无意间迁移 Agent 身份状态目录。
+sed -i 's#^EASYHOSTAGENT_DATA_DIR=.*#EASYHOSTAGENT_DATA_DIR=/tmp/another-agent-data#' "$file"
+if bash deploy.sh easyhostagent update > "$tmp/migration.log" 2>&1; then
+    echo "未阻止 Agent 原数据目录意外迁移" >&2; exit 1
+fi
+grep -F '与统一 .env 不一致' "$tmp/migration.log" >/dev/null
+sed -i 's#^EASYHOSTAGENT_DATA_DIR=.*#EASYHOSTAGENT_DATA_DIR=/var/lib/easyhostagent#' "$file"
+
 bash deploy.sh easyhostagent uninstall > "$tmp/uninstall.log" 2>&1 || { cat "$tmp/uninstall.log"; exit 1; }
 test ! -e "$EASYHOSTAGENT_STAGING_ROOT/usr/local/bin/easyhostagent"
 test ! -e "$EASYHOSTAGENT_STAGING_ROOT/etc/systemd/system/easyhostagent.service"
