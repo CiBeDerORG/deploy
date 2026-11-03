@@ -80,7 +80,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 list
 | fnOS Desktop（宿主机原生） | `7015/HTTPS`（noVNC） | **apt + systemd（不使用 Docker）** | [fnos-desktop/README.md](./fnos-desktop/README.md) |
 | LinuxServer Webtop | `7014/HTTPS` | Docker Compose（Debian XFCE / Selkies） | [webtop/README.md](./webtop/README.md) |
 | OpenHands Agent Canvas | `7016/HTTP`（`/canvas`） | Docker Compose（官方 GHCR 镜像） | [openhands/README.md](./openhands/README.md) |
-| EasyNetTopo | `127.0.0.1:7017` | Docker Compose，支持自定义初始管理员和 GHCR 镜像轮换 | [部署与首次登录](./easynettopo/README.md) |
+| EasyNetTopo | `127.0.0.1:7017` | 单容器 Docker Compose，支持自定义初始管理员和 GHCR 镜像轮换 | [部署与首次登录](./easynettopo/README.md) |
 | OpenCode V2 | `7003/TCP` | Docker Compose | [opencode/README.md](./opencode/README.md) |
 | FRPS | `7000/TCP`，后台 `7001/TCP` | Docker Compose | [frps/README.md](./frps/README.md) |
 | EasyTier | Core `7005`，RPC `7006`，Web `7007`，Config `7008/UDP` | Docker / OpenWrt | [easytier/README.md](./easytier/README.md) |
