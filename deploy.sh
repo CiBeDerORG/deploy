@@ -109,6 +109,7 @@ usage() {
   bash deploy.sh <业务类型> update     同步最新文件后执行 update.sh
   bash deploy.sh <业务类型> sync       仅同步文件，不启动/更新容器
   sudo bash deploy.sh <业务类型> uninstall  卸载支持此操作的业务（默认保留数据）
+  sudo bash deploy.sh easyhostagent pairing  本机生成并打印最新一次性配对信息（不安装、不更新）
   sudo bash deploy.sh mihomo host       原生 systemd 安装完整 Web/Agent/内核（不使用 Docker）
   sudo bash deploy.sh mihomo host-update 更新原生安装（不影响 Docker）
   sudo bash deploy.sh fnos-desktop      宿主机安装 XFCE4 / TigerVNC / noVNC（不使用 Docker）
@@ -537,6 +538,13 @@ run_task() {
     local script
 
     case "$action" in
+        pairing)
+            [ "$task" = easyhostagent ] || { echo "pairing 仅支持 easyhostagent" >&2; return 1; }
+            script="$ROOT_DIR/easyhostagent/deploy/pairing.sh"
+            [ -f "$script" ] || { echo "本机配对脚本不存在，请更新 deploy 仓库" >&2; return 1; }
+            # 一次性配对只调用已安装的原生 Agent，不能触发同步、安装或配置初始化。
+            run_root bash "$script"
+            return $?
         install|up)
             script="$target_dir/deploy/install.sh"
             ;;
@@ -567,7 +575,7 @@ run_task() {
             ;;
         *)
             echo "不支持的操作：$action" >&2
-            echo "支持：install / update / sync；有 uninstall.sh 的业务支持 uninstall；mihomo 另支持 host / host-update；fnos-desktop 另支持 status/start/stop/restart/logs/uninstall" >&2
+            echo "支持：install / update / sync；有 uninstall.sh 的业务支持 uninstall；mihomo 另支持 host / host-update；fnos-desktop 另支持 status/start/stop/restart/logs/uninstall；easyhostagent 另支持 pairing" >&2
             return 1
             ;;
     esac
@@ -614,6 +622,8 @@ interactive() {
     task="$(resolve_task "$choice")" || return 1
     if [ "$task" = mihomo ]; then
         read -r -p '操作 install/update/sync/host/host-update（默认 Docker install）：' action || return 0
+    elif [ "$task" = easyhostagent ]; then
+        read -r -p '操作 install/update/sync/uninstall/pairing（默认 install）：' action || return 0
     elif [ "$task" = fnos-desktop ]; then
         read -r -p '操作 install/update/sync/status/start/stop/restart/logs/uninstall（默认原生 install）：' action || return 0
     elif [ -f "$ROOT_DIR/$task/deploy/uninstall.sh" ]; then
