@@ -34,5 +34,7 @@ jobs:
           shellcheck --severity=error easyhostagent/deploy/*.sh easyhostagent/tests/*.sh
       - name: 验证 Release 下载加速站轮换与校验回退
         run: bash tests/github-release-sources.sh
+      - name: 按应用授权、去重及回滚测试
+        run: sudo bash easyhostagent/tests/grant.sh
       - name: 原生安装、更新、卸载和 HTTP 配置
         run: sudo bash easyhostagent/tests/deployment.sh
