@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "easytier-automation-executor/**"
+      - "tests/easytier-automation-executor-install.sh"
       - ".env.example"
       - ".secrets.example"
       - "README.md"
