@@ -110,6 +110,7 @@ usage() {
   bash deploy.sh <业务类型> sync       仅同步文件，不启动/更新容器
   sudo bash deploy.sh <业务类型> uninstall  卸载支持此操作的业务（默认保留数据）
   sudo bash deploy.sh easyhostagent pairing  本机生成并打印最新一次性配对信息（不安装、不更新）
+  sudo bash deploy.sh easyhostagent grant <控制端UUID> <来源UUID> sub2api portainer  仅在本机授予指定应用权限
   sudo bash deploy.sh mihomo host       原生 systemd 安装完整 Web/Agent/内核（不使用 Docker）
   sudo bash deploy.sh mihomo host-update 更新原生安装（不影响 Docker）
   sudo bash deploy.sh fnos-desktop      宿主机安装 XFCE4 / TigerVNC / noVNC（不使用 Docker）
@@ -536,8 +537,16 @@ run_task() {
     local action="${2:-install}"
     local target_dir="$SOFTWARE_ROOT/$task"
     local script
+    shift 2 || true
 
     case "$action" in
+        grant)
+            [ "$task" = easyhostagent ] || { echo "grant 仅支持 easyhostagent" >&2; return 1; }
+            script="$ROOT_DIR/easyhostagent/deploy/grant.sh"
+            [ -f "$script" ] || { echo "本机应用授权脚本不存在，请更新 deploy 仓库" >&2; return 1; }
+            run_root bash "$script" "$@"
+            return $?
+            ;;
         pairing)
             [ "$task" = easyhostagent ] || { echo "pairing 仅支持 easyhostagent" >&2; return 1; }
             script="$ROOT_DIR/easyhostagent/deploy/pairing.sh"
@@ -624,7 +633,7 @@ interactive() {
     if [ "$task" = mihomo ]; then
         read -r -p '操作 install/update/sync/host/host-update（默认 Docker install）：' action || return 0
     elif [ "$task" = easyhostagent ]; then
-        read -r -p '操作 install/update/sync/uninstall/pairing（默认 install）：' action || return 0
+        read -r -p '操作 install/update/sync/uninstall/pairing（本机授权请用 grant 命令）（默认 install）：' action || return 0
     elif [ "$task" = fnos-desktop ]; then
         read -r -p '操作 install/update/sync/status/start/stop/restart/logs/uninstall（默认原生 install）：' action || return 0
     elif [ -f "$ROOT_DIR/$task/deploy/uninstall.sh" ]; then
@@ -667,13 +676,13 @@ main() {
             interactive
             ;;
         *)
-            if [ "$#" -gt 2 ]; then
+            if [ "$#" -gt 2 ] && ! { [ "${1:-}" = easyhostagent ] && [ "${2:-}" = grant ] && [ "$#" -ge 5 ]; }; then
                 usage >&2
                 return 1
             fi
             local task
             task="$(resolve_task "$1")" || return 1
-            run_task "$task" "${2:-install}"
+            run_task "$task" "${2:-install}" "${@:3}"
             ;;
     esac
 }
