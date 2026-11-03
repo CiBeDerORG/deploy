@@ -89,6 +89,9 @@ jobs:
       - name: 核验 EasyNetTopo 凭据、重试与镜像轮换
         run: sudo bash easynettopo/tests/deployment.sh
 
+      - name: 验证 GitHub Release 下载加速轮换
+        run: bash tests/github-release-sources.sh
+
       - name: 核验 EasyHostAgent 原生安装、HTTP 和卸载
         run: sudo bash easyhostagent/tests/deployment.sh
 
