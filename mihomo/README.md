@@ -217,3 +217,20 @@ Web 健康返回 200 不代表代理内核一定正常；安装脚本还会独�
 `Mihomo Native Build and Web Check` 会实际构建官方发布版，并在 runner 的回环地址启动
 Web/Agent/内核，验证网页、动态配置、旧 Docker Profile、节点规则、代理认证及进程清理。
 后者也可在 Actions 页面手动运行。CI 只使用隔离测试数据，不接触 NAS 服务。
+
+## EasyNetTopo 应用市场（Docker 版）
+
+应用清单：`mihomo/app.yaml`；安装包包括 Compose、初始化、更新、卸载及必要的配置迁移脚本。同步 Deploy Git 来源、配对目标 EasyHostAgent 并在目标主机授权 `mihomo` 后，可在应用市场直接安装、更新、强制更新或卸载 Docker 版。已运行的同名 Compose 项目会先核对项目名、工作目录和配置文件身份；原 Deploy 项目只有确认接管后才允许管理。
+
+默认配置位于 `<SOFTWARE_ROOT>/deploy/.env` 和 `<SOFTWARE_ROOT>/deploy/.secrets`（fnOS 通常为 `/vol3/1000/software/deploy`）。其中 `MIHOMO_CONTROL_TOKEN`、`MIHOMO_API_SECRET` 与首次全新初始化使用的 `MIHOMO_PROXY_PASSWORD` 可留空；原脚本首次生成并持久化。自定义非空值在更新时不覆盖，也不附加密码格式限制。
+
+```bash
+cd /vol3/1000/software/deploy
+sudo bash deploy.sh env
+sudo bash deploy.sh mihomo install
+sudo bash deploy.sh mihomo update
+sudo bash deploy.sh mihomo uninstall
+sudo docker compose -f /vol3/1000/software/mihomo/deploy/docker-compose.yaml ps
+```
+
+Docker Engine 和 Docker Compose v2 为必需依赖；`7011` 为代理端口、`7012` 为 Web、`7013` 为内核 API，均可按上表配置。默认卸载只移除本项目 Compose 容器和网络，不删除 `data/all-in-one`、Profile、密钥及公共 `proxy-net`。强制更新会校验固定来源的应用包，已受管项目仍执行原授权更新脚本；更新可能短暂中断代理。原生 `deploy-mihomo.service` 不属于此 Docker 应用清单，不能同时运行。
