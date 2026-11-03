@@ -17,9 +17,18 @@ done
 
 here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 deploy_root="$(cd -- "$here/../.." && pwd)"
-software_root="$(cd -- "$deploy_root/.." && pwd)"
 global_env="$deploy_root/.env"
 native_env=/etc/easyhostagent/agent.env
+# Test-only staging requires the same explicit two-part opt-in as the
+# existing native installer; production never redirects the system config.
+if [[ -n "${EASYHOSTAGENT_STAGING_ROOT:-}" ]]; then
+    [[ -n "${EASYHOSTAGENT_TEST_BINARY:-}" &&
+       "${EASYHOSTAGENT_STAGING_ROOT}" == /* &&
+       -d "${EASYHOSTAGENT_STAGING_ROOT}" &&
+       ! -L "${EASYHOSTAGENT_STAGING_ROOT}" ]] ||
+        fail "隔离测试配置无效"
+    native_env="${EASYHOSTAGENT_STAGING_ROOT}/etc/easyhostagent/agent.env"
+fi
 [[ -f "$global_env" && ! -L "$global_env" && -f "$native_env" && ! -L "$native_env" ]] ||
     fail "请先安装 Agent 并配置统一 .env"
 command -v systemctl >/dev/null || fail "没有 systemctl"
@@ -38,7 +47,7 @@ read_existing() {
         ((count+=1))
         ((count==1)) || fail "$file 中授权项重复定义"
         value="${line#*=}"
-        if [[ "$value" == \"*\" || "$value" == \'*\' ]]; then
+        if (( ${#value} >= 2 )) && [[ "$value" == \"*\" || "$value" == \'*\' ]]; then
             value="${value:1:${#value}-2}"
         fi
         [[ "$value" =~ ^[A-Za-z0-9,/._-]*$ ]] || fail "$file 中已有授权格式无法安全读取"
