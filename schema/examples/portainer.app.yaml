@@ -1,4 +1,4 @@
-# Contract fixture only. T03-02 will add the production portainer/app.yaml.
+# Production catalog manifest v1. Validated against the checked-in Deploy scripts.
 schema_version: 1
 id: portainer
 name: Portainer
@@ -24,6 +24,9 @@ package:
       mode: "0755"
     - source: portainer/deploy/update.sh
       destination: portainer/deploy/update.sh
+      mode: "0755"
+    - source: portainer/deploy/uninstall.sh
+      destination: portainer/deploy/uninstall.sh
       mode: "0755"
     - source: lib/image-sources.sh
       destination: deploy/lib/image-sources.sh
@@ -59,8 +62,8 @@ actions:
     strategy: script
     path: deploy/update.sh
   uninstall:
-    strategy: compose_down
-    remove_orphans: false
+    strategy: script
+    path: deploy/uninstall.sh
 verification:
   mode: docker_compose
   required_services: [portainer]
