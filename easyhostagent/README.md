@@ -13,7 +13,7 @@ EasyHostAgent 是直接运行在宿主机上的 Go systemd 服务，不是 Docke
 EASYHOSTAGENT_RELEASE=v0.1.0-appstore.dev
 # 可改为 http；HTTP 明文不适合公网。
 EASYHOSTAGENT_TRANSPORT=https
-EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7014
+EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018
 EASYHOSTAGENT_LOG_LEVEL=info
 EASYHOSTAGENT_DATA_DIR=/var/lib/easyhostagent
 # 留空时使用统一 SOFTWARE_ROOT。
@@ -28,7 +28,7 @@ EASYHOSTAGENT_APP_GRANTS=
 
 - 系统：Linux / fnOS，systemd 作为 init；CPU：AMD64 或 ARM64。
 - 安装依赖：root、Bash、curl、sha256sum、install、mktemp、flock、systemctl；运行 Docker 应用管理功能还需本机可用的 Docker Engine。
-- 监听：默认 `0.0.0.0:7014`，开放范围由防火墙限制。只有在信任隔离网络并配置访问来源限制时才改 `EASYHOSTAGENT_TRANSPORT=http`；HTTP 明文会暴露一次性配对码、Bearer Token 和操作参数，严禁未经保护直接对公网开放。HTTPS 使用 Agent 的自签名证书及 EasyNetTopo 的固定公钥指纹校验。
+- 监听：默认 `0.0.0.0:7018`，开放范围由防火墙限制。只有在信任隔离网络并配置访问来源限制时才改 `EASYHOSTAGENT_TRANSPORT=http`；HTTP 明文会暴露一次性配对码、Bearer Token 和操作参数，严禁未经保护直接对公网开放。HTTPS 使用 Agent 的自签名证书及 EasyNetTopo 的固定公钥指纹校验。
 - 进程以 root 运行以便操作本机 Docker；数据默认在 `/var/lib/easyhostagent`（系统安装器保留），受管应用在 `<SOFTWARE_ROOT>/.easyhostagent-apps/`。
 - Agent 无主动心跳、无定时上报；状态按需查询。未提供强制 CPU/RAM 最小值。
 
@@ -59,16 +59,16 @@ sudo journalctl -u easyhostagent -n 40 --no-pager
 fnOS 在其实际 deploy 仓库目录执行相同相对命令。安装前用 `sudoedit` 按第 1 节配置统一 `.env`。HTTP 模式且监听回环或所有网卡时：
 
 ```bash
-curl -fsS http://127.0.0.1:7014/v1/health
+curl -fsS http://127.0.0.1:7018/v1/health
 ```
 
 HTTPS 自签名模式的**仅用于无凭据健康诊断**的命令：
 
 ```bash
-curl -kfsS https://127.0.0.1:7014/v1/health
+curl -kfsS https://127.0.0.1:7018/v1/health
 ```
 
-`-k` 不能用于控制端配对、令牌操作或实际管理通信。EasyNetTopo 中添加主机时填写 `http://设备IP:7014`（HTTP）或 `设备IP:7014` / `https://设备IP:7014`（HTTPS）。
+`-k` 不能用于控制端配对、令牌操作或实际管理通信。EasyNetTopo 中添加主机时填写 `http://设备IP:7018`（HTTP）或 `设备IP:7018` / `https://设备IP:7018`（HTTPS）。
 
 ## 5. 卸载（保留数据）
 
