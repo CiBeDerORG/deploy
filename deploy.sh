@@ -109,6 +109,7 @@ usage() {
   bash deploy.sh <业务类型> update     同步最新文件后执行 update.sh
   bash deploy.sh <业务类型> sync       仅同步文件，不启动/更新容器
   sudo bash deploy.sh <业务类型> uninstall  卸载支持此操作的业务（默认保留数据）
+  sudo bash deploy.sh easyhostagent force-update  强制在线重新下载并校验指定 Release，保留配对与凭据
   sudo bash deploy.sh easyhostagent pairing  本机生成并打印最新一次性配对信息（不安装、不更新）
   sudo bash deploy.sh easyhostagent grant <控制端UUID> <来源UUID> sub2api portainer  仅在本机授予指定应用权限
   sudo bash deploy.sh mihomo host       原生 systemd 安装完整 Web/Agent/内核（不使用 Docker）
@@ -561,6 +562,10 @@ run_task() {
         update|pull)
             script="$target_dir/deploy/update.sh"
             ;;
+        force-update)
+            [ "$task" = easyhostagent ] || { echo "force-update 仅支持原生 easyhostagent" >&2; return 1; }
+            script="$target_dir/deploy/install.sh"
+            ;;
         host|host-update)
             [ "$task" = mihomo ] || { echo "host/host-update 仅支持 mihomo" >&2; return 1; }
             script="$target_dir/deploy/host-install.sh"
@@ -610,6 +615,8 @@ run_task() {
     echo "执行：$script"
     if [ "$action" = host-update ]; then
         run_root bash "$script" update
+    elif [ "$action" = force-update ]; then
+        run_root bash "$script" force-update
     elif [ "$task" = fnos-desktop ] && [[ "$action" =~ ^(status|start|stop|restart|logs|uninstall)$ ]]; then
         run_root bash "$script" "$action"
     else
@@ -633,7 +640,7 @@ interactive() {
     if [ "$task" = mihomo ]; then
         read -r -p '操作 install/update/sync/host/host-update（默认 Docker install）：' action || return 0
     elif [ "$task" = easyhostagent ]; then
-        read -r -p '操作 install/update/sync/uninstall/pairing（本机授权请用 grant 命令）（默认 install）：' action || return 0
+        read -r -p '操作 install/update/force-update/sync/uninstall/pairing（本机授权请用 grant 命令）（默认 install）：' action || return 0
     elif [ "$task" = fnos-desktop ]; then
         read -r -p '操作 install/update/sync/status/start/stop/restart/logs/uninstall（默认原生 install）：' action || return 0
     elif [ -f "$ROOT_DIR/$task/deploy/uninstall.sh" ]; then
