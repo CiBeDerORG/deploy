@@ -3,7 +3,7 @@ set -Eeuo pipefail
 umask 077
 
 agent_fail() { printf 'EasyHostAgent：%s\n' "$*" >&2; exit 1; }
-(( EUID == 0 )) || agent_fail "需要 root 权限运行 Docker 部署"
+(( EUID == 0 )) || agent_fail "必须使用 sudo 执行原生 Agent 安装"
 mode="${1:-install}"
 case "$mode" in install|update) ;; *) agent_fail "仅支持 install/update" ;; esac
 
@@ -12,85 +12,113 @@ MODULE="$(cd -- "$HERE/.." && pwd)"
 SOFTWARE_ROOT="$(cd -- "$MODULE/.." && pwd)"
 source "$HERE/config.sh"
 
-# 只从统一配置读取参数，禁止外部环境覆盖已保存的设置。
-unset EASYHOSTAGENT_IMAGE EASYHOSTAGENT_RELEASE EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS
+# 以统一 .env 为来源，不信任外部传入的同名环境变量。
+unset EASYHOSTAGENT_RELEASE EASYHOSTAGENT_LOCAL_BINARY EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS
 unset EASYHOSTAGENT_LOG_LEVEL EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT EASYHOSTAGENT_APP_GRANTS
 agent_load_env "$SOFTWARE_ROOT/deploy/.env"
 agent_validate_env
-
-# 先检查原生服务；不自动卸载或覆盖旧 systemd 实例与身份。
-if command -v systemctl >/dev/null 2>&1; then
-    if systemctl is-active --quiet easyhostagent.service || systemctl is-enabled --quiet easyhostagent.service; then
-        agent_fail "原生 easyhostagent.service 仍在运行或开机启动；切换 Docker 前请自行执行 sudo systemctl disable --now easyhostagent.service，原数据目录会保留"
-    fi
-fi
-
 command -v flock >/dev/null || agent_fail "缺少 flock"
-docker compose version >/dev/null || agent_fail "需要 Docker Compose v2"
-docker info >/dev/null || agent_fail "Docker Engine 不可用"
-[[ -S /var/run/docker.sock ]] || agent_fail "需要可访问的宿主机 /var/run/docker.sock"
-mkdir -p -- "$SOFTWARE_ROOT/deploy/state"
+mkdir -p "$SOFTWARE_ROOT/deploy/state"
 exec 8>"$SOFTWARE_ROOT/deploy/state/easyhostagent.lock"
-flock -n 8 || agent_fail "已有 EasyHostAgent 部署操作正在执行"
+flock -n 8 || agent_fail "已有 EasyHostAgent 安装或更新正在运行"
 
-# 保持容器中的应用路径与宿主机完全相同，确保脚本传给宿主机 Docker 的挂载路径正确。
-export DEPLOY_EASYHOSTAGENT_SOFTWARE_ROOT="$EASYHOSTAGENT_SOFTWARE_ROOT"
-export DEPLOY_EASYHOSTAGENT_DATA_DIR="$EASYHOSTAGENT_DATA_DIR"
-export DEPLOY_EASYHOSTAGENT_BIND_IP="${EASYHOSTAGENT_LISTEN_ADDRESS%:*}"
-export DEPLOY_EASYHOSTAGENT_PORT="${EASYHOSTAGENT_LISTEN_ADDRESS##*:}"
-export DEPLOY_EASYHOSTAGENT_IMAGE="$EASYHOSTAGENT_IMAGE"
-export EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_APP_GRANTS EASYHOSTAGENT_LOG_LEVEL
-export TZ="${TZ:-Asia/Shanghai}"
-export DEPLOY_EASYHOSTAGENT_PLATFORM=linux
-if [[ -f /etc/fnos-release ]] || { [[ -r /etc/os-release ]] && grep -Eqi '^(ID|ID_LIKE|NAME)=.*fnos' /etc/os-release; }; then
-    DEPLOY_EASYHOSTAGENT_PLATFORM=fnos
+staging="${EASYHOSTAGENT_STAGING_ROOT:-}"
+test_binary="${EASYHOSTAGENT_TEST_BINARY:-}"
+if [[ -n "$staging" || -n "$test_binary" ]]; then
+    [[ -n "$staging" && -n "$test_binary" ]] ||
+        agent_fail "隔离测试须同时提供 staging 目录和本地测试二进制"
+    [[ "$staging" == /* && -d "$staging" && ! -L "$staging" ]] ||
+        agent_fail "隔离测试目录不可用"
 fi
-export DEPLOY_EASYHOSTAGENT_PLATFORM
+system_prefix="$staging"
+native_config="$system_prefix/etc/easyhostagent/agent.env"
+marker="$system_prefix/etc/easyhostagent/managed-by-installer"
+if [[ -z "$staging" ]] && command -v docker >/dev/null 2>&1 &&
+   docker container inspect easyhostagent >/dev/null 2>&1; then
+    agent_fail "存在 EasyHostAgent Docker 容器；请先单独卸载旧容器，数据目录会保留"
+fi
+if [[ "$mode" == update && ! -f "$marker" ]]; then
+    agent_fail "未发现由官方安装器管理的 Agent；请先执行 install"
+fi
+# 已经安装的 Agent 身份与受管应用依赖原数据目录，不允许普通更新意外迁移。
+if [[ -f "$marker" && -f "$native_config" ]]; then
+    for item in EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT; do
+        previous="$(sed -n "s/^$item=//p" "$native_config" | tail -n 1)"
+        if [[ -n "$previous" && "$previous" != "${!item}" ]]; then
+            agent_fail "已有 $item=$previous 与统一 .env 不一致；请先按现有路径配置，迁移需另行处理"
+        fi
+    done
+fi
 
-if [[ "$EASYHOSTAGENT_DATA_DIR" == "$EASYHOSTAGENT_SOFTWARE_ROOT"/* ]] ||
-   [[ "$EASYHOSTAGENT_SOFTWARE_ROOT" == "$EASYHOSTAGENT_DATA_DIR"/* ]]; then
-    agent_fail "数据目录和软件根目录不能互相包含"
+installer_args=(--software-root "$EASYHOSTAGENT_SOFTWARE_ROOT" --data-dir "$EASYHOSTAGENT_DATA_DIR"
+                --log-level "$EASYHOSTAGENT_LOG_LEVEL" --no-start)
+if [[ -n "$staging" ]]; then
+    # 隔离测试使用明确提供的本地程序，不访问 GitHub、systemd 或 Docker。
+    installer_args+=(--staging-root "$staging" --binary "$test_binary")
+elif [[ -n "$EASYHOSTAGENT_LOCAL_BINARY" ]]; then
+    binary="$EASYHOSTAGENT_LOCAL_BINARY"
+    checksum="$binary.sha256"
+    [[ -f "$binary" && ! -L "$binary" && -r "$binary" ]] || agent_fail "本地安装包不存在或不可读：$binary"
+    [[ -f "$checksum" && ! -L "$checksum" && -r "$checksum" ]] || agent_fail "请一并上传校验文件：$checksum"
+    command -v sha256sum >/dev/null || agent_fail "缺少 sha256sum"
+    [[ "$(wc -l < "$checksum")" -eq 1 ]] || agent_fail "本地校验文件必须只有一行"
+    read -r expected filename < "$checksum" || agent_fail "本地校验文件无法读取"
+    [[ "$expected" =~ ^[0-9a-fA-F]{64}$ && "$filename" == "$(basename -- "$binary")" ]] ||
+        agent_fail "校验文件格式或二进制文件名不匹配"
+    actual="$(sha256sum -- "$binary" | cut -d' ' -f1)"
+    [[ "${actual,,}" == "${expected,,}" ]] || agent_fail "本地安装包 SHA-256 校验失败"
+    tmp_binary="$(mktemp /tmp/easyhostagent-binary.XXXXXXXX)"
+    trap 'rm -f -- "$tmp_binary"' EXIT
+    install -m 0755 -- "$binary" "$tmp_binary"
+    installer_args+=(--binary "$tmp_binary")
+else
+    installer_args+=(--release "$EASYHOSTAGENT_RELEASE")
 fi
-# 数据目录包含 Agent UUID、身份私钥、Token 摘要，默认拒绝接管权限不安全的已有目录。
-if [[ -L "$EASYHOSTAGENT_DATA_DIR" ]]; then
-    agent_fail "数据目录不能是符号链接"
-fi
-if [[ ! -e "$EASYHOSTAGENT_DATA_DIR" ]]; then
-    mkdir -m 0700 -p -- "$EASYHOSTAGENT_DATA_DIR"
-fi
-[[ -d "$EASYHOSTAGENT_DATA_DIR" ]] || agent_fail "Agent 数据目录不可用"
-[[ "$(stat -c '%u:%a' "$EASYHOSTAGENT_DATA_DIR")" == "0:700" ]] ||
-    agent_fail "Agent 数据目录必须由 root 拥有且权限为 0700；不会修改已有目录权限"
-[[ -d "$EASYHOSTAGENT_SOFTWARE_ROOT" && ! -L "$EASYHOSTAGENT_SOFTWARE_ROOT" ]] ||
-    agent_fail "软件根目录不存在或为符号链接"
+# 在线安装由上游安装器下载二进制并校验；离线安装已预校验上传文件。
+bash "$MODULE/native/scripts/install.sh" "${installer_args[@]}"
 
-compose() {
-    docker compose --env-file /dev/null --project-name easyhostagent --project-directory "$HERE" -f "$HERE/docker-compose.yaml" "$@"
+# 仅更新本模块声明的配置项，保留 Agent 的其他独立配置和身份文件。
+agent_merge_native_config() {
+    local file="$1" tmp line key
+    local -A written=()
+    local -a keys=(EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT EASYHOSTAGENT_LOG_LEVEL
+                   EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS EASYHOSTAGENT_APP_GRANTS)
+    [[ -f "$file" && ! -L "$file" ]] || agent_fail "原生配置文件丢失或不是普通文件"
+    tmp="$(mktemp "${file}.XXXXXX")"
+    chmod 0600 "$tmp"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        key="${line%%=*}"
+        case "$key" in
+            EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_APP_GRANTS)
+                if [[ ${written[$key]+yes} ]]; then
+                    rm -f -- "$tmp"
+                    agent_fail "原生配置存在重复键：$key"
+                fi
+                written[$key]=1
+                printf '%s=%s\n' "$key" "${!key}" >> "$tmp" ;;
+            *) printf '%s\n' "$line" >> "$tmp" ;;
+        esac
+    done < "$file"
+    for key in "${keys[@]}"; do
+        if [[ ! ${written[$key]+yes} ]]; then
+            printf '%s=%s\n' "$key" "${!key}" >> "$tmp"
+        fi
+    done
+    chown root:root "$tmp"
+    chmod 0600 "$tmp"
+    mv -f -- "$tmp" "$file"
 }
-# 不允许覆盖其他项目创建的同名 Docker 容器。
-owned="$(docker ps -a --filter label=com.docker.compose.project=easyhostagent --format '{{.Names}}')"
-while IFS= read -r name; do
-    case "$name" in ""|easyhostagent) ;; *) agent_fail "Compose 项目存在不属于本部署的附加容器" ;; esac
-done <<< "$owned"
-if docker container inspect easyhostagent >/dev/null 2>&1; then
-    grep -Fxq easyhostagent <<< "$owned" || agent_fail "同名容器不属于本项目"
-    service="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.service" }}' easyhostagent)"
-    directory="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' easyhostagent)"
-    [[ "$service" == easyhostagent && "$directory" == "$HERE" ]] ||
-        agent_fail "同名容器来自其他服务或部署目录"
-fi
-if [[ "$mode" == update ]] && ! docker container inspect easyhostagent >/dev/null 2>&1; then
-    agent_fail "尚未安装 EasyHostAgent Docker 容器，请先执行 install"
-fi
+agent_merge_native_config "$native_config"
 
-source "$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
-deploy_prepare_images "$SOFTWARE_ROOT" "$SOFTWARE_ROOT/deploy/.env" DEPLOY_EASYHOSTAGENT_IMAGE
-compose config --quiet
-compose pull
-compose up -d --pull never --wait --wait-timeout 180
-
-echo "EasyHostAgent Docker 已就绪：$EASYHOSTAGENT_TRANSPORT://127.0.0.1:$DEPLOY_EASYHOSTAGENT_PORT/v1/health"
-echo "宿主机监听：$EASYHOSTAGENT_LISTEN_ADDRESS；Agent 数据：$EASYHOSTAGENT_DATA_DIR"
+if [[ -z "$staging" ]]; then
+    systemctl enable easyhostagent.service
+    systemctl restart easyhostagent.service ||
+        agent_fail "Agent 服务启动失败；运行 journalctl -u easyhostagent -n 100 查看原因"
+    systemctl is-active --quiet easyhostagent.service ||
+        agent_fail "Agent 未进入 active 状态"
+fi
+echo "EasyHostAgent 已部署，传输：$EASYHOSTAGENT_TRANSPORT，监听：$EASYHOSTAGENT_LISTEN_ADDRESS"
+echo "原生配置：$native_config；身份、授权和已安装应用保留"
 if [[ "$EASYHOSTAGENT_TRANSPORT" == http ]]; then
-    echo "HTTP 模式仅建议用于可信隔离网络；Docker Socket 赋予容器宿主机级管理权限，请限制 7018 端口的访问来源。"
+    echo "注意：HTTP 为明文管理接口，必须在防火墙限制可信来源，禁止直接暴露公网。"
 fi
