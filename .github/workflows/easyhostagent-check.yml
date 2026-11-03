@@ -30,5 +30,16 @@ jobs:
             bash -n "$path"
           done < <(find easyhostagent -type f -name '*.sh' -print0)
           shellcheck --severity=error easyhostagent/deploy/*.sh easyhostagent/tests/*.sh
-      - name: 原生安装、更新、卸载和 HTTP 配置
+      - name: 检查 Compose 单容器配置
+        run: |
+          set -euo pipefail
+          export DEPLOY_EASYHOSTAGENT_IMAGE=ghcr.io/cibederorg/easyhostagent:feat-docker-app-store
+          export DEPLOY_EASYHOSTAGENT_DATA_DIR=/var/lib/easyhostagent
+          export DEPLOY_EASYHOSTAGENT_SOFTWARE_ROOT=/software
+          export DEPLOY_EASYHOSTAGENT_BIND_IP=0.0.0.0
+          export DEPLOY_EASYHOSTAGENT_PORT=7018
+          docker compose --env-file /dev/null -f easyhostagent/deploy/docker-compose.yaml config --quiet
+          docker compose --env-file /dev/null -f easyhostagent/deploy/docker-compose.yaml config --format json |
+            python3 -c 'import json,sys; d=json.load(sys.stdin); s=d["services"]; assert list(s)==["easyhostagent"]; p=s["easyhostagent"]["ports"][0]; assert p["published"]=="7018"; assert any(v["source"]=="/var/run/docker.sock" for v in s["easyhostagent"]["volumes"])'
+      - name: GitHub 镜像安装、更新、卸载及 HTTP 参数回归
         run: sudo bash easyhostagent/tests/deployment.sh
