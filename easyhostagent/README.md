@@ -50,6 +50,15 @@ sudo /usr/local/bin/easyhostagent -identity
 sudo /usr/local/bin/easyhostagent -pairing-code
 ```
 
+**推荐从 deploy 统一入口生成配对信息：**
+
+```bash
+cd /vol3/1000/software/deploy   # fnOS；Ubuntu 通常为 /software/deploy
+sudo bash deploy.sh easyhostagent pairing
+```
+
+该命令不安装、不更新、不下载、不重启 Agent；检查本机 `easyhostagent.service` 正在运行，再从 `/etc/easyhostagent/agent.env` 安全读取实际数据目录，调用原生 `-pairing-code`，打印 Agent ID、TLS 公钥指纹、一次性配对码与 UTC 到期时间。**每次运行都会签发新的 10 分钟一次性码，使上一枚尚未使用的配对码失效**；现有 Agent 身份和已配对控制端授权不会因此被清除。只在可信本机终端运行，不要把输出粘贴到日志、CI 或公开聊天中。
+
 配对码是**本机按需自动生成**的临时凭据，配对成功后的控制端 Token 由 Agent 签发并保存在控制端和 Agent 各自的受保护状态中；它们**不在**统一 `.secrets` 中填写，也不应放进命令参数或聊天记录。配对完成后，在 EasyNetTopo 中获得控制端 UUID 与 Git 来源 UUID，将 `EASYHOSTAGENT_APP_GRANTS` 设置为 `控制端UUID/来源UUID`，执行更新来应用授权。未授权时可查询应用状态，但无法安装/卸载来源应用。
 
 ## 4. 安装和检查
