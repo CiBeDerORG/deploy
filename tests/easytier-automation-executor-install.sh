@@ -54,15 +54,17 @@ sudo env PATH="$tmp/bin:$PATH" MOCK_DOCKER_LOG="$tmp/docker.log" bash "$installe
 grep -q 'update 将按首次安装继续' "$tmp/update.log"
 grep -q '镜像来源：加速站 dockerproxy' "$tmp/update.log"
 grep -q '本次实际拉取镜像：ghcr.dockerproxy.net/cibederorg/easytier-automation-executor:feat-automation-center' "$tmp/update.log"
-grep -Eq '^EASYTIER_EXECUTOR_TOKEN=[[:xdigit:]]{64}$' "$software/deploy/.secrets"
-first_token="$(grep '^EASYTIER_EXECUTOR_TOKEN=' "$software/deploy/.secrets")"
+# The installer deliberately makes .secrets root:root 0600.
+# Inspect as root in this non-root CI test; never relax production permissions.
+sudo grep -Eq '^EASYTIER_EXECUTOR_TOKEN=[[:xdigit:]]{64}$' "$software/deploy/.secrets"
+first_token="$(sudo grep '^EASYTIER_EXECUTOR_TOKEN=' "$software/deploy/.secrets")"
 # Subsequent install uses the NEXT shared proxy, with the existing Token unchanged.
 sudo env PATH="$tmp/bin:$PATH" MOCK_DOCKER_LOG="$tmp/docker.log" bash "$installer" install >"$tmp/install.log" 2>&1 || {
   cat "$tmp/install.log"; exit 1;
 }
 grep -q '镜像来源：加速站 ghproxy' "$tmp/install.log"
 grep -q '本次实际拉取镜像：gh-proxy.com/docker/ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center' "$tmp/install.log"
-test "$first_token" = "$(grep '^EASYTIER_EXECUTOR_TOKEN=' "$software/deploy/.secrets")"
+test "$first_token" = "$(sudo grep '^EASYTIER_EXECUTOR_TOKEN=' "$software/deploy/.secrets")"
 grep -Fx 'pull:ghcr.dockerproxy.net/cibederorg/easytier-automation-executor:feat-automation-center' "$tmp/docker.log" >/dev/null
 grep -Fx 'pull:gh-proxy.com/docker/ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center' "$tmp/docker.log" >/dev/null
 test "$(grep -c '^pull:' "$tmp/docker.log")" -eq 2
