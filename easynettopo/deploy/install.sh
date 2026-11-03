@@ -25,7 +25,6 @@ export EASYNETTOPO_GIT_ALLOWED_HOSTS="${EASYNETTOPO_GIT_ALLOWED_HOSTS:-github.co
 export EASYNETTOPO_GIT_ALLOW_HTTP="${EASYNETTOPO_GIT_ALLOW_HTTP:-false}"
 export TZ="${TZ:-Asia/Shanghai}"
 export DEPLOY_EASYNETTOPO_IMAGE="${EASYNETTOPO_IMAGE:-ghcr.io/cibederorg/easynettopo:feat-docker-app-store}"
-export DEPLOY_EASYNETTOPO_GATEWAY_IMAGE=caddy:2.10-alpine
 [[ "$EASYNETTOPO_HTTP_PORT" =~ ^[0-9]{1,5}$ ]] && (( 10#$EASYNETTOPO_HTTP_PORT >= 1 && 10#$EASYNETTOPO_HTTP_PORT <= 65535 )) ||
     fail "端口应为 1–65535 的整数"
 [[ "$DEPLOY_EASYNETTOPO_IMAGE" =~ ^[a-zA-Z0-9][a-zA-Z0-9._/@:-]*$ ]] || fail "镜像引用无效"
@@ -73,7 +72,8 @@ flock -n 8 || fail "本机已有 EasyNetTopo 部署操作正在运行"
 verify_ownership
 
 if [[ "$mode" == uninstall ]]; then
-    compose down
+    # 连同旧版双容器部署遗留的 gateway 一并移除，不影响其他 Compose 项目。
+    compose down --remove-orphans
     echo "EasyNetTopo 已卸载，数据库、SSH 配置和统一配置均已保留。"
     exit 0
 fi
@@ -85,15 +85,14 @@ ensure_private_dir "$BASE_DIR/ssh"
 
 # 安装和更新只选一次镜像站；配置、拉取和启动共用这次解析得到的镜像引用。
 source "$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
-deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_EASYNETTOPO_IMAGE DEPLOY_EASYNETTOPO_GATEWAY_IMAGE
+deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_EASYNETTOPO_IMAGE
 compose config --quiet
 if [[ "$DEPLOY_EASYNETTOPO_IMAGE" == easynettopo:local ]]; then
     docker image inspect "$DEPLOY_EASYNETTOPO_IMAGE" >/dev/null || fail "请先从 EasyNetTopo 源码构建 easynettopo:local"
-    compose pull gateway
 else
     compose pull
 fi
-# 两个服务共用网络命名空间，更新时交给同一次 Compose 操作协调重建。
-compose up -d --pull never --wait --wait-timeout 180
+# --remove-orphans 清理旧版同项目 Caddy 网关；上方 verify_ownership 已限定允许的容器名和归属。
+compose up -d --remove-orphans --pull never --wait --wait-timeout 180
 bootstrap_admin
 echo "EasyNetTopo 已就绪：http://127.0.0.1:$EASYNETTOPO_HTTP_PORT"
