@@ -22,7 +22,8 @@ opencode/
     ├── docker-compose.yaml
     ├── docker-entrypoint.sh
     ├── install.sh
-    └── update.sh
+    ├── update.sh
+    └── uninstall.sh
 ```
 
 实际部署后位于：
@@ -53,7 +54,7 @@ BUILD_NO_PROXY=127.0.0.1,localhost
 OPENCODE_SERVER_PASSWORD=
 ```
 
-`OPENCODE_SERVER_PASSWORD` 为必填项。
+`OPENCODE_SERVER_PASSWORD` 可选；首次留空时部署脚本生成随机密码，保存到统一 `.secrets`（root:root、0600）。已有非空密码更新时原样保留。不要把真实密码提交到 Git。
 
 OpenCode V2 当前 Basic Auth 用户名固定为：
 
@@ -184,3 +185,23 @@ docker compose build --pull --progress=plain opencode
 ```
 
 如果使用代理，优先确认 Docker 是否能访问宿主机代理。
+
+## 应用商店与安全卸载
+
+在 EasyNetTopo 中同步包含 `opencode/app.yaml` 的 Deploy Git 来源，并在目标 EasyHostAgent 授权后，可安装、更新、强制更新或卸载 Docker 版 OpenCode。Agent 安装使用独立受管目录，保留用户的 `config/opencode.jsonc`、数据和工作区；已有受控 Compose 项目会按严格的 Compose 工作目录核对后显示其运行状态。
+
+历史 OpenCode 版本如果未给 Compose 设置 `name: opencode`，旧容器可能属于名为 `deploy` 的项目。商店仅**只读关联其状态**，不会直接接管或创建同名容器。迁移前应先核对 `docker inspect opencode` 的 Compose 标签并备份工作区。
+
+通过原生 deploy 命令管理（fnOS 示例）：
+
+```bash
+cd /vol3/1000/software/deploy
+sudo bash deploy.sh env
+sudo bash deploy.sh opencode install
+sudo bash deploy.sh opencode update
+sudo bash deploy.sh opencode uninstall
+```
+
+Ubuntu 默认软件目录为 `/software`，实际以 `.env` 中 `SOFTWARE_ROOT` 为准。Docker 与 Compose v2 为必需依赖；安装时构建本地 `opencode-local:latest` 镜像，访问地址为 `http://<服务器IP>:7003`（或自行配置的 `OPENCODE_PORT`）。
+
+默认卸载只停止并删除本项目容器/网络，不清除 `config/`、`data/`、`state/`、`workspace/`、用户密码和全局配置。强制更新在商店由 Agent 使用已授权 Git 包重新运行受控更新脚本，可能重新创建容器；不会自动删除工作区。
