@@ -44,6 +44,14 @@ uploaded="$tmp/easyhostagent-linux-amd64"
 cp "$EASYHOSTAGENT_TEST_BINARY" "$uploaded"
 (cd "$tmp" && sha256sum easyhostagent-linux-amd64 > easyhostagent-linux-amd64.sha256)
 sed -i "s#^EASYHOSTAGENT_LOCAL_BINARY=.*#EASYHOSTAGENT_LOCAL_BINARY=$uploaded#" "$file"
+# SHA 校验失败时，现有安装和身份状态不应受到影响。
+printf 'tampered' >> "$uploaded"
+if bash deploy.sh easyhostagent update > "$tmp/bad-checksum.log" 2>&1; then
+    echo "未拒绝篡改的 Agent 本地二进制" >&2; exit 1
+fi
+grep -F 'SHA-256 校验失败' "$tmp/bad-checksum.log" >/dev/null
+test "$(cat "$persisted")" = persisted-identity
+cp "$EASYHOSTAGENT_TEST_BINARY" "$uploaded"
 bash deploy.sh easyhostagent update > "$tmp/update.log" 2>&1 || { cat "$tmp/update.log"; exit 1; }
 grep -qx 'EASYHOSTAGENT_TRANSPORT=http' "$native"
 grep -qx 'EASYHOSTAGENT_LISTEN_ADDRESS=127.0.0.1:7018' "$native"
