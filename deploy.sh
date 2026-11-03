@@ -545,6 +545,7 @@ run_task() {
             # 一次性配对只调用已安装的原生 Agent，不能触发同步、安装或配置初始化。
             run_root bash "$script"
             return $?
+            ;;
         install|up)
             script="$target_dir/deploy/install.sh"
             ;;
