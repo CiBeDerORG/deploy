@@ -23,8 +23,8 @@ services:
       EASYNETTOPO_GIT_ALLOWED_HOSTS: "${EASYNETTOPO_GIT_ALLOWED_HOSTS:-github.com}"
       EASYNETTOPO_GIT_ALLOW_HTTP: "${EASYNETTOPO_GIT_ALLOW_HTTP:-false}"
     ports:
-      # 默认仅宿主机回环可访问，其他设备须通过受保护的 HTTPS 反向代理。
-      - "127.0.0.1:${EASYNETTOPO_HTTP_PORT:-7017}:8080"
+      # 宿主机监听地址由统一 .env 控制：0.0.0.0 为所有 IPv4 网卡，127.0.0.1 仅本机。
+      - "${EASYNETTOPO_BIND_IP:-0.0.0.0}:${EASYNETTOPO_HTTP_PORT:-7017}:8080"
     volumes:
       - ../data:/data
       - ../ssh:/home/easynettopo/.ssh:ro
