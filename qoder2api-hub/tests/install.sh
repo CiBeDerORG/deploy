@@ -60,8 +60,10 @@ sudo env PATH="$tmp/bin:$PATH" MOCK_DOCKER_LOG="$tmp/docker.log" MOCK_CONTAINER_
 TEST_PHASE=first-install-assertions
 grep -q '镜像来源：加速站 dockerproxy' "$tmp/install.log"
 grep -q 'ghcr.dockerproxy.net/shuishuipingan/qoder2api-hub:latest' "$tmp/install.log"
-test -d "$software/qoder2api-hub/data/accounts"
-test -d "$software/qoder2api-hub/data/usage"
+# The installer creates private root-owned state; verify directories without
+# relaxing directory permissions just to satisfy a non-root CI runner.
+sudo test -d "$software/qoder2api-hub/data/accounts"
+sudo test -d "$software/qoder2api-hub/data/usage"
 TEST_PHASE=update
 sudo env PATH="$tmp/bin:$PATH" MOCK_DOCKER_LOG="$tmp/docker.log" MOCK_CONTAINER_STATE="$tmp/container-state" bash "$installer" update > "$tmp/update.log" 2>&1 || { cat "$tmp/update.log"; exit 1; }
 TEST_PHASE=update-assertions
