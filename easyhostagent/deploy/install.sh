@@ -5,7 +5,7 @@ umask 077
 agent_fail() { printf 'EasyHostAgent：%s\n' "$*" >&2; exit 1; }
 (( EUID == 0 )) || agent_fail "必须使用 sudo 执行原生 Agent 安装"
 mode="${1:-install}"
-case "$mode" in install|update) ;; *) agent_fail "仅支持 install/update" ;; esac
+case "$mode" in install|update|force-update) ;; *) agent_fail "仅支持 install/update/force-update" ;; esac
 
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 MODULE="$(cd -- "$HERE/.." && pwd)"
@@ -37,7 +37,7 @@ if [[ -z "$staging" ]] && command -v docker >/dev/null 2>&1 &&
    docker container inspect easyhostagent >/dev/null 2>&1; then
     agent_fail "存在 EasyHostAgent Docker 容器；请先单独卸载旧容器，数据目录会保留"
 fi
-if [[ "$mode" == update && ! -f "$marker" ]]; then
+if [[ "$mode" != install && ! -f "$marker" ]]; then
     agent_fail "未发现由官方安装器管理的 Agent；请先执行 install"
 fi
 # 已经安装的 Agent 身份与受管应用依赖原数据目录，不允许普通更新意外迁移。
@@ -55,7 +55,8 @@ installer_args=(--software-root "$EASYHOSTAGENT_SOFTWARE_ROOT" --data-dir "$EASY
 if [[ -n "$staging" ]]; then
     installer_args+=(--staging-root "$staging")
 fi
-if [[ -n "$EASYHOSTAGENT_LOCAL_BINARY" ]]; then
+# 强制更新明确忽略本地包选项，重新获取并校验所配置 Release 的最新发布资产。
+if [[ -n "$EASYHOSTAGENT_LOCAL_BINARY" && "$mode" != force-update ]]; then
     binary="$EASYHOSTAGENT_LOCAL_BINARY"
     checksum="$binary.sha256"
     [[ -f "$binary" && ! -L "$binary" && -r "$binary" ]] || agent_fail "本地安装包不存在或不可读：$binary"
