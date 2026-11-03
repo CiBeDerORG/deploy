@@ -47,6 +47,10 @@ services:
     read_only: true
     cap_drop:
       - ALL
+    # 官方 Caddy 二进制带 cap_net_bind_service 文件能力；完全移除 capability 会导致 exec EPERM。
+    # 只恢复启动该二进制所需的 NET_BIND_SERVICE，不扩大其他权限。
+    cap_add:
+      - NET_BIND_SERVICE
     security_opt:
       - no-new-privileges:true
     volumes:
