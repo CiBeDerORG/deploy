@@ -45,7 +45,7 @@ EASYNETTOPO_ADMIN_USERNAME=admin
 EASYNETTOPO_ADMIN_PASSWORD=
 ```
 
-账号留空使用 `admin`。指定账号须为 3–32 个字符，以英文字母开头，后续可用字母、数字、下划线、点和连字符。指定密码须为 12–72 个 UTF-8 字节，支持空格、中文及标点，须能写在单行配置中。同名键只写一次。规则来自 [EasyNetTopo 管理员创建逻辑](https://github.com/CiBeDerORG/EasyNetTopo/blob/82df3cfabecf1b01186c19a7d439ab335c270e49/internal/storage/store.go) 和[一次性输入格式](https://github.com/CiBeDerORG/EasyNetTopo/blob/82df3cfabecf1b01186c19a7d439ab335c270e49/cmd/easynettopo/admin.go)。
+账号留空使用 `admin`，密码留空时首次安装自动生成。**不再对管理员账号或密码施加字母开头、字符种类或自定义长度限制**：短密码、中文、空格、标点和长密码均可原样使用。Go 后端使用完整密码的 SHA-256 摘要再交给 bcrypt 计算哈希，以规避 bcrypt 原生 72 字节输入上限，同时兼容旧版 bcrypt 密码哈希。`.secrets` 采用单行 `KEY=VALUE` 格式，因此账号和密码须分别写在单行内；不要在日志中展示凭据。同名键只写一次。登录 HTTP 请求及本地初始化通道均有 1 MiB 的传输体积保护，不属于密码复杂度限制。
 
 数据库尚无管理员且密码留空时，脚本生成 48 位十六进制随机密码，先写回 `.secrets`，再通过标准输入初始化。已经有管理员时，重装或更新沿用原账号和密码。只在可信终端查看自动生成的密码，避免分享输出。
 
