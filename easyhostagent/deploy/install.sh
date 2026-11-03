@@ -75,9 +75,24 @@ elif [[ -n "$staging" ]]; then
     # 隔离测试默认用指定的替身二进制，绝不访问生产 systemd。
     installer_args+=(--binary "$test_binary")
 else
-    installer_args+=(--release "$EASYHOSTAGENT_RELEASE")
+    # 在线模式先用公共 Release 来源轮换下载，校验成功才交给原生安装器。
+    downloader="$SOFTWARE_ROOT/deploy/lib/release-sources.sh"
+    [[ -f "$downloader" && ! -L "$downloader" ]] || agent_fail "公共 Release 下载模块不存在，请更新 deploy 仓库"
+    source "$downloader"
+    case "$(uname -m)" in
+        x86_64|amd64) asset="easyhostagent-linux-amd64" ;;
+        aarch64|arm64) asset="easyhostagent-linux-arm64" ;;
+        *) agent_fail "不支持的 CPU 架构" ;;
+    esac
+    tmp_release="$(mktemp -d /tmp/easyhostagent-release.XXXXXXXX)"
+    trap 'rm -rf -- "$tmp_release"' EXIT
+    release_base="https://github.com/CiBeDerORG/EasyHostAgent/releases/download/$EASYHOSTAGENT_RELEASE"
+    deploy_download_github_release_pair "$SOFTWARE_ROOT" "$SOFTWARE_ROOT/deploy/.env" "$release_base" "$asset" "$tmp_release" ||
+        agent_fail "全部下载源失败或校验未通过，现有 Agent 未替换"
+    chmod 0755 "$tmp_release/$asset"
+    installer_args+=(--binary "$tmp_release/$asset")
 fi
-# 在线安装由上游安装器下载二进制并校验；离线安装已预校验上传文件。
+# 本地上传和在线下载都先通过 SHA-256 校验，再由上游原生安装器安装。
 bash "$MODULE/native/scripts/install.sh" "${installer_args[@]}"
 
 # 仅更新本模块声明的配置项，保留 Agent 的其他独立配置和身份文件。
