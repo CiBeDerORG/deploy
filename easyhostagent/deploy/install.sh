@@ -36,6 +36,15 @@ marker="$system_prefix/etc/easyhostagent/managed-by-installer"
 if [[ "$mode" == update && ! -f "$marker" ]]; then
     agent_fail "未发现由官方安装器管理的 Agent；请先执行 install"
 fi
+# 已经安装的 Agent 身份与受管应用依赖原数据目录，不允许普通更新意外迁移。
+if [[ -f "$marker" && -f "$native_config" ]]; then
+    for item in EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT; do
+        previous="$(sed -n "s/^$item=//p" "$native_config" | tail -n 1)"
+        if [[ -n "$previous" && "$previous" != "${!item}" ]]; then
+            agent_fail "已有 $item=$previous 与统一 .env 不一致；请先按现有路径配置，迁移需另行处理"
+        fi
+    done
+fi
 
 installer_args=(--software-root "$EASYHOSTAGENT_SOFTWARE_ROOT" --data-dir "$EASYHOSTAGENT_DATA_DIR"
                 --log-level "$EASYHOSTAGENT_LOG_LEVEL" --no-start)
