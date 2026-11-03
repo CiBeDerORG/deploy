@@ -12,7 +12,7 @@ agent_load_env() {
         key="${line%%=*}"
         key="${key%"${key##*[![:space:]]}"}"
         case "$key" in
-            EASYHOSTAGENT_RELEASE|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_APP_GRANTS) ;;
+            EASYHOSTAGENT_IMAGE|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_APP_GRANTS) ;;
             *) continue ;;
         esac
         [[ ! ${seen[$key]+ok} ]] || agent_fail "重复配置：$key"
@@ -34,15 +34,15 @@ agent_valid_path() {
 }
 
 agent_validate_env() {
-    EASYHOSTAGENT_RELEASE="${EASYHOSTAGENT_RELEASE:-v0.1.0-appstore.dev}"
+    EASYHOSTAGENT_IMAGE="${EASYHOSTAGENT_IMAGE:-ghcr.io/cibederorg/easyhostagent:feat-docker-app-store}"
     EASYHOSTAGENT_TRANSPORT="${EASYHOSTAGENT_TRANSPORT:-https}"
     EASYHOSTAGENT_LISTEN_ADDRESS="${EASYHOSTAGENT_LISTEN_ADDRESS:-0.0.0.0:7018}"
     EASYHOSTAGENT_LOG_LEVEL="${EASYHOSTAGENT_LOG_LEVEL:-info}"
     EASYHOSTAGENT_DATA_DIR="${EASYHOSTAGENT_DATA_DIR:-/var/lib/easyhostagent}"
     EASYHOSTAGENT_SOFTWARE_ROOT="${EASYHOSTAGENT_SOFTWARE_ROOT:-$SOFTWARE_ROOT}"
     EASYHOSTAGENT_APP_GRANTS="${EASYHOSTAGENT_APP_GRANTS:-}"
-    [[ "$EASYHOSTAGENT_RELEASE" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?$ ]] ||
-        agent_fail "Release 版本格式不合法"
+    [[ "$EASYHOSTAGENT_IMAGE" =~ ^[A-Za-z0-9][A-Za-z0-9._/@:-]*$ ]] ||
+        agent_fail "Docker 镜像引用格式不合法"
     case "$EASYHOSTAGENT_TRANSPORT" in http|https) ;; *) agent_fail "传输模式应为 http 或 https" ;; esac
     case "$EASYHOSTAGENT_LOG_LEVEL" in debug|info|warn|error) ;; *) agent_fail "日志等级无效" ;; esac
     [[ "$EASYHOSTAGENT_LISTEN_ADDRESS" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}$ ]] ||
