@@ -68,6 +68,16 @@ class ManifestValidationTests(unittest.TestCase):
                 self.assertEqual(result["compose_project"], name)
                 self.assertIn("web", (result["primary_port_id"],))
 
+    def test_mihomo_and_opencode_production_manifests(self):
+        # 新增应用必须使用与已有 Docker 应用相同的真实文件校验路径。
+        for name in ("mihomo", "opencode"):
+            with self.subTest(name=name):
+                result = validate(ROOT / name / "app.yaml", ROOT)
+                self.assertEqual(result["id"], name)
+                self.assertEqual(result["compose_project"], name)
+                self.assertGreater(result["package_file_count"], 5)
+                self.assertEqual(result["primary_port_id"], "web")
+
     def test_published_app_id_and_location_must_match(self):
         path = self.root / "sub2api/app.yaml"
         shutil.copy(self.fixture("portainer")[0], path)
