@@ -33,16 +33,25 @@ class EasyNetTopoSub2APITests(unittest.TestCase):
             "sub2api/deploy/docker-compose.yaml",
             "sub2api/deploy/install.sh",
             "sub2api/deploy/update.sh",
+            "sub2api/deploy/uninstall.sh",
             "sub2api/deploy/lib.sh",
             "deploy/lib/image-sources.sh",
         }
         self.assertEqual(set(files), required)
         self.assertEqual(files["sub2api/deploy/install.sh"]["mode"], "0755")
         self.assertEqual(files["sub2api/deploy/update.sh"]["mode"], "0755")
+        self.assertEqual(files["sub2api/deploy/uninstall.sh"]["mode"], "0755")
         self.assertFalse(any(".env" in p or ".secrets" in p or "/data/" in p
                              for p in files))
         # app.yaml 随发布包的元数据单独携带，不要求把 manifest 自己放进 package.files。
         self.assertEqual(self.manifest["actions"]["install"]["path"], "deploy/install.sh")
+        self.assertEqual(self.manifest["actions"]["update"]["path"], "deploy/update.sh")
+        self.assertEqual(self.manifest["actions"]["uninstall"]["path"], "deploy/uninstall.sh")
+        script = (ROOT / "sub2api/deploy/uninstall.sh").read_text(encoding="utf-8")
+        self.assertIn("verify_container_owner", script)
+        self.assertIn("docker compose", script)
+        self.assertNotIn("--volumes", script)
+        self.assertNotIn("rm -rf", script)
 
     def test_agent_must_prepare_global_configuration_before_installer(self):
         script = (ROOT / "sub2api/deploy/install.sh").read_text(encoding="utf-8")
