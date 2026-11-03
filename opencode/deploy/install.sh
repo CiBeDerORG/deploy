@@ -231,8 +231,27 @@ case "$MODE" in
         ;;
 esac
 
+# 密码留空时首次安全生成并持久化；已有非空密码一律保持不变。
+generate_opencode_password() {
+    [[ -z "${OPENCODE_SERVER_PASSWORD:-}" ]] || return 0
+    local value tmp
+    value="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \\n')"
+    [[ "$value" =~ ^[a-f0-9]{64}$ ]] || { echo "无法生成 OpenCode 密码" >&2; return 1; }
+    tmp="$(mktemp "${SECRETS_FILE}.tmp.XXXXXXXX")"
+    chmod 0600 "$tmp"
+    awk '!/^[[:space:]]*OPENCODE_SERVER_PASSWORD[[:space:]]*=/' "$SECRETS_FILE" > "$tmp"
+    printf 'OPENCODE_SERVER_PASSWORD=%s\\n' "$value" >> "$tmp"
+    chown root:root "$tmp"
+    chmod 0600 "$tmp"
+    mv -f -- "$tmp" "$SECRETS_FILE"
+    OPENCODE_SERVER_PASSWORD="$value"
+    export OPENCODE_SERVER_PASSWORD
+    echo "OpenCode 首次密码已写入统一 .secrets（值不输出）。"
+}
+
 check_runtime
 prepare_env
+generate_opencode_password
 validate_build_proxy
 
 [ -d "$DEPLOY_DIR" ] || {
