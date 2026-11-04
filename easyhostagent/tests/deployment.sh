@@ -32,6 +32,7 @@ grep -qx 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$file"
 grep -qx 'EASYHOSTAGENT_TRANSPORT=https' "$file"
 grep -qx 'EASYHOSTAGENT_LOCAL_BINARY=' "$file"
 grep -qx 'EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018' "$file"
+grep -qx 'EASYHOSTAGENT_PLATFORM=' "$file"
 bash deploy.sh easyhostagent install > "$tmp/install.log" 2>&1 || { cat "$tmp/install.log"; exit 1; }
 test -f "$SOFTWARE_ROOT/deploy/lib/release-sources.sh"
 native="$EASYHOSTAGENT_STAGING_ROOT/etc/easyhostagent/agent.env"
@@ -40,6 +41,7 @@ test -f "$EASYHOSTAGENT_STAGING_ROOT/etc/easyhostagent/managed-by-installer"
 test -x "$EASYHOSTAGENT_STAGING_ROOT/usr/local/bin/easyhostagent"
 grep -qx 'EASYHOSTAGENT_TRANSPORT=https' "$native"
 grep -qx "EASYHOSTAGENT_SOFTWARE_ROOT=$SOFTWARE_ROOT" "$native"
+! grep -q '^EASYHOSTAGENT_PLATFORM=' "$native"
 test "$(stat -c '%a' "$native")" = 600
 
 # pairing 只调用原生 Agent，在没有安装/同步操作时读取原生 EnvironmentFile。
@@ -64,6 +66,8 @@ sed -i 's|^EASYHOSTAGENT_RELEASE=.*|EASYHOSTAGENT_RELEASE = "v0.1.0-appstore.dev
 persisted="$EASYHOSTAGENT_STAGING_ROOT/var/lib/easyhostagent/identity.json"
 printf 'persisted-identity' > "$persisted"
 printf 'CUSTOM_AGENT_SETTING=keep\n' >> "$native"
+# 显式 fnOS 配置必须传递给原生 Agent，而不是被安装脚本忽略。
+sed -i 's/^EASYHOSTAGENT_PLATFORM=.*/EASYHOSTAGENT_PLATFORM=fnos/' "$file"
 sed -i 's/^EASYHOSTAGENT_TRANSPORT=.*/EASYHOSTAGENT_TRANSPORT=http/' "$file"
 sed -i 's/^EASYHOSTAGENT_LISTEN_ADDRESS=.*/EASYHOSTAGENT_LISTEN_ADDRESS=127.0.0.1:7018/' "$file"
 # 历史用户的授权配置即使存在也仅作兼容保留；新安装不再创建该键。
@@ -89,10 +93,23 @@ grep -qx 'EASYHOSTAGENT_TRANSPORT=http' "$native"
 grep -Fxq 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$file"
 grep -qx 'EASYHOSTAGENT_LISTEN_ADDRESS=127.0.0.1:7018' "$native"
 grep -qx 'CUSTOM_AGENT_SETTING=keep' "$native"
+grep -qx 'EASYHOSTAGENT_PLATFORM=fnos' "$native"
 grep -Fxq "EASYHOSTAGENT_APP_GRANTS=$legacy_grant" "$native"
 # 老配置值只保留，不应重复写入或自动扩大授权范围。
 test "$(grep -c '^EASYHOSTAGENT_APP_GRANTS=' "$native")" -eq 1
 test "$(cat "$persisted")" = persisted-identity
+
+# 不接受无效平台，已有原生平台与配对数据不得修改。
+sed -i 's/^EASYHOSTAGENT_PLATFORM=.*/EASYHOSTAGENT_PLATFORM=unknown/' "$file"
+if bash deploy.sh easyhostagent update > "$tmp/invalid-platform.log" 2>&1; then
+    echo "Agent 接受了非法平台" >&2; exit 1
+fi
+grep -Fq 'Agent 平台只能为' "$tmp/invalid-platform.log"
+grep -qx 'EASYHOSTAGENT_PLATFORM=fnos' "$native"
+sed -i 's/^EASYHOSTAGENT_PLATFORM=.*/EASYHOSTAGENT_PLATFORM=/' "$file"
+# 留空平台时，原生配置已有的显式平台值仍需保留。
+bash deploy.sh easyhostagent update > "$tmp/empty-platform.log" 2>&1 || { cat "$tmp/empty-platform.log"; exit 1; }
+grep -qx 'EASYHOSTAGENT_PLATFORM=fnos' "$native"
 
 # 不接受注入、无效端口或重复配置；失败不得破坏已生效的 Agent 配置。
 sed -i 's/^EASYHOSTAGENT_TRANSPORT=.*/EASYHOSTAGENT_TRANSPORT=http;false/' "$file"

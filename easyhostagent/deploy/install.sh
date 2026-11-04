@@ -14,7 +14,7 @@ source "$HERE/config.sh"
 
 # 以统一 .env 为来源，不信任外部传入的同名环境变量。
 unset EASYHOSTAGENT_RELEASE EASYHOSTAGENT_LOCAL_BINARY EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS
-unset EASYHOSTAGENT_LOG_LEVEL EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT
+unset EASYHOSTAGENT_LOG_LEVEL EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT EASYHOSTAGENT_PLATFORM
 source_migration="$SOFTWARE_ROOT/deploy/lib/source-migration.sh"
 [[ -f "$source_migration" && ! -L "$source_migration" && "$(stat -c '%u:%g:%a' "$source_migration")" == "0:0:644" ]] ||
     agent_fail "可信来源迁移模块缺失或权限不安全，请从最新 deploy 仓库执行 update"
@@ -109,13 +109,22 @@ agent_merge_native_config() {
     local -A written=()
     local -a keys=(EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT EASYHOSTAGENT_LOG_LEVEL
                    EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS)
+    # 未显式填写平台时，保留原生配置已有值，由 Agent 自行检测。
+    if [[ -n "$EASYHOSTAGENT_PLATFORM" ]]; then
+        keys+=(EASYHOSTAGENT_PLATFORM)
+    fi
     [[ -f "$file" && ! -L "$file" ]] || agent_fail "原生配置文件丢失或不是普通文件"
     tmp="$(mktemp "${file}.XXXXXX")"
     chmod 0600 "$tmp"
     while IFS= read -r line || [[ -n "$line" ]]; do
         key="${line%%=*}"
         case "$key" in
-            EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS)
+            EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_PLATFORM)
+                if [[ "$key" == EASYHOSTAGENT_PLATFORM && -z "$EASYHOSTAGENT_PLATFORM" ]]; then
+                    # 统一配置未覆盖平台，不能擦除用户原有的原生显式设置。
+                    printf '%s\n' "$line" >> "$tmp"
+                    continue
+                fi
                 if [[ ${written[$key]+yes} ]]; then
                     rm -f -- "$tmp"
                     agent_fail "原生配置存在重复键：$key"

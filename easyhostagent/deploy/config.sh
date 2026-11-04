@@ -12,7 +12,7 @@ agent_load_env() {
         key="${line%%=*}"
         key="${key%"${key##*[![:space:]]}"}"
         case "$key" in
-            EASYHOSTAGENT_RELEASE|EASYHOSTAGENT_LOCAL_BINARY|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT) ;;
+            EASYHOSTAGENT_RELEASE|EASYHOSTAGENT_LOCAL_BINARY|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_PLATFORM) ;;
             *) continue ;;
         esac
         [[ ! ${seen[$key]+ok} ]] || agent_fail "重复配置：$key"
@@ -41,12 +41,14 @@ agent_validate_env() {
     EASYHOSTAGENT_LOG_LEVEL="${EASYHOSTAGENT_LOG_LEVEL:-info}"
     EASYHOSTAGENT_DATA_DIR="${EASYHOSTAGENT_DATA_DIR:-/var/lib/easyhostagent}"
     EASYHOSTAGENT_SOFTWARE_ROOT="${EASYHOSTAGENT_SOFTWARE_ROOT:-$SOFTWARE_ROOT}"
+    EASYHOSTAGENT_PLATFORM="${EASYHOSTAGENT_PLATFORM:-}"
     [[ "$EASYHOSTAGENT_RELEASE" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?$ ]] ||
         agent_fail "Release 版本格式不合法"
     if [[ -n "$EASYHOSTAGENT_LOCAL_BINARY" ]]; then
         agent_valid_path EASYHOSTAGENT_LOCAL_BINARY "$EASYHOSTAGENT_LOCAL_BINARY"
     fi
     case "$EASYHOSTAGENT_TRANSPORT" in http|https) ;; *) agent_fail "传输模式应为 http 或 https" ;; esac
+    case "$EASYHOSTAGENT_PLATFORM" in ''|fnos|linux) ;; *) agent_fail "Agent 平台只能为 fnos、linux 或留空自动识别" ;; esac
     case "$EASYHOSTAGENT_LOG_LEVEL" in debug|info|warn|error) ;; *) agent_fail "日志等级无效" ;; esac
     [[ "$EASYHOSTAGENT_LISTEN_ADDRESS" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}$ ]] ||
         agent_fail "监听地址应为 IPv4:端口"
