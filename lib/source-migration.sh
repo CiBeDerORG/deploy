@@ -22,7 +22,7 @@ deploy_migrate_published_default() {
                     count++
                     value=trim(substr(match_line,sep+1))
                     quote=substr(value,1,1)
-                    if (length(value)>=2 && (quote=="\\"" || quote=="\047") &&
+                    if (length(value)>=2 && (quote==sprintf("%c",34) || quote==sprintf("%c",39)) &&
                         substr(value,length(value),1)==quote) {
                         value=substr(value,2,length(value)-2)
                     }
