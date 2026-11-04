@@ -44,18 +44,21 @@ bash deploy.sh env >/dev/null
 settings="$SOFTWARE_ROOT/deploy/.env"
 secrets="$SOFTWARE_ROOT/deploy/.secrets"
 sed -i 's/^DOCKER_IMAGE_SOURCE=.*/DOCKER_IMAGE_SOURCE=mirror/' "$settings"
+# 模拟以前版本的统一 .env；新 deploy update 必须安全替换旧默认标签。
+sed -i 's|^EASYNETTOPO_IMAGE=.*|EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle|' "$settings"
 grep -qx 'EASYNETTOPO_BIND_IP=0.0.0.0' "$settings"
 password='密 码#= "x" @$()!'\'''
 printf 'EASYNETTOPO_ADMIN_USERNAME =operator_01\r\nEASYNETTOPO_ADMIN_PASSWORD="%s"\r\nOTHER_TEST_KEY=keep\n' "$password" > "$secrets"
 deploy_app() { bash deploy.sh easynettopo "$1" >> "$tmp/output" 2>&1 || { cat "$tmp/output" >&2; return 1; }; }
 deploy_app install
+grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' "$settings"
 printf 'operator_01\n%s\n' "$password" | cmp - "$tmp/stdin"
-grep -F 'ghcr.dockerproxy.net/cibederorg/easynettopo:feat-docker-app-store 0.0.0.0 ' "$tmp/docker-calls" > /dev/null
+grep -F 'ghcr.dockerproxy.net/cibederorg/easynettopo:feat-deploy-manifest-lifecycle 0.0.0.0 ' "$tmp/docker-calls" > /dev/null
 if grep -F -- "$password" "$tmp/docker-calls" "$tmp/output" >/dev/null; then exit 1; fi
 sed -i '/EASYNETTOPO_ADMIN_PASSWORD/c\EASYNETTOPO_ADMIN_PASSWORD=' "$secrets"
 sed -i 's/^EASYNETTOPO_BIND_IP=.*/EASYNETTOPO_BIND_IP=127.0.0.1/' "$settings"
 deploy_app update
-grep -F 'gh-proxy.com/docker/ghcr.io/cibederorg/easynettopo:feat-docker-app-store 127.0.0.1 ' "$tmp/docker-calls" >/dev/null
+grep -F 'gh-proxy.com/docker/ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle 127.0.0.1 ' "$tmp/docker-calls" >/dev/null
 sed -i 's/^EASYNETTOPO_BIND_IP=.*/EASYNETTOPO_BIND_IP=300.168.1.4/' "$settings"
 if bash deploy.sh easynettopo install > "$tmp/invalid-ip-output" 2>&1; then
     echo '无效监听 IPv4 未被拒绝' >&2
@@ -91,6 +94,7 @@ done
 sed -i 's|^EASYNETTOPO_IMAGE=.*|EASYNETTOPO_IMAGE=easynettopo:local|' "$settings"
 before="$(cat "$SOFTWARE_ROOT/deploy/state/image-mirror.last")"
 deploy_app install
+grep -Fxq 'EASYNETTOPO_IMAGE=easynettopo:local' "$settings"
 grep -F 'easynettopo:local 0.0.0.0 ' "$tmp/docker-calls" | grep -F ' up -d --remove-orphans ' >/dev/null
 if grep -F 'easynettopo:local 0.0.0.0 ' "$tmp/docker-calls" | grep -F ' pull' > /dev/null; then
     echo '本地镜像安装不应拉取旧网关或远端镜像' >&2

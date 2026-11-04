@@ -1,11 +1,11 @@
 # EasyNetTopo 部署
 
-从 deploy 仓库根目录运行以下命令。EasyNetTopo 使用单个 Go 容器直接提供前端页面和 HTTP API，不再依赖 Caddy 网关。默认镜像 `ghcr.io/cibederorg/easynettopo:feat-docker-app-store` 由通用应用商店分支构建，支持 amd64 和 arm64。已有安装要切换到此版本时，先修改统一 `.env` 中的 `EASYNETTOPO_IMAGE`，再执行更新。
+从 deploy 仓库根目录运行以下命令。EasyNetTopo 使用单个 Go 容器直接提供前端页面和 HTTP API，不再依赖 Caddy 网关。默认镜像 `ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle` 由应用生命周期开发分支构建，支持 amd64 和 arm64。对旧版官方默认镜像标签，更新脚本会自动迁移统一 `.env`，无需手动修改；自定义镜像标签和 `easynettopo:local` 不会被覆盖。
 
 ## 1. 配置文件
 
 ```bash
-git switch feat/docker-app-store
+git switch main
 sudo bash deploy.sh env
 ```
 
@@ -22,7 +22,7 @@ sudo bash deploy.sh env
 TZ=Asia/Shanghai
 EASYNETTOPO_HTTP_PORT=7017
 EASYNETTOPO_BIND_IP=0.0.0.0
-EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-docker-app-store
+EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle
 EASYNETTOPO_GIT_ALLOWED_HOSTS=github.com
 EASYNETTOPO_GIT_ALLOW_HTTP=false
 DOCKER_IMAGE_SOURCE=original
@@ -86,7 +86,8 @@ sudo bash deploy.sh easynettopo uninstall
 ## 6. 更新
 
 ```bash
+git pull --ff-only origin main
 sudo bash deploy.sh easynettopo update
 ```
 
-更新保留数据库及凭据，并按当前 `.env` 中的 `EASYNETTOPO_BIND_IP` 重新绑定宿主机端口。GitHub Actions 发布的默认 GHCR 分支镜像无需在目标机器编译，更新命令会直接重新拉取；如选用自建 `easynettopo:local`，则需自行更新该镜像。
+从最新 deploy 运行更新，脚本会在校验旧值后将 `EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-docker-app-store` 自动改为 `ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle`，随后拉取最新移动标签镜像；若你明确填写了其他镜像或本地镜像，则保持不变。更新保留数据库及凭据，并按当前 `.env` 中的 `EASYNETTOPO_BIND_IP` 重新绑定宿主机端口。GitHub Actions 发布的默认 GHCR 分支镜像无需在目标机器编译，更新命令会直接重新拉取；如选用自建 `easynettopo:local`，则需自行更新该镜像。

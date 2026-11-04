@@ -13,7 +13,7 @@ EasyHostAgent 是直接运行在宿主机上的 Go systemd 服务，不是 Docke
 GITHUB_RELEASE_SOURCE=mirror
 GITHUB_RELEASE_MIRRORS=ghproxy,ghfast,ghproxy-net
 # GitHub Actions 构建的开发版 Release，发布包附有 SHA-256。
-EASYHOSTAGENT_RELEASE=v0.1.0-appstore.dev
+EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev
 # 可选，手动上传时填写绝对路径；留空从 GitHub Release 下载。
 EASYHOSTAGENT_LOCAL_BINARY=
 # 可改为 http；HTTP 明文不适合公网。
@@ -29,7 +29,7 @@ EASYHOSTAGENT_SOFTWARE_ROOT=
 
 **GitHub Release 文件加速**：在统一 `.env` 中设置 `GITHUB_RELEASE_SOURCE=mirror`，`GITHUB_RELEASE_MIRRORS` 默认顺序为 `ghproxy,ghfast,ghproxy-net`，分别对应 `gh-proxy.org`、`ghfast.top`、`ghproxy.net`。每次在线安装/更新从上一次首选站的下一个站开始；下载失败或 SHA-256 不一致则尝试下一站，最后尝试 GitHub 原站。轮换状态保存在 `<SOFTWARE_ROOT>/deploy/state/github-release-mirror.last`，不影响 Docker 的 `DOCKER_IMAGE_SOURCE`。`original` 仅直连官方，指定 `EASYHOSTAGENT_LOCAL_BINARY` 时不下载文件也不推进轮换。第三方代理不能等同于官方可信发布源；滚动开发版资产还可能存在缓存滞后，重要环境建议使用不可变版本并核对官方校验值。
 
-安装后将配置同步到 `/etc/easyhostagent/agent.env`，保留其中其他非托管配置项。安装、更新不会重置 Agent 身份、配对授权或已有应用状态。开发版 `v0.1.0-appstore.dev` 是**发布资产可更新的滚动标签**；生产机器建议改为明确、不可变的正式版本号。相应的 AMD64 / ARM64 二进制、同名 `.sha256` 均由 GitHub Actions 生成。
+安装后将配置同步到 `/etc/easyhostagent/agent.env`，保留其中其他非托管配置项。安装、更新不会重置 Agent 身份、配对授权或已有应用状态。开发版 `v0.1.0-deploy-manifest-lifecycle.dev` 是**发布资产可更新的滚动标签**；生产机器建议改为明确、不可变的正式版本号。相应的 AMD64 / ARM64 二进制、同名 `.sha256` 均由 GitHub Actions 生成。
 
 ## 2. 运行条件和网络
 
@@ -65,8 +65,8 @@ sudo bash deploy.sh easyhostagent pairing
 
 ```bash
 cd /software/deploy
-git switch feat/docker-app-store
-git pull --ff-only origin feat/docker-app-store
+git switch main
+git pull --ff-only origin main
 sudo bash deploy.sh env
 sudo bash deploy.sh easyhostagent install
 
@@ -100,13 +100,13 @@ sudo bash deploy.sh easyhostagent uninstall
 
 ```bash
 cd /software/deploy
-git pull --ff-only origin feat/docker-app-store
+git pull --ff-only origin main
 sudo bash deploy.sh easyhostagent update
 # 忽略已配置的 EASYHOSTAGENT_LOCAL_BINARY，强制重新下载并校验当前 Release：
 sudo bash deploy.sh easyhostagent force-update
 ```
 
-普通更新按 `EASYHOSTAGENT_LOCAL_BINARY` 选择使用本地包或 GitHub Release；`force-update` 无视本地包设置，强制重新下载当前 `EASYHOSTAGENT_RELEASE` 指向的发布资产并校验 SHA-256，并验证 SHA-256 后替换二进制，再同步 Agent 配置项并重启 systemd；现有身份、配对凭据、应用目录和 Docker 容器保留。更新过程中如发生下载或校验错误，公共下载模块会切换来源；全部失败则在替换二进制前退出。已存在由其他安装器管理的同名服务时会拒绝接管。如果此前已安装 EasyHostAgent Docker 容器，须先安全停止并移除该旧容器；新安装器会检测同名容器并拒绝同时运行，避免两个 Agent 共用端口与身份数据。
+普通更新会把统一 `.env` 中的旧官方默认 Release `v0.1.0-appstore.dev` 自动更新为 `v0.1.0-deploy-manifest-lifecycle.dev`，再按 `EASYHOSTAGENT_LOCAL_BINARY` 选择使用本地包或 GitHub Release；自定义 Release 标签及本地包配置保留不变。`force-update` 无视本地包设置，强制重新下载当前 `EASYHOSTAGENT_RELEASE` 指向的发布资产并校验 SHA-256，并验证 SHA-256 后替换二进制，再同步 Agent 配置项并重启 systemd；现有身份、配对凭据、应用目录和 Docker 容器保留。更新过程中如发生下载或校验错误，公共下载模块会切换来源；全部失败则在替换二进制前退出。已存在由其他安装器管理的同名服务时会拒绝接管。如果此前已安装 EasyHostAgent Docker 容器，须先安全停止并移除该旧容器；新安装器会检测同名容器并拒绝同时运行，避免两个 Agent 共用端口与身份数据。
 
 ## 7. Deploy 应用目录与自动关联
 
@@ -127,4 +127,4 @@ EasyHostAgent 自身是 systemd 原生服务，首次安装与卸载仍只能在
 - **连通性**：Agent 重启时短暂断联正常。控制端对比更新前后的 `agent_started_at`，只有配对身份仍有效且确认已重启，才报告「已重新连通」；这不等价于验证发布版本已更新。超过 10 分钟未确认重启并重新连接，只展示异常排查信息，不反复弹出离线失败提示。
 - **排查**：在目标主机执行 `sudo systemctl status easyhostagent --no-pager`、`sudo journalctl -u easyhostagent-self-update.service -n 100 --no-pager`，并检查下载来源、版本配置以及监听地址。Agent 更新脚本的运行输出不回传控制端，避免意外泄露配置和凭据。
 
-首次使用远程自更新前，需要在目标主机手动安装一次包含该 API 的新版 Agent；旧版 Agent 不会自动获得新接口。
+首次使用远程自更新前，需要在目标主机通过最新 deploy 手动更新一次包含该 API 的新版 Agent；该更新同步的受信任脚本会自动迁移旧默认 Release。旧版 Agent 不会自动获得新接口。

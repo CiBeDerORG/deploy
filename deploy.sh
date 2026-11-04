@@ -434,7 +434,7 @@ resolve_task() {
 sync_shared_libraries() {
     local target_dir="$GLOBAL_ENV_DIR/lib"
     local source_file target_file staged_file module
-    local -a modules=(image-sources.sh release-sources.sh)
+    local -a modules=(image-sources.sh release-sources.sh source-migration.sh)
     run_root mkdir -p "$target_dir" || return $?
 
     for module in "${modules[@]}"; do

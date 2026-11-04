@@ -2,7 +2,7 @@ name: easynettopo
 
 services:
   easynettopo:
-    image: "${DEPLOY_EASYNETTOPO_IMAGE:-ghcr.io/cibederorg/easynettopo:feat-docker-app-store}"
+    image: "${DEPLOY_EASYNETTOPO_IMAGE:-ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle}"
     container_name: easynettopo
     restart: unless-stopped
     init: true

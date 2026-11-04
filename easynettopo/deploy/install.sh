@@ -19,13 +19,22 @@ source "$DEPLOY_DIR/config.sh"
 unset EASYNETTOPO_ADMIN_USERNAME EASYNETTOPO_ADMIN_PASSWORD EASYNETTOPO_IMAGE EASYNETTOPO_HTTP_PORT EASYNETTOPO_BIND_IP
 unset EASYNETTOPO_GIT_ALLOWED_HOSTS EASYNETTOPO_GIT_ALLOW_HTTP TZ
 [[ -f "$ENV_FILE" ]] || fail "请先执行 sudo bash deploy.sh env"
+source_migration="$SOFTWARE_ROOT/deploy/lib/source-migration.sh"
+[[ -f "$source_migration" && ! -L "$source_migration" && "$(stat -c '%u:%g:%a' "$source_migration")" == "0:0:644" ]] ||
+    fail "可信来源迁移模块缺失或权限不安全，请从最新 deploy 仓库执行 update"
+source "$source_migration"
+if [[ "$mode" != uninstall ]]; then
+    deploy_migrate_published_default "$ENV_FILE" EASYNETTOPO_IMAGE \
+        "ghcr.io/cibederorg/easynettopo:feat-docker-app-store" \
+        "ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle" || fail "迁移镜像默认值失败"
+fi
 load_settings "$ENV_FILE" env
 export EASYNETTOPO_HTTP_PORT="${EASYNETTOPO_HTTP_PORT:-7017}"
 export EASYNETTOPO_BIND_IP="${EASYNETTOPO_BIND_IP:-0.0.0.0}"
 export EASYNETTOPO_GIT_ALLOWED_HOSTS="${EASYNETTOPO_GIT_ALLOWED_HOSTS:-github.com}"
 export EASYNETTOPO_GIT_ALLOW_HTTP="${EASYNETTOPO_GIT_ALLOW_HTTP:-false}"
 export TZ="${TZ:-Asia/Shanghai}"
-export DEPLOY_EASYNETTOPO_IMAGE="${EASYNETTOPO_IMAGE:-ghcr.io/cibederorg/easynettopo:feat-docker-app-store}"
+export DEPLOY_EASYNETTOPO_IMAGE="${EASYNETTOPO_IMAGE:-ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle}"
 [[ "$EASYNETTOPO_HTTP_PORT" =~ ^[0-9]{1,5}$ ]] && (( 10#$EASYNETTOPO_HTTP_PORT >= 1 && 10#$EASYNETTOPO_HTTP_PORT <= 65535 )) ||
     fail "端口应为 1–65535 的整数"
 # 仅接受有效的 IPv4 主机绑定地址，避免 Compose 误解析端口或配置注入。

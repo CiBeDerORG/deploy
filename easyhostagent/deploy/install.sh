@@ -15,6 +15,13 @@ source "$HERE/config.sh"
 # 以统一 .env 为来源，不信任外部传入的同名环境变量。
 unset EASYHOSTAGENT_RELEASE EASYHOSTAGENT_LOCAL_BINARY EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS
 unset EASYHOSTAGENT_LOG_LEVEL EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT
+source_migration="$SOFTWARE_ROOT/deploy/lib/source-migration.sh"
+[[ -f "$source_migration" && ! -L "$source_migration" && "$(stat -c '%u:%g:%a' "$source_migration")" == "0:0:644" ]] ||
+    agent_fail "可信来源迁移模块缺失或权限不安全，请从最新 deploy 仓库执行 update"
+source "$source_migration"
+deploy_migrate_published_default "$SOFTWARE_ROOT/deploy/.env" EASYHOSTAGENT_RELEASE \
+    "v0.1.0-appstore.dev" \
+    "v0.1.0-deploy-manifest-lifecycle.dev" || agent_fail "迁移原生 Release 默认值失败"
 agent_load_env "$SOFTWARE_ROOT/deploy/.env"
 agent_validate_env
 command -v flock >/dev/null || agent_fail "缺少 flock"
