@@ -116,4 +116,15 @@ sudo bash deploy.sh easyhostagent force-update
 
 如果旧部署脚本缺失或不安全，可明确确认强制更新，由 Agent 从固定 Git 包按清单修复允许的普通部署文件，再执行更新；不会写入 `.env`、`.secrets` 或 `data`。新应用和旧应用都应通过可信来源版本、应用 ID 和 Compose 身份验证。
 
-EasyHostAgent 自身是 systemd 原生服务，不可在尚未运行时依赖自身安装，也不能直接通过自身完成卸载。EasyNetTopo 仍通过原生 Agent 卡片提供安装、更新、强制更新和卸载的主机终端命令。
+EasyHostAgent 自身是 systemd 原生服务，首次安装与卸载仍只能在目标主机终端完成。**EasyNetTopo 原生 Agent 卡片不提供卸载按钮；对已配对且在线的 Agent 提供可直接下发的「更新」「强制更新」操作。**
+
+## 8. EasyNetTopo 远程自更新与恢复判定
+
+控制端通过已配对的 Bearer Token 发送固定的 `POST /v1/host/maintenance/update` 或 `POST /v1/host/maintenance/force-update`。Agent 在 HTTP 返回 `202 queued` 后，使用独立的 systemd 延迟任务执行原生安装器，避免由自身进程直接重启自身造成任务丢失。请求不接受脚本路径、Shell 内容、额外参数或远程卸载。仅当 Agent 以 root 运行、系统安装标识存在、Deploy 脚本与配置文件安全可读、`systemd-run` 可用时允许排队；任务本身使用原有固定版本下载和 SHA-256 校验机制。
+
+- **更新**：继续使用 `<SOFTWARE_ROOT>/easyhostagent/deploy/update.sh`，优先按统一 `.env` 中配置的本地安装包更新；否则下载 `EASYHOSTAGENT_RELEASE`。
+- **强制更新**：使用 `<SOFTWARE_ROOT>/easyhostagent/deploy/install.sh force-update`，忽略本地安装包并重新下载当前配置的 Release，验证校验和后替换二进制。
+- **连通性**：Agent 重启时短暂断联正常。控制端对比更新前后的 `agent_started_at`，只有配对身份仍有效且确认已重启，才报告「已重新连通」；这不等价于验证发布版本已更新。超过 10 分钟未确认重启并重新连接，只展示异常排查信息，不反复弹出离线失败提示。
+- **排查**：在目标主机执行 `sudo systemctl status easyhostagent --no-pager`、`sudo journalctl -u easyhostagent-self-update.service -n 100 --no-pager`，并检查下载来源、版本配置以及监听地址。Agent 更新脚本的运行输出不回传控制端，避免意外泄露配置和凭据。
+
+首次使用远程自更新前，需要在目标主机手动安装一次包含该 API 的新版 Agent；旧版 Agent 不会自动获得新接口。
