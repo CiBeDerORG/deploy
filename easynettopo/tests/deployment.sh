@@ -57,7 +57,11 @@ grep -F 'ghcr.dockerproxy.net/cibederorg/easynettopo:feat-deploy-manifest-lifecy
 if grep -F -- "$password" "$tmp/docker-calls" "$tmp/output" >/dev/null; then exit 1; fi
 sed -i '/EASYNETTOPO_ADMIN_PASSWORD/c\EASYNETTOPO_ADMIN_PASSWORD=' "$secrets"
 sed -i 's/^EASYNETTOPO_BIND_IP=.*/EASYNETTOPO_BIND_IP=127.0.0.1/' "$settings"
+# 引号、空格格式的旧默认值也要自动迁移，且只能出现一个键。
+sed -i 's|^EASYNETTOPO_IMAGE=.*|EASYNETTOPO_IMAGE = "ghcr.io/cibederorg/easynettopo:feat-docker-app-store"|' "$settings"
 deploy_app update
+grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' "$settings"
+test "$(grep -Ec '^EASYNETTOPO_IMAGE=' "$settings")" -eq 1
 grep -F 'gh-proxy.com/docker/ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle 127.0.0.1 ' "$tmp/docker-calls" >/dev/null
 sed -i 's/^EASYNETTOPO_BIND_IP=.*/EASYNETTOPO_BIND_IP=300.168.1.4/' "$settings"
 if bash deploy.sh easynettopo install > "$tmp/invalid-ip-output" 2>&1; then
@@ -91,6 +95,17 @@ for blank in 'EASYNETTOPO_ADMIN_PASSWORD =' 'EASYNETTOPO_ADMIN_PASSWORD=""' miss
     grep -qx "EASYNETTOPO_ADMIN_PASSWORD=$generated" "$secrets"
 done
 
+# 重复键不得悄悄覆盖用户配置，失败时保持原文件不变。
+source "$SOFTWARE_ROOT/deploy/lib/source-migration.sh"
+cp "$settings" "$tmp/duplicate-source.env"
+printf 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-docker-app-store\n' >> "$tmp/duplicate-source.env"
+before_dup="$(sha256sum "$tmp/duplicate-source.env" | cut -d ' ' -f1)"
+if deploy_migrate_published_default "$tmp/duplicate-source.env" EASYNETTOPO_IMAGE \
+    'ghcr.io/cibederorg/easynettopo:feat-docker-app-store' 'ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' > "$tmp/duplicate-output" 2>&1; then
+    echo '重复镜像配置不应自动迁移' >&2
+    exit 1
+fi
+test "$(sha256sum "$tmp/duplicate-source.env" | cut -d ' ' -f1)" = "$before_dup"
 sed -i 's|^EASYNETTOPO_IMAGE=.*|EASYNETTOPO_IMAGE=easynettopo:local|' "$settings"
 before="$(cat "$SOFTWARE_ROOT/deploy/state/image-mirror.last")"
 deploy_app install
