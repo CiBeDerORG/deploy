@@ -440,12 +440,22 @@ sync_shared_libraries() {
     for module in "${modules[@]}"; do
         source_file="$ROOT_DIR/lib/$module"
         target_file="$target_dir/$module"
-        [ -f "$source_file" ] || {
-            echo "公共下载模块缺失：$source_file，请完整更新 deploy 仓库。" >&2
+        [ -f "$source_file" ] && [ ! -L "$source_file" ] || {
+            echo "公共下载模块缺失或是符号链接：$source_file，请完整更新 deploy 仓库。" >&2
             return 1
         }
-        # 仓库可能位于 <SOFTWARE_ROOT>/deploy，禁止将同一文件复制覆盖自身。
+        [ ! -L "$target_file" ] || {
+            echo "公共下载模块目标不能是符号链接：$target_file" >&2
+            return 1
+        }
+        # 仓库本身位于 <SOFTWARE_ROOT>/deploy 时，文件即目标路径。
+        # 不能覆盖自身，但需要恢复 root:root/0644，保证高权限 Agent 自更新可验证可信脚本。
         if [ -e "$target_file" ] && [ "$source_file" -ef "$target_file" ]; then
+            if ! run_root chown root:root "$target_file" ||
+               ! run_root chmod 0644 "$target_file"; then
+                echo "调整公共下载模块权限失败：$target_file" >&2
+                return 1
+            fi
             continue
         fi
         staged_file="$(run_root mktemp "$target_dir/.shared-library.XXXXXXXX")" || return $?
