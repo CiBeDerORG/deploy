@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/macos-deploy-entry-20261106
+      - feat/macos-easyhostagent-phase1-20261106
     paths:
       - deploy.sh
       - macos/**
