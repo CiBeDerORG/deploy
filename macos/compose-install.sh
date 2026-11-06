@@ -120,8 +120,14 @@ prepare_portainer_config() {
     [[ -n "$PORTAINER_HTTP_PORT" ]] || PORTAINER_HTTP_PORT="$(read_global PORTAINER_HTTP_PORT)"
     [[ -n "$PORTAINER_ADMIN_PASSWORD" ]] || PORTAINER_ADMIN_PASSWORD="$(read_secret PORTAINER_ADMIN_PASSWORD)"
     validate_port "$PORTAINER_HTTP_PORT"
+    if [[ -z "$PORTAINER_ADMIN_PASSWORD" ]]; then
+        PORTAINER_ADMIN_PASSWORD="$(openssl rand -hex 24)" ||
+            die "无法为 Portainer 生成安全管理员密码"
+        [[ "${#PORTAINER_ADMIN_PASSWORD}" -eq 48 ]] || die "生成的 Portainer 密码长度错误"
+        persist_secret_password "$config/.secrets" PORTAINER_ADMIN_PASSWORD "$PORTAINER_ADMIN_PASSWORD"
+    fi
     [[ "${#PORTAINER_ADMIN_PASSWORD}" -ge 12 ]] ||
-        die "需要在 $config/.secrets 填写至少 12 位的 PORTAINER_ADMIN_PASSWORD"
+        die "Portainer 管理员密码至少需要 12 位"
     [[ -S /var/run/docker.sock ]] || die "Portainer 需要 /var/run/docker.sock；请在 Docker Desktop Settings > Advanced 启用默认 Docker socket"
     DEPLOY_PORTAINER_IMAGE=portainer/portainer-ce:lts
     export PORTAINER_HTTP_PORT PORTAINER_ADMIN_PASSWORD DEPLOY_PORTAINER_IMAGE
@@ -153,18 +159,21 @@ prepare_easynettopo_config() {
     export EASYNETTOPO_GIT_ALLOW_HTTP DEPLOY_EASYNETTOPO_IMAGE EASYNETTOPO_MACOS_UID EASYNETTOPO_MACOS_GID
 }
 
-persist_admin_password() {
-    local secret="$1" tmp line found=0
+persist_secret_password() {
+    local secret="$1" key="$2" value="$3" tmp line found=0
+    case "$key" in PORTAINER_ADMIN_PASSWORD|EASYNETTOPO_ADMIN_PASSWORD) ;; *) die "无效的密钥名称" ;; esac
+    [[ -f "$secret" && ! -L "$secret" && "$(stat -f '%Lp' "$secret")" == 600 ]] ||
+        die "密钥文件必须是受保护的普通文件"
     tmp="$(mktemp "$secret.tmp.XXXXXXXX")" || die "无法创建密码临时文件"
     while IFS= read -r line || [[ -n "$line" ]]; do
-        if [[ "$line" =~ ^[[:space:]]*EASYNETTOPO_ADMIN_PASSWORD[[:space:]]*= ]]; then
-            printf 'EASYNETTOPO_ADMIN_PASSWORD=%s\n' "$EASYNETTOPO_ADMIN_PASSWORD"
+        if [[ "$line" =~ ^[[:space:]]*$key[[:space:]]*= ]]; then
+            printf '%s=%s\n' "$key" "$value"
             found=1
         else
             printf '%s\n' "$line"
         fi
     done < "$secret" > "$tmp"
-    [[ "$found" -eq 1 ]] || printf 'EASYNETTOPO_ADMIN_PASSWORD=%s\n' "$EASYNETTOPO_ADMIN_PASSWORD" >> "$tmp"
+    [[ "$found" -eq 1 ]] || printf '%s=%s\n' "$key" "$value" >> "$tmp"
     chmod 0600 "$tmp"
     mv "$tmp" "$secret"
 }
@@ -180,7 +189,7 @@ bootstrap_admin() {
     if [[ -z "$EASYNETTOPO_ADMIN_PASSWORD" ]]; then
         EASYNETTOPO_ADMIN_PASSWORD="$(openssl rand -hex 24)"
         [[ "${#EASYNETTOPO_ADMIN_PASSWORD}" -eq 48 ]] || die "无法生成管理员密码"
-        persist_admin_password "$SECRETS_FILE"
+        persist_secret_password "$SECRETS_FILE" EASYNETTOPO_ADMIN_PASSWORD "$EASYNETTOPO_ADMIN_PASSWORD"
     fi
     printf '%s\n%s\n' "$EASYNETTOPO_ADMIN_USERNAME" "$EASYNETTOPO_ADMIN_PASSWORD" |
         compose exec -T easynettopo /usr/local/bin/easynettopo admin init --stdin ||
