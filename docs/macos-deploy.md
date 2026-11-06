@@ -45,13 +45,13 @@ bash deploy.sh easynettopo install
 bash deploy.sh easynettopo update
 bash deploy.sh easynettopo uninstall
 
-# Portainer：先编辑 /opt/software/portainer/config/.secrets 写入 PORTAINER_ADMIN_PASSWORD
+# Portainer：首次可留空，安装器自动生成管理员密码并保存到 config/.secrets；也可预先填写自定义密码
 bash deploy.sh portainer install
 bash deploy.sh portainer update
 bash deploy.sh portainer uninstall
 ```
 
-安装器执行 Portainer 首次安装时若尚未配置密码，会初始化受保护的 `/opt/software/portainer/config/.secrets` 并提示填写，再次运行即可。旧版统一 `deploy/.secrets` 的密码作为缺失值的迁移来源。EasyNetTopo 首次初始化会自动生成随机管理员密码并保存于统一 `deploy/.secrets`，不会输出密码到日志。
+Portainer 首次安装如未设置密码，会使用安全随机源生成 48 位十六进制管理员密码，写入受保护的 `/opt/software/portainer/config/.secrets`；已有非空值不会被轮换。旧版统一 `deploy/.secrets` 的非空密码优先作为迁移来源。EasyNetTopo 首次初始化会自动生成随机管理员密码并保存于统一 `deploy/.secrets`，不会输出密码到日志。
 
 配置文件权限为当前登录用户 `0600`，**绝不通过 `source .env` 执行配置内容**。部署互斥锁使用 macOS 原生 `lockf`。默认保持 `DOCKER_IMAGE_SOURCE=original`；当前 Mac 入口遇到镜像源 `mirror` 会明确拒绝，暂未移植 GHCR 镜像轮换。安装与更新将拉取镜像；无法连接仓库时会失败但保留原有数据。
 
