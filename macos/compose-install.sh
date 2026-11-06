@@ -122,6 +122,7 @@ prepare_portainer_config() {
     validate_port "$PORTAINER_HTTP_PORT"
     [[ "${#PORTAINER_ADMIN_PASSWORD}" -ge 12 ]] ||
         die "需要在 $config/.secrets 填写至少 12 位的 PORTAINER_ADMIN_PASSWORD"
+    [[ -S /var/run/docker.sock ]] || die "Portainer 需要 /var/run/docker.sock；请在 Docker Desktop Settings > Advanced 启用默认 Docker socket"
     DEPLOY_PORTAINER_IMAGE=portainer/portainer-ce:lts
     export PORTAINER_HTTP_PORT PORTAINER_ADMIN_PASSWORD DEPLOY_PORTAINER_IMAGE
 }
@@ -188,6 +189,16 @@ bootstrap_admin() {
     echo "EasyNetTopo 管理员已初始化；密码保存在 $SECRETS_FILE"
 }
 
+# 卸载也必须能解析 Compose 的 macOS UID/GID 和 Portainer secret。
+if [[ "$TASK" == easynettopo ]]; then
+    EASYNETTOPO_MACOS_UID="$(id -u)"
+    EASYNETTOPO_MACOS_GID="$(id -g)"
+    export EASYNETTOPO_MACOS_UID EASYNETTOPO_MACOS_GID
+else
+    PORTAINER_ADMIN_PASSWORD="$(read_value "$BASE_DIR/config/.secrets" PORTAINER_ADMIN_PASSWORD)"
+    [[ -n "$PORTAINER_ADMIN_PASSWORD" ]] || PORTAINER_ADMIN_PASSWORD="$(read_secret PORTAINER_ADMIN_PASSWORD)"
+    export PORTAINER_ADMIN_PASSWORD
+fi
 verify_ownership
 if [[ "$ACTION" == uninstall ]]; then
     compose down --remove-orphans
