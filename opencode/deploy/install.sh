@@ -263,7 +263,7 @@ generate_opencode_password() {
     printf 'OPENCODE_SERVER_PASSWORD=%s\n' "$value" >> "$tmp"
     deploy_chown_if_needed root:root "$tmp"
     chmod 0600 "$tmp"
-    mv -f -- "$tmp" "$SECRETS_FILE"
+    mv -f "$tmp" "$SECRETS_FILE"
     OPENCODE_SERVER_PASSWORD="$value"
     export OPENCODE_SERVER_PASSWORD
     echo "OpenCode 首次密码已写入应用 .secrets（值不输出）。"

@@ -199,7 +199,7 @@ _deploy_image_pick() (
 )
 
 # Do not accept inherited environment as a prepared deployment. Cached choices
-# remain in this Bash process only and are checked against $ and root.
+# remain in this Bash process only and are checked against the current Bash process and root.
 _DEPLOY_IMAGE_PICK_PID=''
 _DEPLOY_IMAGE_PICK_ROOT=''
 _DEPLOY_IMAGE_PICK_LIST=''
@@ -230,13 +230,13 @@ deploy_prepare_images() {
         fi
     done
     if [ "$_dim_source" = mirror ] && (( ${#_dim_remote[@]} > 0 )); then
-        if [ "${_DEPLOY_IMAGE_PICK_PID:-}" = "$" ] &&
+        if [ "${_DEPLOY_IMAGE_PICK_PID:-}" = "$$" ] &&
            [ "${_DEPLOY_IMAGE_PICK_ROOT:-}" = "$_dim_root" ] &&
            [ "${_DEPLOY_IMAGE_PICK_LIST:-}" = "$_dim_list" ]; then
             _dim_provider="$_DEPLOY_IMAGE_PICK_PROVIDER"
         else
             _dim_provider="$(_deploy_image_pick "$_dim_root" "$_dim_list")" || return 1
-            _DEPLOY_IMAGE_PICK_PID="$"
+            _DEPLOY_IMAGE_PICK_PID="$$"
             _DEPLOY_IMAGE_PICK_ROOT="$_dim_root"
             _DEPLOY_IMAGE_PICK_LIST="$_dim_list"
             _DEPLOY_IMAGE_PICK_PROVIDER="$_dim_provider"
