@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Shared by this service's install and update entry points.
-fail() { echo "部署错误：$*" >&2; exit 1; }
+PLATFORM_LIB="$SOFTWARE_ROOT/deploy/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$SOFTWARE_ROOT/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || { echo "缺少跨平台 Deploy 辅助脚本。" >&2; exit 1; }
+# shellcheck source=../../lib/platform.sh
+source "$PLATFORM_LIB"
+fail { echo "部署错误：$*" >&2; exit 1; }
 require_root() {
-    if [ "$(id -u)" -ne 0 ]; then
-        if command -v sudo >/dev/null 2>&1; then exec sudo -- bash "$0" "$@"; fi
-        fail "请使用 root 或 sudo 执行。"
-    fi
+    deploy_require_root "$@" || fail "请使用 root 或 sudo 执行。"
 }
 check_docker() {
     command -v docker >/dev/null 2>&1 || fail "请先安装 Docker。"
@@ -45,8 +47,7 @@ load_global_config() {
         return $?
     fi
     [ -f "$ENV_FILE" ] && [ -f "$SECRETS_FILE" ] || fail "请先执行 sudo bash deploy.sh env"
-    chown root:root "$ENV_FILE" "$SECRETS_FILE"
-    chmod 0600 "$ENV_FILE" "$SECRETS_FILE"
+    deploy_secure_config_files "$ENV_FILE" "$SECRETS_FILE" || fail "无法安全设置统一配置文件权限"
     load_dotenv_file "$ENV_FILE"
     load_dotenv_file "$SECRETS_FILE"
 }
@@ -76,7 +77,7 @@ ensure_hex_secret() {
     if [ "$definitions" -gt 1 ]; then
         fail "$key 在 .secrets 中重复定义，请保留一行（原文件未修改）"
     elif [ "$definitions" -eq 1 ]; then
-        sed -i -E "s|^[[:space:]]*${key}[[:space:]]*=.*$|$key=$generated|" "$SECRETS_FILE"
+        deploy_sed_in_place -E "s|^[[:space:]]*${key}[[:space:]]*=.*$|$key=$generated|" "$SECRETS_FILE"
     else
         printf '%s=%s\n' "$key" "$generated" >> "$SECRETS_FILE"
     fi

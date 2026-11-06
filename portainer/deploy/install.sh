@@ -6,18 +6,15 @@ fi
 
 set -Eeuo pipefail
 
-if [ "$(id -u)" -ne 0 ]; then
-    if command -v sudo >/dev/null 2>&1; then
-        exec sudo -- bash "$0" "$@"
-    fi
-
-    echo "需要 root 权限执行该脚本，请使用 sudo。" >&2
-    exit 1
-fi
-
 DEPLOY_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(cd -- "$DEPLOY_DIR/.." && pwd)"
 SOFTWARE_ROOT="$(cd -- "$BASE_DIR/.." && pwd)"
+PLATFORM_LIB="$SOFTWARE_ROOT/deploy/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$SOFTWARE_ROOT/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || { echo "缺少跨平台 Deploy 辅助脚本。" >&2; exit 1; }
+# shellcheck source=../../lib/platform.sh
+source "$PLATFORM_LIB"
+deploy_require_root "$@" || exit 1
 DATA_DIR="$BASE_DIR/data"
 ENV_FILE="$SOFTWARE_ROOT/deploy/.env"
 SECRETS_FILE="$SOFTWARE_ROOT/deploy/.secrets"
@@ -115,16 +112,15 @@ prepare_env() {
         exit 1
     }
 
-    chown root:root "$ENV_FILE" "$SECRETS_FILE"
-    chmod 0600 "$ENV_FILE" "$SECRETS_FILE"
+    deploy_secure_config_files "$ENV_FILE" "$SECRETS_FILE" || exit 1
 
     if grep -q $'\r' "$ENV_FILE"; then
-        sed -i 's/\r$//' "$ENV_FILE"
+        deploy_sed_in_place 's/\r$//' "$ENV_FILE"
         echo "      已自动将 $ENV_FILE 的 CRLF 行尾转换为 LF。"
     fi
 
     if grep -q $'\r' "$SECRETS_FILE"; then
-        sed -i 's/\r$//' "$SECRETS_FILE"
+        deploy_sed_in_place 's/\r$//' "$SECRETS_FILE"
         echo "      已自动将 $SECRETS_FILE 的 CRLF 行尾转换为 LF。"
     fi
 

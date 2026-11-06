@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # Qoder2API Hub deployment helpers. Config files are parsed as data, never sourced.
-fail() { printf 'Qoder2API Hub 部署错误：%s\n' "$*" >&2; exit 1; }
+PLATFORM_LIB="$SOFTWARE_ROOT/deploy/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$SOFTWARE_ROOT/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || { echo "缺少跨平台 Deploy 辅助脚本。" >&2; exit 1; }
+# shellcheck source=../../lib/platform.sh
+source "$PLATFORM_LIB"
+fail { printf 'Qoder2API Hub 部署错误：%s\n' "$*" >&2; exit 1; }
 require_root() {
-    if [ "$(id -u)" -ne 0 ]; then
-        if command -v sudo >/dev/null 2>&1; then exec sudo -- bash "$0" "$@"; fi
-        fail "请使用 root 或 sudo 执行。"
-    fi
+    deploy_require_root "$@" || fail "请使用 root 或 sudo 执行。"
 }
 check_docker() {
     command -v docker >/dev/null 2>&1 || fail "未安装 Docker。"
     docker compose version >/dev/null 2>&1 || fail "未安装 Docker Compose v2 Plugin。"
     docker info >/dev/null 2>&1 || fail "Docker daemon 不可用。"
 }
-declare -gA QODER_CONFIG_SEEN=()
+QODER_CONFIG_SEEN=()
 load_config_file() {
     local file="$1" kind="$2" line key value line_no=0
     [ -f "$file" ] || fail "配置文件不存在：$file"
@@ -34,8 +36,12 @@ load_config_file() {
                 ;;
             *) continue ;;
         esac
-        [[ ! ${QODER_CONFIG_SEEN[$key]+defined} ]] || fail "$key 在统一配置中重复定义；拒绝猜测应使用哪个值"
-        QODER_CONFIG_SEEN[$key]=1
+        local seen_key duplicate=0
+        for seen_key in "${QODER_CONFIG_SEEN[@]}"; do
+            [ "$seen_key" = "$key" ] && { duplicate=1; break; }
+        done
+        [ "$duplicate" -eq 0 ] || fail "$key 在统一配置中重复定义；拒绝猜测应使用哪个值"
+        QODER_CONFIG_SEEN+=("$key")
         value="${line#*=}"
         if [ -n "$value" ]; then
             case "${value:0:1}" in
@@ -63,8 +69,7 @@ load_global_config() {
         return $?
     fi
     [ -f "$ENV_FILE" ] && [ -f "$SECRETS_FILE" ] || fail "请先执行 deploy.sh env 初始化统一配置"
-    chown root:root "$ENV_FILE" "$SECRETS_FILE"
-    chmod 0600 "$ENV_FILE" "$SECRETS_FILE"
+    deploy_secure_config_files "$ENV_FILE" "$SECRETS_FILE" || fail "无法安全设置统一配置文件权限"
     QODER_CONFIG_SEEN=()
     load_config_file "$ENV_FILE" env
     load_config_file "$SECRETS_FILE" secrets
