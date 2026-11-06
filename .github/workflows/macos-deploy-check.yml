@@ -1,0 +1,33 @@
+name: macOS Deploy CLI Compatibility
+
+on:
+  push:
+    branches:
+      - feat/macos-deploy-entry-20261106
+    paths:
+      - deploy.sh
+      - macos/**
+      - easynettopo/deploy/docker-compose.macos.yaml
+      - tests/macos-deploy.sh
+      - .github/workflows/macos-deploy-check.yml
+  pull_request:
+    paths:
+      - deploy.sh
+      - macos/**
+      - easynettopo/deploy/docker-compose.macos.yaml
+      - tests/macos-deploy.sh
+      - .github/workflows/macos-deploy-check.yml
+
+permissions:
+  contents: read
+
+jobs:
+  macos-cli:
+    name: macOS Bash 3.2 deploy CLI and Docker stub lifecycle
+    runs-on: macos-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run native macOS compatibility checks
+        shell: /bin/bash --noprofile --norc -eo pipefail {0}
+        run: /bin/bash tests/macos-deploy.sh
