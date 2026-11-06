@@ -1,10 +1,13 @@
 # Sub2API
 
+> 应用商店 v2：本应用的字段定义在 `config.yaml`、`secrets.yaml`，图标在 `assets/icon.svg`；实际配置位于 `<SOFTWARE_ROOT>/sub2api/config/.env`、`config/.secrets`。先运行 `sudo bash deploy.sh env` 和 `sudo bash deploy.sh sub2api sync` 初始化，再编辑实际文件。旧全局值仅在新文件缺少对应项时迁入，更新不覆盖已有值。全局镜像源等公共设置仍在 `deploy/.env`。参见[通用契约与操作说明](../docs/app-store-contract.md)。
+
+
 使用 [Wei-Shaw/sub2api](https://github.com/Wei-Shaw/sub2api) 官方镜像，部署应用 + PostgreSQL 18 + Redis 8。数据库与 Redis **不发布宿主机端口**；所有数据保存于 `<SOFTWARE_ROOT>/sub2api/data/`。
 
 ## 配置和安装
 
-先在 deploy 仓库根目录执行 `sudo bash deploy.sh env`，然后检查统一配置：
+先在 deploy 仓库根目录执行 `sudo bash deploy.sh env`，然后运行 `sudo bash deploy.sh sub2api sync` 并检查应用配置：
 - `.env`：`SUB2API_HTTP_PORT=7010`、`SUB2API_BIND_IP=0.0.0.0`。
 - `.secrets`：`SUB2API_POSTGRES_PASSWORD`、`SUB2API_REDIS_PASSWORD`、`SUB2API_JWT_SECRET`、`SUB2API_TOTP_ENCRYPTION_KEY` **均允许空值**（如 `KEY=`、`KEY=""`、`KEY=''` 或缺少该项），首次安装时分别生成并持久化，随后才校验 Compose 所需的最终运行值；不会限制或改写已填写的非空自定义密钥。`SUB2API_ADMIN_EMAIL` / `SUB2API_ADMIN_PASSWORD` 可分别填写或留空，未填的一项由官方首启独立随机生成，凭据仅在首次启动日志中打印。自定义管理员密码只遵循官方首次初始化要求的 8–72 UTF-8 字节；管理员邮箱格式由官方校验。`SUB2API_UPDATE_PROXY_URL` 可选，只用于在线更新和定价数据获取，**不是全部 API 出站代理**。
 

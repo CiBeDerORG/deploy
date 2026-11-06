@@ -11,9 +11,9 @@ services:
       - "/run/secrets/portainer_admin_password"
 
     ports:
-      - "${PORTAINER_HTTP_PORT:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 PORTAINER_HTTP_PORT}:9000"
+      - "${PORTAINER_HTTP_PORT:?请在 <SOFTWARE_ROOT>/portainer/config/.env 中设置 PORTAINER_HTTP_PORT}:9000"
       # Edge Agent Tunnel（需要时取消注释）
-      # - "${PORTAINER_EDGE_PORT:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 PORTAINER_EDGE_PORT}:${PORTAINER_EDGE_CONTAINER_PORT:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 PORTAINER_EDGE_CONTAINER_PORT}"
+      # - "${PORTAINER_EDGE_PORT:?请在 <SOFTWARE_ROOT>/portainer/config/.env 中设置 PORTAINER_EDGE_PORT}:${PORTAINER_EDGE_CONTAINER_PORT:?请在 <SOFTWARE_ROOT>/portainer/config/.env 中设置 PORTAINER_EDGE_CONTAINER_PORT}"
 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

@@ -16,6 +16,8 @@ $script:GlobalEnvDir = ''
 $script:GlobalEnv = ''
 $script:GlobalSecrets = ''
 $script:Config = @{}
+$script:AppEnv = ''
+$script:AppSecrets = ''
 $script:Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
 function Write-TextFile {
@@ -280,12 +282,53 @@ function Initialize-Paths {
     }
 }
 
+# 应用模板由 YAML 定义生成；仅初始化缺失项，旧全局配置作为迁移来源保留。
+function Initialize-AppConfiguration {
+    param([string]$Task)
+    $script:AppEnv = ''; $script:AppSecrets = ''
+    $base = Join-Path $script:SoftwareRoot $Task
+    $templateDir = Join-Path $base 'deploy'
+    if (-not (Test-Path -LiteralPath (Join-Path $templateDir 'config.env.example'))) { return }
+    $directory = Join-Path $base 'config'
+    foreach ($path in @($base, $directory)) {
+        if ((Test-Path -LiteralPath $path) -and ((Get-Item -LiteralPath $path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw '应用配置目录不能是符号链接。' }
+    }
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    foreach ($kind in @('env','secrets')) {
+        $templatePath = Join-Path $templateDir "config.$kind.example"
+        $target = Join-Path $directory ".$kind"
+        $oldPath = if ($kind -eq 'env') { $script:GlobalEnv } else { $script:GlobalSecrets }
+        foreach ($path in @($templatePath, $target, $oldPath)) {
+            if (Test-Path -LiteralPath $path) {
+                $item = Get-Item -LiteralPath $path -Force
+                if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw '应用配置必须是普通文件，不能是符号链接。' }
+            }
+        }
+        if (-not (Test-Path -LiteralPath $templatePath -PathType Leaf)) { throw '缺少应用配置默认值模板。' }
+        $template = Read-ConfigFile $templatePath
+        $current = if (Test-Path -LiteralPath $target) { Read-ConfigFile $target } else { @{} }
+        $old = if (Test-Path -LiteralPath $oldPath) { Read-ConfigFile $oldPath } else { @{} }
+        if (-not (Test-Path -LiteralPath $target)) { Write-TextFile $target '' }
+        Protect-SecretFile $target
+        foreach ($key in $template.Keys) {
+            if ($current.ContainsKey($key)) { continue }
+            $value = if ($old.ContainsKey($key)) { $old[$key] } else { $template[$key] }
+            Set-ConfigFileValue $target $key ('"' + $value + '"')
+        }
+        Protect-SecretFile $target
+        if ($kind -eq 'env') { $script:AppEnv = $target } else { $script:AppSecrets = $target }
+    }
+}
+
 function Load-Configuration {
     $ordinary = Read-ConfigFile $script:GlobalEnv
     $private = Read-ConfigFile $script:GlobalSecrets
     $merged = @{}
     foreach ($key in $ordinary.Keys) { $merged[$key] = $ordinary[$key] }
     foreach ($key in $private.Keys) { $merged[$key] = $private[$key] }
+    foreach ($path in @($script:AppEnv, $script:AppSecrets)) {
+        if ($path) { $appConfig = Read-ConfigFile $path; foreach ($key in $appConfig.Keys) { $merged[$key] = $appConfig[$key] } }
+    }
     $script:Config = $merged
     foreach ($key in $merged.Keys) {
         [Environment]::SetEnvironmentVariable([string]$key, [string]$merged[$key], 'Process')
@@ -305,7 +348,7 @@ function Set-ConfigValue {
     Set-ConfigFileValue $File $Key $Value
     [Environment]::SetEnvironmentVariable($Key, $Value, 'Process')
     $script:Config[$Key] = $Value
-    if ($File -eq $script:GlobalSecrets) { Protect-SecretFile $File }
+    if ($File -eq $script:GlobalSecrets -or $File -eq $script:AppSecrets) { Protect-SecretFile $File }
 }
 
 function New-HexSecret {
@@ -321,7 +364,8 @@ function Ensure-HexSecret {
     $value = Get-ConfigValue $Key
     if (-not [string]::IsNullOrEmpty($value)) { return }
     $value = New-HexSecret 32
-    Set-ConfigValue $script:GlobalSecrets $Key $value
+    $target = if ($script:AppSecrets) { $script:AppSecrets } else { $script:GlobalSecrets }
+    Set-ConfigValue $target $Key $value
     Write-Host "已在 .secrets 中生成并持久化 $Key（值不显示）。"
 }
 
@@ -380,7 +424,15 @@ function Sync-Task {
         $relative = $file.FullName.Substring($sourcePrefix.Length).TrimStart([char[]]@('\','/')).Replace('\','/')
         $segments = $relative.Split('/')
         if ($segments.Count -gt 0 -and $excludeRoots -contains $segments[0]) { continue }
-        if ($relative -eq 'deploy/.env' -or $relative -eq 'deploy/.secrets') { continue }
+        if ($relative -in @('deploy/.env','deploy/.secrets','config/.env','config/.secrets')) { continue }
+        if ($segments[0] -eq 'config') {
+            $current = $targetDir
+            foreach ($part in $segments) {
+                $current = Join-Path $current $part
+                if ((Test-Path -LiteralPath $current) -and ((Get-Item -LiteralPath $current -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw '配置路径不能经过符号链接。' }
+            }
+            if (Test-Path -LiteralPath $current) { continue }
+        }
         if ($Task -eq 'mihomo' -and $segments[0] -eq 'runtime') { continue }
         $destination = Join-Path $targetDir ($relative.Replace('/', [IO.Path]::DirectorySeparatorChar))
         New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
@@ -423,7 +475,8 @@ function Get-ComposeBaseArgs {
     if (-not (Test-Path -LiteralPath $composeFile)) {
         throw "$Task 没有 Docker Compose 文件；此 PowerShell 入口只原生管理 Docker Compose 服务，不执行 Linux/systemd 或 OpenWrt 脚本。"
     }
-    $arguments = @('compose','--project-directory',$deployDir,'--file',$composeFile,'--env-file',$script:GlobalEnv)
+    $envFile = if ($script:AppEnv) { $script:AppEnv } else { $script:GlobalEnv }
+    $arguments = @('compose','--project-directory',$deployDir,'--file',$composeFile,'--env-file',$envFile)
     if ($SocketOverride) {
         $socketFile = Join-Path $deployDir 'docker-compose.socket.yaml'
         if (-not (Test-Path -LiteralPath $socketFile)) { throw "Docker Socket 扩展配置不存在：$socketFile" }
@@ -974,18 +1027,19 @@ function Invoke-Task {
         throw "不支持的操作：$Action。支持 install / update / sync；mihomo host 模式不属于 Windows Docker 部署。"
     }
     Sync-Task $Task
-    if ($Action -eq 'sync') { return }
+    if ($Action -eq 'sync') { Initialize-AppConfiguration $Task; return }
 
     $composeFile = Join-Path (Join-Path (Join-Path $script:SoftwareRoot $Task) 'deploy') 'docker-compose.yaml'
     if (-not (Test-Path -LiteralPath $composeFile)) {
         throw "$Task 不是 Docker Compose 服务。Windows PowerShell 入口不会调用任何 Bash 脚本；Linux/systemd 或 OpenWrt 业务请继续在对应 Linux 环境部署。"
     }
     $configResult = Ensure-GlobalConfig
+    Initialize-AppConfiguration $Task
     Load-Configuration
     if ($configResult.Created) {
         Write-Host '统一配置已创建。请先编辑普通配置和敏感配置，再重新执行安装。'
-        Write-Host "普通配置：$($script:GlobalEnv)"
-        Write-Host "敏感配置：$($script:GlobalSecrets)"
+        Write-Host "普通配置：$(if ($script:AppEnv) { $script:AppEnv } else { $script:GlobalEnv })"
+        Write-Host "敏感配置：$(if ($script:AppSecrets) { $script:AppSecrets } else { $script:GlobalSecrets })"
         return
     }
     Check-DockerRuntime

@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "应用配置字段定义",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "fields"
+  ],
+  "properties": {
+    "fields": {
+      "type": "array",
+      "maxItems": 120,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "label",
+          "type",
+          "required",
+          "custom_input",
+          "description",
+          "default"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "label": {
+            "type": "string",
+            "description": "字段显示名称。"
+          },
+          "description": {
+            "type": "string",
+            "description": "面向用户的说明，不包含密钥。"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "string",
+              "number",
+              "boolean",
+              "port",
+              "ipv4",
+              "secret"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "default": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "description": "密钥默认值只能为空字符串，禁止提交真实 Token 或密码。"
+          },
+          "min_length": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4096
+          },
+          "max_length": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "pattern": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "minimum": {
+            "type": "integer"
+          },
+          "maximum": {
+            "type": "integer"
+          },
+          "generated_by_script": {
+            "type": "boolean",
+            "description": "为 true 时，已有安装脚本须在凭据缺失或留空时生成并持久化，且不输出其值。"
+          },
+          "editable": {
+            "type": "boolean",
+            "default": true
+          },
+          "custom_input": {
+            "type": "boolean",
+            "description": "是否在安装页面提供输入；关闭时由主机使用已有值或默认值。"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "enum": [
+                    "port",
+                    "number"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "default": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "enum": [
+                    "boolean"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "enum": [
+                    "string",
+                    "ipv4",
+                    "secret"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "default": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

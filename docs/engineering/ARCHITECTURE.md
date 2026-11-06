@@ -6,7 +6,7 @@
 
 - 修改前确认当前分支、工作区、仓库结构、现有实现和依赖影响；先复用现有公共能力，再考虑扩展，最后才进行必要重构。
 - Linux / fnOS 以根目录 `deploy.sh` 为统一部署入口；具体服务遵循仓库现有的 `<service>/deploy/` 组织与发现机制。
-- 普通运行配置由 `<SOFTWARE_ROOT>/deploy/.env` 管理，敏感配置由 `<SOFTWARE_ROOT>/deploy/.secrets` 管理；模板不是实际运行密钥。
+- v2 应用配置由 `<SOFTWARE_ROOT>/<应用>/config/.env`、`config/.secrets` 管理；全局公共设置与旧应用继续使用 `<SOFTWARE_ROOT>/deploy/.env`、`.secrets`。定义、生成模板与迁移规则见 [应用商店契约](../app-store-contract.md)，模板不是真实密钥。
 - Windows 使用仓库现有的原生 `deploy.ps1` 和 Docker CLI / Compose 能力；不得假定 Linux Bash 模块自动兼容 Windows，也不得为了 Windows 修改并破坏 Linux 原有行为。
 - 优先最小变更并保持向后兼容；公共模块变更必须检查受影响服务。不得无授权重构、删除或覆盖其他开发者/Agent 的变更。
 - 不得未经授权修改宿主机核心配置、移除无关服务、全局升级系统或调整 Docker 的共享环境。

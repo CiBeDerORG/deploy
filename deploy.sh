@@ -434,7 +434,7 @@ resolve_task() {
 sync_shared_libraries() {
     local target_dir="$GLOBAL_ENV_DIR/lib"
     local source_file target_file staged_file module
-    local -a modules=(image-sources.sh release-sources.sh source-migration.sh)
+    local -a modules=(image-sources.sh release-sources.sh source-migration.sh app-config.sh)
     run_root mkdir -p "$target_dir" || return $?
 
     for module in "${modules[@]}"; do
@@ -477,6 +477,7 @@ sync_task() {
     local -a sync_excludes=(
         --exclude='./deploy/.env'
         --exclude='./deploy/.secrets'
+        --exclude='./config'
         --exclude='./data'
         --exclude='./state'
         --exclude='./workspace'
@@ -505,6 +506,28 @@ sync_task() {
 
     run_root mkdir -p "$target_dir"
     run_root tar -C "$target_dir" -xf "$archive"
+
+    # 原生配置模板只补缺失文件，运行时 .env/.secrets 永远不从仓库复制。
+    if [ -d "$source_dir/config" ] && [ ! -L "$source_dir/config" ]; then
+        local config_source relative destination parent current part
+        local -a config_parts
+        while IFS= read -r -d '' config_source; do
+            relative="${config_source#"$source_dir/"}"
+            destination="$target_dir/$relative"
+            parent="${relative%/*}"; current="$target_dir"
+            IFS=/ read -r -a config_parts <<< "$parent"
+            for part in "${config_parts[@]}"; do
+                current="$current/$part"
+                if run_root test -L "$current"; then
+                    echo "配置目录不能经过符号链接" >&2; return 1
+                fi
+                run_root mkdir -p "$current" || return $?
+            done
+            if ! run_root test -e "$destination" && ! run_root test -L "$destination"; then
+                run_root cp -n -- "$config_source" "$destination" || return $?
+            fi
+        done < <(find "$source_dir/config" -type f ! -name '.env' ! -name '.secrets' -print0)
+    fi
 
     # Mihomo was fully rebuilt as official MetaCubeXD All-in-One. tar extraction
     # does not delete obsolete files in the NAS mirror, so prune ONLY the known
@@ -540,6 +563,13 @@ sync_task() {
     trap - EXIT
 
     echo "已同步：$source_dir -> $target_dir"
+}
+
+initialize_app_config() {
+    local task="$1"
+    [ -f "$SOFTWARE_ROOT/$task/deploy/config.env.example" ] || return 0
+    run_root bash -c 'source "$1"; deploy_load_app_config "$2" "$3"' \
+        deploy-config "$SOFTWARE_ROOT/deploy/lib/app-config.sh" "$SOFTWARE_ROOT" "$task"
 }
 
 run_task() {
@@ -594,8 +624,9 @@ run_task() {
             fi
             ;;
         sync)
-            sync_task "$task"
-            return 0
+            sync_task "$task" || return $?
+            initialize_app_config "$task"
+            return $?
             ;;
         *)
             echo "不支持的操作：$action" >&2
@@ -604,9 +635,10 @@ run_task() {
             ;;
     esac
 
-    sync_task "$task"
+    sync_task "$task" || return $?
 
     ensure_global_env || return $?
+    initialize_app_config "$task" || return $?
     if [ "$GLOBAL_ENV_CREATED" -eq 1 ] || [ "$GLOBAL_SECRETS_CREATED" -eq 1 ]; then
         return 2
     fi

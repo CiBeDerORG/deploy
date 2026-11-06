@@ -1,0 +1,11 @@
+fields:
+- key: PORTAINER_HTTP_PORT
+  label: Web port
+  type: port
+  required: true
+  default: 7004
+  minimum: 1
+  maximum: 65535
+  description: Web port
+  custom_input: true
+  editable: true

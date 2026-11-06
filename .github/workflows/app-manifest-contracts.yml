@@ -4,6 +4,15 @@ on:
   push:
     paths:
       - "schema/**"
+      - "*/app.yaml"
+      - "*/config.yaml"
+      - "*/secrets.yaml"
+      - "*/assets/**"
+      - "*/deploy/config.*.example"
+      - "lib/app-config.sh"
+      - "deploy.sh"
+      - "deploy.ps1"
+      - "tests/app-config.ps1"
       - "tests/contracts/**"
       - "tools/validate_app_manifest.py"
       - "portainer/deploy/**"
@@ -40,3 +49,12 @@ jobs:
           python -m compileall -q tools/validate_app_manifest.py tests/contracts
           python -m unittest discover -s tests/contracts -p "test_*.py" -v
           python tools/validate_app_manifest.py --examples --all
+
+  windows-config:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: 验证 Windows 应用配置迁移与凭据保留
+        shell: pwsh
+        run: ./tests/app-config.ps1

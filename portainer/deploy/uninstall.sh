@@ -10,6 +10,13 @@ BASE_DIR="$(cd -- "$DEPLOY_DIR/.." && pwd)"
 SOFTWARE_ROOT="$(cd -- "$BASE_DIR/.." && pwd)"
 ENV_FILE="$SOFTWARE_ROOT/deploy/.env"
 SECRETS_FILE="$SOFTWARE_ROOT/deploy/.secrets"
+if [ -f "$BASE_DIR/deploy/config.env.example" ]; then
+    CONFIG_LIB="$SOFTWARE_ROOT/deploy/lib/app-config.sh"
+    [ -f "$CONFIG_LIB" ] || CONFIG_LIB="$SOFTWARE_ROOT/lib/app-config.sh"
+    # shellcheck source=../../lib/app-config.sh
+    source "$CONFIG_LIB"
+    deploy_load_app_config "$SOFTWARE_ROOT" "$(basename "$BASE_DIR")"
+fi
 [[ -f "$ENV_FILE" && -f "$SECRETS_FILE" ]] || { echo "缺少 Deploy 统一配置" >&2; exit 1; }
 docker compose version >/dev/null
 docker info >/dev/null

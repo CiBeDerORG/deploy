@@ -1,0 +1,17 @@
+fields:
+- key: OPENCODE_PORT
+  label: Web 监听端口
+  type: port
+  required: true
+  default: 7003
+  description: Web 监听端口
+  custom_input: true
+  editable: true
+- key: MYAI_IP
+  label: 服务访问地址（IPv4）
+  type: ipv4
+  required: true
+  default: 203.0.113.10
+  description: 服务访问地址（IPv4）
+  custom_input: true
+  editable: true

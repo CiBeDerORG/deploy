@@ -35,12 +35,12 @@ services:
     environment:
       TZ: "${TZ:-Asia/Shanghai}"
       OPENCODE_PORT: "4096"
-      MYAI_IP: "${MYAI_IP:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 MYAI_IP}"
+      MYAI_IP: "${MYAI_IP:?请在 <SOFTWARE_ROOT>/opencode/config/.env 中设置 MYAI_IP}"
       # OpenCode V2 serve 当前 Basic Auth 用户名固定为 opencode。
-      OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:?请在 <SOFTWARE_ROOT>/deploy/.secrets 中设置 OPENCODE_SERVER_PASSWORD}"
+      OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:?请在 <SOFTWARE_ROOT>/opencode/config/.secrets 中设置 OPENCODE_SERVER_PASSWORD}"
 
     ports:
-      - "${OPENCODE_PORT:?请在 <SOFTWARE_ROOT>/deploy/.env 中设置 OPENCODE_PORT}:4096"
+      - "${OPENCODE_PORT:?请在 <SOFTWARE_ROOT>/opencode/config/.env 中设置 OPENCODE_PORT}:4096"
 
     volumes:
       - ../config:/root/.config/opencode

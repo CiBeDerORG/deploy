@@ -1,5 +1,8 @@
 # Deploy
 
+> 应用商店配置标准已升级为 v2：Sub2API、Portainer、Qoder2API Hub、OpenCode、Mihomo 在各自目录维护 `config.yaml`、`secrets.yaml` 和图标，实际配置写入 `<SOFTWARE_ROOT>/<应用>/config/`。旧全局值按缺失项迁移且保留；其他服务继续兼容原入口。维护方式、生成模板、发布顺序和操作命令见[应用商店通用契约](docs/app-store-contract.md)。
+
+
 统一管理 Linux / fnOS 上的常用服务部署，并提供 EasyTier OpenWrt 原生安装脚本。
 
 仓库本身可以放在任意目录；真正运行的服务文件会由根目录 `deploy.sh` 同步到：

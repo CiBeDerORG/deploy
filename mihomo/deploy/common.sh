@@ -47,6 +47,14 @@ read_pairs() {
 }
 load_settings() {
     local root="$1"
+    if [ -f "$root/mihomo/deploy/config.env.example" ]; then
+        local config_lib="$root/deploy/lib/app-config.sh"
+        [ -f "$config_lib" ] || config_lib="$root/lib/app-config.sh"
+        # shellcheck source=../../lib/app-config.sh
+        source "$config_lib"
+        deploy_load_app_config "$root" mihomo
+        return $?
+    fi
     local ordinary="$root/deploy/.env" private="$root/deploy/.secrets"
     [ -f "$ordinary" ] && [ -f "$private" ] || die "请先运行 sudo bash deploy.sh env"
     chown root:root "$ordinary" "$private"

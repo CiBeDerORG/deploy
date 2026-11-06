@@ -1,0 +1,19 @@
+fields:
+- key: SUB2API_HTTP_PORT
+  label: Web port
+  type: port
+  required: true
+  default: 7010
+  minimum: 1
+  maximum: 65535
+  description: Web port
+  custom_input: true
+  editable: true
+- key: SUB2API_BIND_IP
+  label: Bind address
+  type: ipv4
+  required: true
+  default: 0.0.0.0
+  description: Bind address
+  custom_input: true
+  editable: true

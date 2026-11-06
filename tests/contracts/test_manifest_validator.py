@@ -24,8 +24,8 @@ class ManifestValidationTests(unittest.TestCase):
         shutil.copytree(ROOT / "schema", self.root / "schema")
         (self.root / "lib").mkdir()
         shutil.copy(ROOT / "lib/image-sources.sh", self.root / "lib/image-sources.sh")
-        shutil.copy(ROOT / ".env.example", self.root / ".env.example")
-        shutil.copy(ROOT / ".secrets.example", self.root / ".secrets.example")
+        shutil.copy(ROOT / "schema/examples/legacy.env.example", self.root / ".env.example")
+        shutil.copy(ROOT / "schema/examples/legacy.secrets.example", self.root / ".secrets.example")
 
     def fixture(self, name):
         path = self.root / "schema/examples" / f"{name}.app.yaml"

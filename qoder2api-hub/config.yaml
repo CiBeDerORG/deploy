@@ -1,0 +1,27 @@
+fields:
+- key: QODER2API_HUB_IMAGE
+  label: Docker image
+  type: string
+  required: false
+  default: ghcr.io/shuishuipingan/qoder2api-hub:latest
+  description: Docker image
+  custom_input: true
+  editable: true
+- key: QODER2API_HUB_BIND_IP
+  label: Bind address
+  type: ipv4
+  required: true
+  default: 127.0.0.1
+  description: Bind address
+  custom_input: true
+  editable: true
+- key: QODER2API_HUB_PORT
+  label: Web/API port
+  type: port
+  required: true
+  default: 8790
+  minimum: 1
+  maximum: 65535
+  description: Web/API port
+  custom_input: true
+  editable: true

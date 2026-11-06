@@ -1,5 +1,8 @@
 # OpenCode V2
 
+> 应用商店 v2：本应用的字段定义在 `config.yaml`、`secrets.yaml`，图标在 `assets/icon.svg`；实际配置位于 `<SOFTWARE_ROOT>/opencode/config/.env`、`config/.secrets`。先运行 `sudo bash deploy.sh env` 和 `sudo bash deploy.sh opencode sync` 初始化，再编辑实际文件。旧全局值仅在新文件缺少对应项时迁入，更新不覆盖已有值。全局镜像源等公共设置仍在 `deploy/.env`。参见[通用契约与操作说明](../docs/app-store-contract.md)。
+
+
 这个目录用于通过 Docker 部署 OpenCode V2 Web 服务。
 
 镜像不是直接拉取固定 OpenCode 镜像，而是由仓库中的 Dockerfile 使用官方 V2 安装器构建本地镜像：
@@ -54,7 +57,7 @@ BUILD_NO_PROXY=127.0.0.1,localhost
 OPENCODE_SERVER_PASSWORD=
 ```
 
-`OPENCODE_SERVER_PASSWORD` 可选；首次留空时部署脚本生成随机密码，保存到统一 `.secrets`（root:root、0600）。已有非空密码更新时原样保留。不要把真实密码提交到 Git。
+`OPENCODE_SERVER_PASSWORD` 可选；首次留空时部署脚本生成随机密码，保存到应用 `config/.secrets`（root:root、0600）。已有非空密码更新时原样保留。不要把真实密码提交到 Git。
 
 OpenCode V2 当前 Basic Auth 用户名固定为：
 

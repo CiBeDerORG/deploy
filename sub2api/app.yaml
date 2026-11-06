@@ -1,5 +1,4 @@
-# Production catalog manifest v1. Validated against the checked-in Deploy scripts.
-schema_version: 1
+schema_version: 2
 id: sub2api
 name: Sub2API
 summary: API service with PostgreSQL and Redis
@@ -10,100 +9,56 @@ runtime:
   compose_file: deploy/docker-compose.yaml
   requires_root: true
 compatibility:
-  platforms: [linux, fnos]
-  architectures: [amd64, arm64]
+  platforms:
+  - linux
+  - fnos
+  architectures:
+  - amd64
+  - arm64
   requires_docker: true
   requires_compose_v2: true
 package:
   files:
-    - source: sub2api/deploy/docker-compose.yaml
-      destination: sub2api/deploy/docker-compose.yaml
-    - source: sub2api/deploy/install.sh
-      destination: sub2api/deploy/install.sh
-      mode: "0755"
-    - source: sub2api/deploy/update.sh
-      destination: sub2api/deploy/update.sh
-      mode: "0755"
-    - source: sub2api/deploy/uninstall.sh
-      destination: sub2api/deploy/uninstall.sh
-      mode: "0755"
-    - source: sub2api/deploy/lib.sh
-      destination: sub2api/deploy/lib.sh
-    - source: lib/image-sources.sh
-      destination: deploy/lib/image-sources.sh
-config:
-  - key: SUB2API_HTTP_PORT
-    label: Web port
-    type: port
-    target: env
-    required: true
-    default: 7010
-    minimum: 1
-    maximum: 65535
-  - key: SUB2API_BIND_IP
-    label: Bind address
-    type: ipv4
-    target: env
-    required: true
-    default: 0.0.0.0
-  - key: SUB2API_ADMIN_EMAIL
-    label: Initial administrator email
-    type: secret
-    target: secrets
-    required: false
-    default: ""
-  - key: SUB2API_POSTGRES_PASSWORD
-    label: PostgreSQL password
-    type: secret
-    target: secrets
-    required: false
-    default: ""
-    generated_by_script: true
-  - key: SUB2API_REDIS_PASSWORD
-    label: Redis password
-    type: secret
-    target: secrets
-    required: false
-    default: ""
-    generated_by_script: true
-  - key: SUB2API_JWT_SECRET
-    label: JWT secret
-    type: secret
-    target: secrets
-    required: false
-    default: ""
-    generated_by_script: true
-  - key: SUB2API_TOTP_ENCRYPTION_KEY
-    label: TOTP encryption key
-    type: secret
-    target: secrets
-    required: false
-    default: ""
-    generated_by_script: true
-  - key: SUB2API_ADMIN_PASSWORD
-    label: Initial administrator password
-    type: secret
-    target: secrets
-    required: false
-    default: ""
-    min_length: 8
-    max_length: 72
-  - key: SUB2API_UPDATE_PROXY_URL
-    label: Update proxy with optional credentials
-    type: secret
-    target: secrets
-    required: false
-    default: ""
+  - source: sub2api/deploy/docker-compose.yaml
+    destination: sub2api/deploy/docker-compose.yaml
+  - source: sub2api/deploy/install.sh
+    destination: sub2api/deploy/install.sh
+    mode: '0755'
+  - source: sub2api/deploy/update.sh
+    destination: sub2api/deploy/update.sh
+    mode: '0755'
+  - source: sub2api/deploy/uninstall.sh
+    destination: sub2api/deploy/uninstall.sh
+    mode: '0755'
+  - source: sub2api/deploy/lib.sh
+    destination: sub2api/deploy/lib.sh
+  - source: lib/image-sources.sh
+    destination: deploy/lib/image-sources.sh
+  - source: sub2api/config.yaml
+    destination: sub2api/config.yaml
+    mode: '0644'
+  - source: sub2api/secrets.yaml
+    destination: sub2api/secrets.yaml
+    mode: '0644'
+  - source: sub2api/deploy/config.env.example
+    destination: sub2api/deploy/config.env.example
+    mode: '0644'
+  - source: sub2api/deploy/config.secrets.example
+    destination: sub2api/deploy/config.secrets.example
+    mode: '0644'
+  - source: lib/app-config.sh
+    destination: deploy/lib/app-config.sh
+    mode: '0644'
 ports:
-  - id: web
-    label: Web API
-    protocol: tcp
-    purpose: web
-    host_port_key: SUB2API_HTTP_PORT
-    bind_address_key: SUB2API_BIND_IP
-    container_port: 8080
-    service: sub2api
-    path: /
+- id: web
+  label: Web API
+  protocol: tcp
+  purpose: web
+  host_port_key: SUB2API_HTTP_PORT
+  bind_address_key: SUB2API_BIND_IP
+  container_port: 8080
+  service: sub2api
+  path: /
 actions:
   install:
     strategy: script
@@ -116,13 +71,20 @@ actions:
     path: deploy/uninstall.sh
 verification:
   mode: docker_compose
-  required_services: [sub2api, postgres, redis]
+  required_services:
+  - sub2api
+  - postgres
+  - redis
   state: healthy
   timeout_seconds: 240
 data:
   paths:
-    - sub2api/data/app
-    - sub2api/data/postgres
-    - sub2api/data/redis
+  - sub2api/data/app
+  - sub2api/data/postgres
+  - sub2api/data/redis
   named_volumes: []
   default_retain: true
+configuration:
+  config: config.yaml
+  secrets: secrets.yaml
+icon: assets/icon.svg

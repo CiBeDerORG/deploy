@@ -1,5 +1,8 @@
 # Mihomo · MetaCubeXD 官方完整版
 
+> 应用商店 v2：本应用的字段定义在 `config.yaml`、`secrets.yaml`，图标在 `assets/icon.svg`；实际配置位于 `<SOFTWARE_ROOT>/mihomo/config/.env`、`config/.secrets`。先运行 `sudo bash deploy.sh env` 和 `sudo bash deploy.sh mihomo sync` 初始化，再编辑实际文件。旧全局值仅在新文件缺少对应项时迁入，更新不覆盖已有值。全局镜像源等公共设置仍在 `deploy/.env`。参见[通用契约与操作说明](../docs/app-store-contract.md)。
+
+
 原有 Docker 安装保持官方 **MetaCubeXD All-in-One** 镜像
 `ghcr.io/metacubex/metacubexd-server:latest`，新增**宿主机原生 systemd 安装**：
 从官方发布版源码构建同一套 Web + 管理 Agent，并安装发布版对应的 Mihomo 内核；
@@ -98,8 +101,8 @@ SOFTWARE_ROOT=/vol3/1000/software
 
 | 内容 | fnOS 路径 |
 | --- | --- |
-| 统一普通配置（位置不变） | `/vol3/1000/software/deploy/.env` |
-| 统一敏感配置（位置不变） | `/vol3/1000/software/deploy/.secrets` |
+| 应用普通配置 | `/vol3/1000/software/mihomo/config/.env` |
+| 应用敏感配置 | `/vol3/1000/software/mihomo/config/.secrets` |
 | Docker / 原生共用 Profiles、订阅、状态与 active.yaml | `/vol3/1000/software/mihomo/data/all-in-one/` |
 | 旧 Docker 配置与首次迁移备份 | `/vol3/1000/software/mihomo/data/config.yaml`、`data/backup/pre-all-in-one/` |
 | 每次发布的 Web、Agent、内核与启动脚本 | `/vol3/1000/software/mihomo/runtime/host/releases/` |
