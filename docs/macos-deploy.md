@@ -103,3 +103,41 @@ bash deploy.sh easyhostagent uninstall
 当前 macOS 第一阶段的 `/v1/host/maintenance/update` 不提供远程自更新操作；请在 Mac 的受信任本机终端运行 `bash deploy.sh easyhostagent update`。第二、三阶段所需的 Docker 管理和商店安装接口当前故意不注册。
 
 **验收限制：** GitHub Actions 原生 macOS 构建、HTTPS 与配对测试若成功，证明 macOS Runner 能运行；不等同于已验证你的 Mac mini 上的 launchd、文件权限、路由器访问及开机重登行为。须在目标机器补做实测。
+
+## EasyHostAgent macOS 第二阶段：Docker Desktop 容器管理
+
+开发分支为 `feat/macos-docker-phase2-20261106`，依赖第一阶段脚本。对应 Agent 开发分支 `feat/macos-docker-phase2-20261106`，对应的独立 Release 为 `v0.1.0-macos-phase2.dev`。
+
+与第一阶段相同，Agent 通过当前登录用户的 `LaunchAgent` 运行，并在默认 `0.0.0.0:7018` 上提供 HTTPS。第二阶段增加 Docker Desktop 的当前用户 Unix Socket（`~/.docker/run/docker.sock`）访问，不使用 Docker TCP、不要求 `sudo` 安装 Agent。Docker Desktop 可以未安装、未启动；此时 Agent 仍运行，Docker 列表返回不可用，不能将其视为容器已删除。
+
+本次仅支持容器/Compose **已有实例**的发现、日志、CPU/内存按需统计，以及经过任务持久化、配对鉴权的启动/停止/重启；不支持 Docker 删除、Compose up/down/recreate、拉取更新镜像或 macOS 应用商店生命周期。
+
+**运行前检查：** Apple Silicon Mac、Docker Desktop 已安装且当前登录用户已启动（若需要 Docker 管理）；`docker info`、`docker compose version`、`ls -l "$HOME/.docker/run/docker.sock"` 均能正常执行。硬件 CPU/RAM 没有本脚本额外设定的最低门槛，以 Docker Desktop 官方要求和所运行容器的负载为准。需要从 EasyNetTopo 访问 Mac LAN IP 的 7018 端口，禁止直接暴露公网；当前登录用户退出时 LaunchAgent 不保证继续运行。
+
+**配置与升级：** 使用 `/opt/software/deploy/.env`，保留所有已有其他配置与密钥，只需把原 macOS Release 一行改为：
+
+```dotenv
+EASYHOSTAGENT_MACOS_RELEASE=v0.1.0-macos-phase2.dev
+EASYHOSTAGENT_MACOS_LOCAL_BINARY=
+EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018
+EASYHOSTAGENT_TRANSPORT=https
+```
+
+注意：`bash deploy.sh env` 不覆盖现存的 `.env`，此前已经保存 `phase1.dev` 的用户需要手工改为 `phase2.dev`。本地可信安装包可设置 `EASYHOSTAGENT_MACOS_LOCAL_BINARY` 并提供同名 `.sha256`，不必从 GitHub 下载。Agent 不需要配置初始密码；本机自动生成身份与 TLS 私钥，私钥与配对信息留在 `~/Library/Application Support/EasyHostAgent` 的用户私有目录，不能复制到公共日志。
+
+```bash
+git clone -b feat/macos-docker-phase2-20261106 https://github.com/CiBeDerORG/deploy.git
+cd deploy
+bash deploy.sh env
+# 编辑 /opt/software/deploy/.env 的 EASYHOSTAGENT_MACOS_RELEASE 后：
+bash deploy.sh easyhostagent install
+bash deploy.sh easyhostagent status
+bash deploy.sh easyhostagent identity
+bash deploy.sh easyhostagent pairing
+# 更新：保留身份和既有配对
+bash deploy.sh easyhostagent update
+# 卸载：保留用户私有数据与持久配对记录
+bash deploy.sh easyhostagent uninstall
+```
+
+安装和更新仅在完成 SHA-256 核验、原生二进制检查和配置检查后替换程序；默认卸载不删除身份、配置、Docker 镜像、容器或卷，也不改变 Docker Desktop 本身。若需要不可逆清理数据，应另行人工评估与明确确认，本脚本不会自动清除。命令说明仅针对当前开发分支；实机 Docker Desktop 与本地网络访问仍需 Mac mini 验收。

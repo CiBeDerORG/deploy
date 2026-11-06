@@ -5,6 +5,7 @@ on:
     branches:
       - feat/macos-deploy-entry-20261106
       - feat/macos-easyhostagent-phase1-20261106
+      - feat/macos-docker-phase2-20261106
     paths:
       - deploy.sh
       - macos/**
@@ -35,7 +36,7 @@ jobs:
         run: /bin/bash tests/macos-deploy.sh
 
   macos-native-agent:
-    name: macOS 第一阶段原生 Agent 发布包及 launchd 安装测试
+    name: macOS 原生 Agent 开发版、launchd 与 Docker 管理入口测试
     runs-on: macos-latest
     timeout-minutes: 12
     steps:
