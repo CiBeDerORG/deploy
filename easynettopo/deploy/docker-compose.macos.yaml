@@ -1,0 +1,5 @@
+# macOS Docker Desktop bind mount 文件按当前登录用户 UID/GID 访问。
+# 保留非 root 和现有容器安全限制，不修改 Linux/FnOS 的 Compose 文件。
+services:
+  easynettopo:
+    user: "${EASYNETTOPO_MACOS_UID:?Mac user UID required}:${EASYNETTOPO_MACOS_GID:?Mac user GID required}"
