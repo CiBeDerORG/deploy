@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 
+# macOS 使用独立的非 root Docker Desktop 入口，Linux/fnOS 原安装路径不变。
+if [ "$(uname -s)" = "Darwin" ]; then
+    macos_entry="$(cd "$(dirname "$0")" && pwd)/macos/deploy.sh"
+    [ -f "$macos_entry" ] || { echo "缺少 macOS 部署入口：$macos_entry" >&2; exit 1; }
+    exec /bin/bash "$macos_entry" "$@"
+fi
+
 if [ -z "${BASH_VERSION:-}" ]; then
     exec bash "$0" "$@"
 fi
