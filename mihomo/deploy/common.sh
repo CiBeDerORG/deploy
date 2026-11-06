@@ -2,6 +2,11 @@
 # Standalone helpers for the MetaCubeXD All-in-One deploy. Never source .secrets.
 die() { printf 'Mihomo 部署错误：%s\n' "$*" >&2; exit 1; }
 
+if [ -z "${ROOT:-}" ]; then
+    COMMON_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+    APP_DIR="$(cd -- "$COMMON_DIR/.." && pwd)"
+    ROOT="$(cd -- "$APP_DIR/.." && pwd)"
+fi
 PLATFORM_LIB="$ROOT/deploy/lib/platform.sh"
 [ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$ROOT/lib/platform.sh"
 [ -f "$PLATFORM_LIB" ] || die "缺少跨平台 Deploy 辅助脚本"
