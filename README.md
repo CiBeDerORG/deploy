@@ -5,6 +5,12 @@
 
 统一管理 Linux / fnOS 上的常用服务部署，并提供 EasyTier OpenWrt 原生安装脚本。
 
+## macOS Docker Desktop（适配中）
+
+在 Mac 上可继续使用 `bash deploy.sh`，入口自动分流到系统自带 Bash 3.2 兼容的 `macos/deploy.sh`。**不要在 Mac 上使用 sudo 运行 Docker 部署**。目前通用 `list/env/sync` 可用；已适配 `easynettopo`、`portainer` 的 Docker Desktop 安装/更新/卸载。其他应用暂只支持同步，EasyHostAgent 原生 systemd 安装不支持 macOS。
+
+macOS 默认 `SOFTWARE_ROOT=/opt/software`，首次需给当前用户设置目录所有权并配置 Docker Desktop 文件共享。具体安装步骤、安全边界、受限功能和测试范围见 [macOS 部署说明](docs/macos-deploy.md)。
+
 仓库本身可以放在任意目录；真正运行的服务文件会由根目录 `deploy.sh` 同步到：
 
 ```text
