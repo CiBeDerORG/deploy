@@ -135,7 +135,7 @@ sync_task() {
         --exclude '/deploy/.env' --exclude '/deploy/.secrets' \
         "$src/" "$dst/"
     rsync -a "$ROOT_DIR/lib/" "$ENV_DIR/lib/"
-    echo "已同步应用代码：$dst（保留运行数据及配置）"
+    echo "已同步应用代码：${dst}（保留运行数据及配置）"
 }
 
 action="${2:-install}"
