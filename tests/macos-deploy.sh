@@ -10,8 +10,9 @@ cd "$REPO_ROOT"
 [[ "${BASH_VERSINFO[0]}" -eq 3 ]] || { echo "请在 macOS 自带 Bash 3.2 下运行" >&2; exit 1; }
 
 bash -n deploy.sh macos/deploy.sh macos/compose-install.sh
-bash deploy.sh list | grep -q 'easynettopo'
-bash deploy.sh list | grep -q 'portainer'
+LIST_OUTPUT="$(bash deploy.sh list)"
+grep -q 'easynettopo' <<< "$LIST_OUTPUT"
+grep -q 'portainer' <<< "$LIST_OUTPUT"
 bash deploy.sh env
 [[ -f "$SOFTWARE_ROOT/deploy/.env" && -f "$SOFTWARE_ROOT/deploy/.secrets" ]]
 [[ "$(stat -f '%Lp' "$SOFTWARE_ROOT/deploy/.env")" == 600 ]]
