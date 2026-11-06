@@ -8,9 +8,9 @@ die() { printf 'macOS 部署：%s\n' "$*" >&2; exit 1; }
 [[ "$(id -u)" -ne 0 ]] || die "请用普通登录用户执行 bash deploy.sh，不要 sudo（Docker Desktop 属于用户会话）"
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SOFTWARE_ROOT="\${SOFTWARE_ROOT:-/opt/software}"
+SOFTWARE_ROOT="${SOFTWARE_ROOT:-/opt/software}"
 [[ "$SOFTWARE_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]] || die "SOFTWARE_ROOT 必须是无空格的安全绝对路径"
-case "/$SOFTWARE_ROOT/" in *"/../"*|*"/./"*|*"//"*) die "SOFTWARE_ROOT 包含非规范化路径" ;; esac
+case "$SOFTWARE_ROOT" in */../*|*/./*|*//*|*/..|*/.) die "SOFTWARE_ROOT 包含非规范化路径" ;; esac
 [[ "$SOFTWARE_ROOT" != / ]] || die "不能将软件根目录设为 /"
 [[ ! -L "$SOFTWARE_ROOT" ]] || die "SOFTWARE_ROOT 不能是符号链接"
 ENV_DIR="$SOFTWARE_ROOT/deploy"
@@ -77,7 +77,7 @@ create_env_file() {
     while IFS= read -r line || [[ -n "$line" ]]; do
         case "$line" in ''|'#'*) continue ;; esac
         [[ "$line" == *=* ]] || continue
-        key="\${line%%=*}"
+        key="${line%%=*}"
         [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
         if ! grep -Eq "^[[:space:]]*$key[[:space:]]*=" "$target"; then
             if [[ "$key" == SOFTWARE_ROOT ]]; then line="SOFTWARE_ROOT=$SOFTWARE_ROOT"; fi
@@ -95,7 +95,7 @@ ensure_env() {
     create_env_file "$ROOT_DIR/.secrets.example" "$SECRETS_FILE"
     local configured
     configured="$(awk -F= '$1 == "SOFTWARE_ROOT" {print substr($0, index($0,"=")+1)}' "$ENV_FILE")"
-    configured="\${configured#\"}"; configured="\${configured%\"}"
+    configured="${configured#\"}"; configured="${configured%\"}"
     [[ "$configured" == "$SOFTWARE_ROOT" ]] ||
         die "配置中的 SOFTWARE_ROOT=$configured 与实际 $SOFTWARE_ROOT 不一致，请先人工迁移整个软件目录"
 }
@@ -136,8 +136,8 @@ sync_task() {
     echo "已同步应用代码：$dst（保留运行数据及配置）"
 }
 
-action="\${2:-install}"
-case "\${1:-}" in
+action="${2:-install}"
+case "${1:-}" in
     ''|-h|--help|help) usage ;;
     list)
         [[ "$#" -eq 1 ]] || die "list 不接受额外参数"
