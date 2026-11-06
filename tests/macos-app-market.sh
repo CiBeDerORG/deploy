@@ -72,4 +72,14 @@ for app in mihomo opencode portainer qoder2api-hub sub2api; do
     done
 done
 /bin/bash -n "$ROOT_DIR/lib/image-sources.sh"
+APP_ROOT="$TMP_ROOT/config-app"
+mkdir -p "$APP_ROOT/demo/deploy"
+printf 'APP_PORT=7001\n' > "$APP_ROOT/demo/deploy/config.env.example"
+printf 'APP_SECRET=\n' > "$APP_ROOT/demo/deploy/config.secrets.example"
+source "$ROOT_DIR/lib/app-config.sh"
+deploy_load_app_config "$APP_ROOT" demo
+[[ -f "$APP_ROOT/demo/config/.env" && -f "$APP_ROOT/demo/config/.secrets" ]]
+[[ "$(stat -f '%Lp' "$APP_ROOT/demo/config/.env")" == 600 ]]
+[[ "$(stat -f '%Lp' "$APP_ROOT/demo/config/.secrets")" == 600 ]]
+
 echo "macOS app market lifecycle compatibility checks passed"
