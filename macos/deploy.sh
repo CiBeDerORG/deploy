@@ -119,7 +119,9 @@ list_tasks() {
 }
 
 sync_task() {
-    local task="$1" src="$ROOT_DIR/$task" dst="$SOFTWARE_ROOT/$task"
+    local task="$1" src dst
+    src="$ROOT_DIR/$task"
+    dst="$SOFTWARE_ROOT/$task"
     task_exists "$task" || die "不存在应用：$task"
     ensure_env
     [[ ! -L "$dst" ]] || die "拒绝覆盖符号链接应用目录：$dst"
