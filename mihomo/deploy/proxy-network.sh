@@ -4,7 +4,15 @@ set -Eeuo pipefail
 NET=proxy-net
 action="${1:-}" target="${2:-}"
 err() { printf 'proxy-net：%s\n' "$*" >&2; exit 1; }
-[ "$(id -u)" -eq 0 ] || err "请使用 sudo"
+HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(cd -- "$HERE/.." && pwd)"
+SOFTWARE_ROOT="$(cd -- "$BASE_DIR/.." && pwd)"
+PLATFORM_LIB="$SOFTWARE_ROOT/deploy/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$SOFTWARE_ROOT/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || err "缺少跨平台 Deploy 辅助脚本"
+# shellcheck source=../../lib/platform.sh
+source "$PLATFORM_LIB"
+deploy_require_root || err "请使用 sudo"
 command -v docker >/dev/null 2>&1 || err "Docker 未安装"
 docker info >/dev/null 2>&1 || err "Docker daemon 不可用"
 

@@ -80,12 +80,12 @@ initialize_aio() {
   {"id":"deploy-web-cors","name":"Deploy trusted Web origins","type":"merge","enabled":true,"updatedAt":0}
 EOF_META
     if [ -f "$staging/profiles/deploy-proxy-auth.yaml" ]; then
-        sed -i '$s/}$/},/' "$staging/profiles/index.json"
+        deploy_sed_in_place '$s/}$/},/' "$staging/profiles/index.json"
         printf '  {"id":"deploy-proxy-auth","name":"Deploy proxy authentication","type":"merge","enabled":true,"updatedAt":0}\n' >> "$staging/profiles/index.json"
     fi
     printf ']\n' >> "$staging/profiles/index.json"
     printf '{"activeId":"deploy-initial"}\n' > "$staging/profiles/state.json"
     chmod 0600 "$staging/active.yaml" "$staging/profiles/"*
-    mv -- "$staging" "$final" || die "初始化持久化目录失败"
+    mv "$staging" "$final" || die "初始化持久化目录失败"
     echo "完整版数据已初始化：$final（旧数据保留）"
 }
