@@ -102,6 +102,14 @@ load_dotenv_file() {
 }
 
 prepare_env() {
+    if [ -f "$BASE_DIR/deploy/config.env.example" ]; then
+        local config_lib="$SOFTWARE_ROOT/deploy/lib/app-config.sh"
+        [ -f "$config_lib" ] || config_lib="$SOFTWARE_ROOT/lib/app-config.sh"
+        # shellcheck source=../../lib/app-config.sh
+        source "$config_lib"
+        deploy_load_app_config "$SOFTWARE_ROOT" "$(basename "$BASE_DIR")"
+        return $?
+    fi
     [ -f "$ENV_FILE" ] || {
         echo "统一普通配置文件不存在: $ENV_FILE" >&2
         echo "请先在 deploy 仓库根目录执行: sudo bash deploy.sh env" >&2
@@ -148,14 +156,12 @@ fix_permissions() {
     mkdir -p "$CONFIG_DIR" "$DATA_DIR" "$STATE_DIR" "$WORKSPACE_DIR"
 
     chown -R "$OWNER_USER:$OWNER_GROUP" \
-        "$CONFIG_DIR" \
         "$DATA_DIR" \
         "$STATE_DIR" \
         "$WORKSPACE_DIR" \
         "$DEPLOY_DIR"
 
     chmod -R u+rwX,g+rwX,o-rwx \
-        "$CONFIG_DIR" \
         "$DATA_DIR" \
         "$STATE_DIR" \
         "$WORKSPACE_DIR"
@@ -163,13 +169,23 @@ fix_permissions() {
     chmod -R u+rwX,g+rX,o-rwx "$DEPLOY_DIR"
 
     find \
-        "$CONFIG_DIR" \
         "$DATA_DIR" \
         "$STATE_DIR" \
         "$WORKSPACE_DIR" \
         -type d -exec chmod g+s {} +
 
+    # 只调整原生应用配置，绝不将部署密钥临时改为组可读。
+    find "$CONFIG_DIR" -type f ! -name '.env' ! -name '.secrets' \
+        -exec chown "$OWNER_USER:$OWNER_GROUP" {} + \
+        -exec chmod 0660 {} +
     [ ! -f "$CONFIG_FILE" ] || chmod 0660 "$CONFIG_FILE"
+    # 应用原生配置允许维护组编辑；部署凭据保持 root 专属且不可由组成员替换。
+    if [ "$ENV_FILE" = "$CONFIG_DIR/.env" ]; then
+        chown root:"$OWNER_GROUP" "$CONFIG_DIR"
+        chmod 0750 "$CONFIG_DIR"
+        chown root:root "$ENV_FILE" "$SECRETS_FILE"
+        chmod 0600 "$ENV_FILE" "$SECRETS_FILE"
+    fi
 }
 
 backup_data() {
@@ -251,7 +267,7 @@ generate_opencode_password() {
     mv -f -- "$tmp" "$SECRETS_FILE"
     OPENCODE_SERVER_PASSWORD="$value"
     export OPENCODE_SERVER_PASSWORD
-    echo "OpenCode 首次密码已写入统一 .secrets（值不输出）。"
+    echo "OpenCode 首次密码已写入应用 .secrets（值不输出）。"
 }
 
 check_runtime
@@ -278,7 +294,9 @@ IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
 # shellcheck source=../../lib/image-sources.sh
 source "$IMAGE_SOURCES_LIB"
 DEPLOY_OPENCODE_BASE_IMAGE=mcr.microsoft.com/devcontainers/typescript-node:24
-deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_OPENCODE_BASE_IMAGE
+IMAGE_CONFIG_FILE="$SOFTWARE_ROOT/deploy/.env"
+[ -f "$IMAGE_CONFIG_FILE" ] || IMAGE_CONFIG_FILE="$ENV_FILE"
+deploy_prepare_images "$SOFTWARE_ROOT" "$IMAGE_CONFIG_FILE" DEPLOY_OPENCODE_BASE_IMAGE
 
 echo "=================================================="
 if [ "$MODE" = "update" ]; then

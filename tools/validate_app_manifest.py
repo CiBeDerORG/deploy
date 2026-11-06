@@ -15,6 +15,7 @@ import posixpath
 import re
 import stat
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import yaml
@@ -33,14 +34,17 @@ class ManifestError(ValueError):
 
 
 class UniqueKeyLoader(yaml.SafeLoader):
-    pass
+    def compose_node(self, parent, index):
+        if self.check_event(yaml.AliasEvent):
+            raise ManifestError("不允许 YAML Alias")
+        return super().compose_node(parent, index)
 
 
 def _mapping(loader: UniqueKeyLoader, node: yaml.nodes.MappingNode):
     result = {}
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node)
-        if not isinstance(key, (str, int, float, bool)) or key in result:
+        if not isinstance(key, (str, int, float, bool)) or key in result or key == "<<":
             raise ManifestError("Duplicate or unsupported YAML mapping key")
         result[key] = loader.construct_object(value_node)
     return result
@@ -118,16 +122,53 @@ def compose_port_match(entry, declared: dict) -> bool:
         return is_host and is_bind
     return False
 
+def resolve_config(data: dict, root: Path) -> list[dict]:
+    """将应用内定义归一化；存储目标由文件决定，避免重复维护。"""
+    if data.get("schema_version") != 2:
+        return data["config"]
+    schema = json.loads((root / "schema/app-fields-v2.schema.json").read_text())
+    fields = []
+    for name, target in (("config", "env"), ("secrets", "secrets")):
+        require(data.get("configuration", {}).get(name) == name + ".yaml", "配置定义路径不符合约定")
+        definition_path = verified_file(root, data["id"] + "/" + name + ".yaml")
+        require(definition_path.stat().st_size <= 128 * 1024, "配置定义不能超过 128 KiB")
+        definition = yaml_load(definition_path)
+        require(Draft202012Validator(schema).is_valid(definition), "配置字段定义不符合 Schema")
+        for field in definition["fields"]:
+            require((field["type"] == "secret") == (target == "secrets"), "配置与密钥类型不匹配")
+            require(target != "secrets" or field["default"] == "", "密钥默认值必须为空")
+            require(not field["required"] or (field["custom_input"] and field.get("editable", True))
+                    or field["default"] not in (None, "") or field.get("generated_by_script"),
+                    "必填且不可输入的字段必须有默认值或生成机制")
+            fields.append({**field, "target": target})
+    require(len(fields) <= 120 and len({f["key"] for f in fields}) == len(fields), "配置字段重复或超过数量限制")
+    return fields
+
+
+def defaults_text(fields: list[dict], target: str) -> str:
+    lines = ["# 由 config.yaml / secrets.yaml 生成，请勿手工维护；不是运行时配置。"]
+    for field in fields:
+        if field["target"] != target:
+            continue
+        value = field.get("default", "")
+        value = str(value).lower() if isinstance(value, bool) else str(value)
+        require(not any(c in value for c in "\r\n\0"), "默认值不能包含换行或 NUL")
+        lines.append(f'{field["key"]}="{value}"')
+    return "\n".join(lines) + "\n"
+
+
 def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None = None) -> dict:
     root = root.resolve(strict=True)
-    schema_path = schema_path or root / "schema/app-manifest-v1.schema.json"
+    data = yaml_load(manifest)
+    require(isinstance(data, dict), "Manifest must be a mapping")
+    version = data.get("schema_version")
+    require(version in (1, 2), "不支持的应用清单版本")
+    schema_path = schema_path or root / f"schema/app-manifest-v{version}.schema.json"
     try:
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         Draft202012Validator.check_schema(schema)
     except Exception as exc:
         raise ManifestError(f"Schema unavailable or invalid: {type(exc).__name__}") from exc
-    data = yaml_load(manifest)
-    require(isinstance(data, dict), "Manifest must be a mapping")
     validation_errors = sorted(
         Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(data),
         key=lambda item: [str(x) for x in item.absolute_path],
@@ -138,6 +179,7 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
         # Avoid echoing secret default values from validator diagnostics.
         raise ManifestError(f"Schema validation failed at {location}: {err.validator}")
     app = data["id"]
+    data["config"] = resolve_config(data, root)
     # Contract fixtures live under schema/examples; production must be <id>/app.yaml.
     is_fixture = (manifest.parent.resolve() == (root / "schema/examples").resolve()
                   and manifest.name == f"{app}.app.yaml")
@@ -169,6 +211,34 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
         total += file_path.stat().st_size
         require(total <= MAX_PACKAGE_BYTES, "Package files exceed maximum aggregate size")
         files[dest] = file_path
+
+    if version == 2:
+        for name, target in (("config", "env"), ("secrets", "secrets")):
+            require(app + "/" + name + ".yaml" in files, "配置定义必须列入安装包")
+            template = app + "/deploy/config." + target + ".example"
+            require(template in files, "安装包缺少生成的默认值模板")
+            require(files[template].read_text() == defaults_text(data["config"], target),
+                    "默认值模板已过期，请运行 --write-defaults --all")
+        if data.get("icon"):
+            icon = verified_file(root, app + "/" + data["icon"])
+            require(0 < icon.stat().st_size <= 128 * 1024, "图标必须为非空文件且不能超过 128 KiB")
+            content = icon.read_bytes()
+            if icon.suffix == ".svg":
+                require(b"<!" not in content.replace(b"<!--", b""), "SVG 不允许文档声明")
+                try:
+                    svg = ET.fromstring(content)
+                except ET.ParseError as exc:
+                    raise ManifestError("SVG 图标内容无效") from exc
+                require(svg.tag.split("}")[-1] == "svg", "图标根元素必须是 SVG")
+                for element in svg.iter():
+                    require(element.tag.split("}")[-1] not in ("script", "foreignObject"), "SVG 不允许脚本或内嵌页面")
+                    for attr, value in element.attrib.items():
+                        attr = attr.split("}")[-1]
+                        require(not attr.lower().startswith("on") and (attr != "href" or value.startswith("#")), "SVG 不允许事件或外部资源")
+            elif icon.suffix == ".png":
+                require(content.startswith(bytes([137, 80, 78, 71, 13, 10, 26, 10])), "PNG 图标内容无效")
+            else:
+                require(content[:4] == b"RIFF" and content[8:12] == b"WEBP", "WebP 图标内容无效")
 
     compose_rel = app + "/" + data["runtime"]["compose_file"]
     require(compose_rel in files, f"Compose file absent from package: {compose_rel}")
@@ -310,8 +380,8 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
         require(volume in declared_volumes,
                 f"Declared owned named volume is missing from Compose: {volume}")
 
-    env_text = (root / ".env.example").read_text(encoding="utf-8")
-    secret_text = (root / ".secrets.example").read_text(encoding="utf-8")
+    env_text = (root / (app + "/deploy/config.env.example" if version == 2 else "schema/examples/legacy.env.example" if is_fixture else ".env.example")).read_text(encoding="utf-8")
+    secret_text = (root / (app + "/deploy/config.secrets.example" if version == 2 else "schema/examples/legacy.secrets.example" if is_fixture else ".secrets.example")).read_text(encoding="utf-8")
     for field in data["config"]:
         target = secret_text if field["type"] == "secret" else env_text
         require(re.search(r"(?m)^" + re.escape(field["key"]) + r"=", target) is not None,
@@ -337,6 +407,7 @@ def main(argv=None) -> int:
                         help="Validate both contract examples in this checkout")
     parser.add_argument("--all", action="store_true",
                         help="Validate every published <id>/app.yaml (does not load examples)")
+    parser.add_argument("--write-defaults", action="store_true", help="从应用定义生成脚本默认值模板")
     args = parser.parse_args(argv)
     paths = list(args.manifests)
     if args.examples:
@@ -348,6 +419,12 @@ def main(argv=None) -> int:
     failed = False
     for path in paths:
         try:
+            if args.write_defaults:
+                data = yaml_load(path)
+                if data.get("schema_version") == 2:
+                    fields = resolve_config(data, args.root)
+                    for target in ("env", "secrets"):
+                        (path.parent / "deploy" / f"config.{target}.example").write_text(defaults_text(fields, target), encoding="utf-8")
             result = validate(path, args.root)
             print(json.dumps({"manifest": str(path), "valid": True, **result},
                              ensure_ascii=False, sort_keys=True))

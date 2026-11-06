@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 
-from tools.validate_app_manifest import validate
+from tools.validate_app_manifest import validate, resolve_config
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -36,12 +36,15 @@ class EasyNetTopoSub2APITests(unittest.TestCase):
             "sub2api/deploy/uninstall.sh",
             "sub2api/deploy/lib.sh",
             "deploy/lib/image-sources.sh",
+            "deploy/lib/app-config.sh",
+            "sub2api/config.yaml", "sub2api/secrets.yaml",
+            "sub2api/deploy/config.env.example", "sub2api/deploy/config.secrets.example",
         }
         self.assertEqual(set(files), required)
         self.assertEqual(files["sub2api/deploy/install.sh"]["mode"], "0755")
         self.assertEqual(files["sub2api/deploy/update.sh"]["mode"], "0755")
         self.assertEqual(files["sub2api/deploy/uninstall.sh"]["mode"], "0755")
-        self.assertFalse(any(".env" in p or ".secrets" in p or "/data/" in p
+        self.assertFalse(any(p.endswith("/.env") or p.endswith("/.secrets") or "/data/" in p
                              for p in files))
         # app.yaml 随发布包的元数据单独携带，不要求把 manifest 自己放进 package.files。
         self.assertEqual(self.manifest["actions"]["install"]["path"], "deploy/install.sh")
@@ -66,7 +69,7 @@ class EasyNetTopoSub2APITests(unittest.TestCase):
 
     def test_generated_secrets_match_the_real_installer(self):
         script = (ROOT / "sub2api/deploy/install.sh").read_text(encoding="utf-8")
-        fields = [x for x in self.manifest["config"] if x.get("generated_by_script")]
+        fields = [x for x in resolve_config(self.manifest, ROOT) if x.get("generated_by_script")]
         self.assertEqual({x["key"] for x in fields}, {
             "SUB2API_POSTGRES_PASSWORD", "SUB2API_REDIS_PASSWORD",
             "SUB2API_JWT_SECRET", "SUB2API_TOTP_ENCRYPTION_KEY",

@@ -57,7 +57,9 @@ IMAGE_SOURCES_LIB="$ROOT/deploy/lib/image-sources.sh"
 # shellcheck source=../../lib/image-sources.sh
 source "$IMAGE_SOURCES_LIB"
 DEPLOY_MIHOMO_IMAGE=ghcr.io/metacubex/metacubexd-server:latest
-deploy_prepare_images "$ROOT" "$ROOT/deploy/.env" DEPLOY_MIHOMO_IMAGE
+IMAGE_CONFIG_FILE="$ROOT/deploy/.env"
+[ -f "$IMAGE_CONFIG_FILE" ] || IMAGE_CONFIG_FILE="$ENV_FILE"
+deploy_prepare_images "$ROOT" "$IMAGE_CONFIG_FILE" DEPLOY_MIHOMO_IMAGE
 
 bash "$HERE/proxy-network.sh" ensure
 cd "$HERE"

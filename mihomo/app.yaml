@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: mihomo
 name: Mihomo
 summary: MetaCubeXD All-in-One 代理内核、Web 面板与管理服务（Docker）
@@ -9,121 +9,79 @@ runtime:
   compose_file: deploy/docker-compose.yaml
   requires_root: true
 compatibility:
-  platforms: [linux, fnos]
-  architectures: [amd64, arm64]
+  platforms:
+  - linux
+  - fnos
+  architectures:
+  - amd64
+  - arm64
   requires_docker: true
   requires_compose_v2: true
 package:
   files:
-    - source: mihomo/deploy/docker-compose.yaml
-      destination: mihomo/deploy/docker-compose.yaml
-    - source: mihomo/deploy/install.sh
-      destination: mihomo/deploy/install.sh
-      mode: "0755"
-    - source: mihomo/deploy/update.sh
-      destination: mihomo/deploy/update.sh
-      mode: "0755"
-    - source: mihomo/deploy/uninstall.sh
-      destination: mihomo/deploy/uninstall.sh
-      mode: "0755"
-    - source: mihomo/deploy/common.sh
-      destination: mihomo/deploy/common.sh
-    - source: mihomo/deploy/migrate.sh
-      destination: mihomo/deploy/migrate.sh
-    - source: mihomo/deploy/proxy-network.sh
-      destination: mihomo/deploy/proxy-network.sh
-      mode: "0755"
-    - source: mihomo/deploy/default-profile.yaml
-      destination: mihomo/deploy/default-profile.yaml
-    - source: lib/image-sources.sh
-      destination: deploy/lib/image-sources.sh
-config:
-  - key: MIHOMO_MIXED_PORT
-    label: 代理端口
-    type: port
-    target: env
-    required: true
-    default: 7011
-  - key: MIHOMO_API_PORT
-    label: Web 管理端口
-    type: port
-    target: env
-    required: true
-    default: 7012
-  - key: MIHOMO_CORE_API_PORT
-    label: 内核 API 端口
-    type: port
-    target: env
-    required: true
-    default: 7013
-  - key: MIHOMO_PROXY_BIND_IP
-    label: 代理监听地址
-    type: ipv4
-    target: env
-    required: true
-    default: 127.0.0.1
-  - key: MIHOMO_API_BIND_IP
-    label: Web 监听地址
-    type: ipv4
-    target: env
-    required: true
-    default: 0.0.0.0
-  - key: MIHOMO_CORE_API_BIND_IP
-    label: 内核 API 监听地址
-    type: ipv4
-    target: env
-    required: true
-    default: 0.0.0.0
-  - key: MIHOMO_CONTROL_TOKEN
-    label: Web 控制令牌（留空自动生成）
-    type: secret
-    target: secrets
-    required: false
-    default: ""
-  - key: MIHOMO_API_SECRET
-    label: 内核 API 令牌（留空自动生成）
-    type: secret
-    target: secrets
-    required: false
-    default: ""
-  - key: MIHOMO_PROXY_USER
-    label: 代理用户名
-    type: secret
-    target: secrets
-    required: false
-    default: ""
-  - key: MIHOMO_PROXY_PASSWORD
-    label: 代理密码（首次初始化留空自动生成）
-    type: secret
-    target: secrets
-    required: false
-    default: ""
+  - source: mihomo/deploy/docker-compose.yaml
+    destination: mihomo/deploy/docker-compose.yaml
+  - source: mihomo/deploy/install.sh
+    destination: mihomo/deploy/install.sh
+    mode: '0755'
+  - source: mihomo/deploy/update.sh
+    destination: mihomo/deploy/update.sh
+    mode: '0755'
+  - source: mihomo/deploy/uninstall.sh
+    destination: mihomo/deploy/uninstall.sh
+    mode: '0755'
+  - source: mihomo/deploy/common.sh
+    destination: mihomo/deploy/common.sh
+  - source: mihomo/deploy/migrate.sh
+    destination: mihomo/deploy/migrate.sh
+  - source: mihomo/deploy/proxy-network.sh
+    destination: mihomo/deploy/proxy-network.sh
+    mode: '0755'
+  - source: mihomo/deploy/default-profile.yaml
+    destination: mihomo/deploy/default-profile.yaml
+  - source: lib/image-sources.sh
+    destination: deploy/lib/image-sources.sh
+  - source: mihomo/config.yaml
+    destination: mihomo/config.yaml
+    mode: '0644'
+  - source: mihomo/secrets.yaml
+    destination: mihomo/secrets.yaml
+    mode: '0644'
+  - source: mihomo/deploy/config.env.example
+    destination: mihomo/deploy/config.env.example
+    mode: '0644'
+  - source: mihomo/deploy/config.secrets.example
+    destination: mihomo/deploy/config.secrets.example
+    mode: '0644'
+  - source: lib/app-config.sh
+    destination: deploy/lib/app-config.sh
+    mode: '0644'
 ports:
-  - id: proxy
-    label: 混合代理
-    protocol: tcp
-    purpose: other
-    host_port_key: MIHOMO_MIXED_PORT
-    bind_address_key: MIHOMO_PROXY_BIND_IP
-    container_port: 7890
-    service: mihomo
-  - id: web
-    label: 管理面板
-    protocol: tcp
-    purpose: web
-    host_port_key: MIHOMO_API_PORT
-    bind_address_key: MIHOMO_API_BIND_IP
-    container_port: 8080
-    service: mihomo
-    path: /
-  - id: core
-    label: 内核接口
-    protocol: tcp
-    purpose: other
-    host_port_key: MIHOMO_CORE_API_PORT
-    bind_address_key: MIHOMO_CORE_API_BIND_IP
-    container_port: 9090
-    service: mihomo
+- id: proxy
+  label: 混合代理
+  protocol: tcp
+  purpose: other
+  host_port_key: MIHOMO_MIXED_PORT
+  bind_address_key: MIHOMO_PROXY_BIND_IP
+  container_port: 7890
+  service: mihomo
+- id: web
+  label: 管理面板
+  protocol: tcp
+  purpose: web
+  host_port_key: MIHOMO_API_PORT
+  bind_address_key: MIHOMO_API_BIND_IP
+  container_port: 8080
+  service: mihomo
+  path: /
+- id: core
+  label: 内核接口
+  protocol: tcp
+  purpose: other
+  host_port_key: MIHOMO_CORE_API_PORT
+  bind_address_key: MIHOMO_CORE_API_BIND_IP
+  container_port: 9090
+  service: mihomo
 actions:
   install:
     strategy: script
@@ -136,10 +94,16 @@ actions:
     path: deploy/uninstall.sh
 verification:
   mode: docker_compose
-  required_services: [mihomo]
+  required_services:
+  - mihomo
   state: healthy
   timeout_seconds: 180
 data:
-  paths: [mihomo/data/all-in-one]
+  paths:
+  - mihomo/data/all-in-one
   named_volumes: []
   default_retain: true
+configuration:
+  config: config.yaml
+  secrets: secrets.yaml
+icon: assets/icon.svg

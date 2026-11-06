@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: opencode
 name: OpenCode
 summary: 容器化 OpenCode Web 服务与独立开发工作空间
@@ -9,61 +9,60 @@ runtime:
   compose_file: deploy/docker-compose.yaml
   requires_root: true
 compatibility:
-  platforms: [linux, fnos]
-  architectures: [amd64, arm64]
+  platforms:
+  - linux
+  - fnos
+  architectures:
+  - amd64
+  - arm64
   requires_docker: true
   requires_compose_v2: true
 package:
   files:
-    - source: opencode/deploy/docker-compose.yaml
-      destination: opencode/deploy/docker-compose.yaml
-    - source: opencode/deploy/Dockerfile
-      destination: opencode/deploy/Dockerfile
-    - source: opencode/deploy/docker-entrypoint.sh
-      destination: opencode/deploy/docker-entrypoint.sh
-      mode: "0755"
-    - source: opencode/deploy/install.sh
-      destination: opencode/deploy/install.sh
-      mode: "0755"
-    - source: opencode/deploy/update.sh
-      destination: opencode/deploy/update.sh
-      mode: "0755"
-    - source: opencode/deploy/uninstall.sh
-      destination: opencode/deploy/uninstall.sh
-      mode: "0755"
-    - source: opencode/config/opencode.jsonc
-      destination: opencode/config/opencode.jsonc
-    - source: lib/image-sources.sh
-      destination: deploy/lib/image-sources.sh
-config:
-  - key: OPENCODE_PORT
-    label: Web 监听端口
-    type: port
-    target: env
-    required: true
-    default: 7003
-  - key: MYAI_IP
-    label: 服务访问地址（IPv4）
-    type: ipv4
-    target: env
-    required: true
-    default: 203.0.113.10
-  - key: OPENCODE_SERVER_PASSWORD
-    label: Web 密码（留空自动生成）
-    type: secret
-    target: secrets
-    required: false
-    default: ""
-    generated_by_script: true
+  - source: opencode/deploy/docker-compose.yaml
+    destination: opencode/deploy/docker-compose.yaml
+  - source: opencode/deploy/Dockerfile
+    destination: opencode/deploy/Dockerfile
+  - source: opencode/deploy/docker-entrypoint.sh
+    destination: opencode/deploy/docker-entrypoint.sh
+    mode: '0755'
+  - source: opencode/deploy/install.sh
+    destination: opencode/deploy/install.sh
+    mode: '0755'
+  - source: opencode/deploy/update.sh
+    destination: opencode/deploy/update.sh
+    mode: '0755'
+  - source: opencode/deploy/uninstall.sh
+    destination: opencode/deploy/uninstall.sh
+    mode: '0755'
+  - source: opencode/config/opencode.jsonc
+    destination: opencode/config/opencode.jsonc
+  - source: lib/image-sources.sh
+    destination: deploy/lib/image-sources.sh
+  - source: opencode/config.yaml
+    destination: opencode/config.yaml
+    mode: '0644'
+  - source: opencode/secrets.yaml
+    destination: opencode/secrets.yaml
+    mode: '0644'
+  - source: opencode/deploy/config.env.example
+    destination: opencode/deploy/config.env.example
+    mode: '0644'
+  - source: opencode/deploy/config.secrets.example
+    destination: opencode/deploy/config.secrets.example
+    mode: '0644'
+  - source: lib/app-config.sh
+    destination: deploy/lib/app-config.sh
+    mode: '0644'
 ports:
-  - id: web
-    label: OpenCode Web
-    protocol: tcp
-    purpose: web
-    host_port_key: OPENCODE_PORT
-    container_port: 4096
-    service: opencode
-    path: /
+- id: web
+  label: OpenCode Web
+  protocol: tcp
+  purpose: web
+  host_port_key: OPENCODE_PORT
+  container_port: 4096
+  service: opencode
+  path: /
 actions:
   install:
     strategy: script
@@ -76,10 +75,16 @@ actions:
     path: deploy/uninstall.sh
 verification:
   mode: docker_compose
-  required_services: [opencode]
+  required_services:
+  - opencode
   state: healthy
   timeout_seconds: 240
 data:
-  paths: [opencode/data]
+  paths:
+  - opencode/data
   named_volumes: []
   default_retain: true
+configuration:
+  config: config.yaml
+  secrets: secrets.yaml
+icon: assets/icon.svg

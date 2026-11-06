@@ -5,6 +5,8 @@ import re
 import unittest
 from pathlib import Path
 
+from tools.validate_app_manifest import validate, resolve_config
+
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 
@@ -36,9 +38,12 @@ class DeployManifestTests(unittest.TestCase):
                 published = ROOT / name / "app.yaml"
                 self.assertTrue(published.is_file())
                 actual = yaml.safe_load(published.read_text(encoding="utf-8"))
-                VALIDATOR.validate(actual)
+                validate(published, ROOT)
                 self.assertEqual(actual["id"], name)
-                self.assertEqual(actual, load(name))
+                for section in ("runtime", "actions", "data", "ports"):
+                    self.assertEqual(actual[section], load(name)[section])
+                fields = resolve_config(actual, ROOT)
+                self.assertEqual({f["key"] for f in fields}, {f["key"] for f in load(name)["config"]})
                 self.assertEqual(actual["runtime"]["compose_project"], name)
                 self.assertIn(f"{name}/deploy/docker-compose.yaml",
                               [f["destination"] for f in actual["package"]["files"]])
@@ -106,8 +111,8 @@ class DeployManifestTests(unittest.TestCase):
                 self.assertIn(data_path, mounts)
 
     def test_secret_locations_match_existing_global_templates(self):
-        env = (ROOT / ".env.example").read_text(encoding="utf-8")
-        secrets = (ROOT / ".secrets.example").read_text(encoding="utf-8")
+        env = (ROOT / "schema/examples/legacy.env.example").read_text(encoding="utf-8")
+        secrets = (ROOT / "schema/examples/legacy.secrets.example").read_text(encoding="utf-8")
         for name in EXAMPLES:
             app = load(name)
             for field in app["config"]:

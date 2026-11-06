@@ -126,7 +126,7 @@ jobs:
           assert ports['7011']['host_ip'] == '127.0.0.1' and ports['7011']['target'] == 7890, ports
           assert ports['7012']['host_ip'] == '0.0.0.0' and ports['7012']['target'] == 8080, ports
           assert ports['7013']['host_ip'] == '0.0.0.0' and ports['7013']['target'] == 9090, ports
-          template = Path('.env.example').read_text()
+          template = Path('mihomo/deploy/config.env.example').read_text().replace(chr(34), '')
           assert 'MIHOMO_PROXY_BIND_IP=127.0.0.1' in template
           assert 'MIHOMO_API_BIND_IP=0.0.0.0' in template
           config = Path('mihomo/deploy/default-profile.yaml').read_text()
@@ -147,7 +147,7 @@ jobs:
           assert 'authentication_stanza' in Path('mihomo/deploy/migrate.sh').read_text()
           assert 'deploy-proxy-auth' in Path('mihomo/deploy/migrate.sh').read_text()
           assert 'docker compose' in install
-          assert 'MIHOMO_CONTROL_TOKEN=' in Path('.secrets.example').read_text()
+          assert 'MIHOMO_CONTROL_TOKEN=' in Path('mihomo/deploy/config.secrets.example').read_text()
           assert 'MIHOMO_CORE_API_PORT=7013' in template
           for source in ('.env.example', 'mihomo/deploy/common.sh', 'mihomo/deploy/migrate.sh', 'mihomo/deploy/install.sh', 'mihomo/README.md'):
               assert 'MIHOMO_WEB_ORIGIN' not in Path(source).read_text(), source

@@ -1,5 +1,8 @@
 # Qoder2API Hub
 
+> 应用商店 v2：本应用的字段定义在 `config.yaml`、`secrets.yaml`，图标在 `assets/icon.svg`；实际配置位于 `<SOFTWARE_ROOT>/qoder2api-hub/config/.env`、`config/.secrets`。先运行 `sudo bash deploy.sh env` 和 `sudo bash deploy.sh qoder2api-hub sync` 初始化，再编辑实际文件。旧全局值仅在新文件缺少对应项时迁入，更新不覆盖已有值。全局镜像源等公共设置仍在 `deploy/.env`。参见[通用契约与操作说明](../docs/app-store-contract.md)。
+
+
 基于 [shuishuipingan/qoder2api-hub](https://github.com/shuishuipingan/qoder2api-hub) 官方 GHCR 多架构镜像部署。它把 Qoder 国内版 / 国际版账号池封装为 OpenAI Chat Completions、Responses API 和 Anthropic Messages 兼容接口，并提供 Web 管理面板。
 
 ## 安装与更新

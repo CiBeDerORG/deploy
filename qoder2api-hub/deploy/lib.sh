@@ -54,6 +54,14 @@ load_config_file() {
     done < "$file"
 }
 load_global_config() {
+    if [ -f "$BASE_DIR/deploy/config.env.example" ]; then
+        local config_lib="$SOFTWARE_ROOT/deploy/lib/app-config.sh"
+        [ -f "$config_lib" ] || config_lib="$SOFTWARE_ROOT/lib/app-config.sh"
+        # shellcheck source=../../lib/app-config.sh
+        source "$config_lib"
+        deploy_load_app_config "$SOFTWARE_ROOT" "$(basename "$BASE_DIR")"
+        return $?
+    fi
     [ -f "$ENV_FILE" ] && [ -f "$SECRETS_FILE" ] || fail "请先执行 deploy.sh env 初始化统一配置"
     chown root:root "$ENV_FILE" "$SECRETS_FILE"
     chmod 0600 "$ENV_FILE" "$SECRETS_FILE"

@@ -1,0 +1,573 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/CiBeDerORG/deploy/blob/main/schema/app-manifest-v2.schema.json",
+  "title": "Deploy 应用清单 v2",
+  "description": "应用内配置、密钥定义和图标；保留现有生命周期与包完整性契约。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "summary",
+    "category",
+    "runtime",
+    "compatibility",
+    "package",
+    "ports",
+    "actions",
+    "verification",
+    "data",
+    "configuration"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 64,
+      "description": "稳定的应用标识，必须与 Deploy 仓库中的应用目录一致。"
+    },
+    "name": {
+      "type": "string",
+      "description": "显示名称。",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "summary": {
+      "type": "string",
+      "description": "面向用户的简短说明。",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "infrastructure",
+        "network",
+        "developer",
+        "media",
+        "productivity",
+        "other"
+      ]
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "maxLength": 500
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "compose_project",
+        "compose_file"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "docker_compose"
+        },
+        "compose_project": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+          "minLength": 2,
+          "maxLength": 64,
+          "description": "必须与 docker-compose.yaml 的项目名称完全一致。"
+        },
+        "compose_file": {
+          "const": "deploy/docker-compose.yaml"
+        },
+        "requires_root": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platforms",
+        "architectures"
+      ],
+      "properties": {
+        "platforms": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": [
+              "linux",
+              "fnos"
+            ]
+          }
+        },
+        "architectures": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": [
+              "amd64",
+              "arm64"
+            ]
+          }
+        },
+        "requires_docker": {
+          "type": "boolean",
+          "const": true
+        },
+        "requires_compose_v2": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files"
+      ],
+      "properties": {
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source",
+              "destination"
+            ],
+            "properties": {
+              "source": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$",
+                "description": "相对仓库或软件根目录的安全 POSIX 路径，禁止 .. 和绝对路径；语义校验还会拒绝符号链接、隐藏凭据与特殊文件。"
+              },
+              "destination": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$",
+                "description": "相对仓库或软件根目录的安全 POSIX 路径，禁止 .. 和绝对路径；语义校验还会拒绝符号链接、隐藏凭据与特殊文件。"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "0644",
+                  "0755"
+                ],
+                "default": "0644"
+              }
+            }
+          },
+          "description": "源路径相对仓库根目录，目标路径相对 SOFTWARE_ROOT；必须显式列出全部依赖，禁止整仓库部署。"
+        }
+      }
+    },
+    "ports": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "protocol",
+          "purpose",
+          "host_port_key",
+          "container_port"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "minLength": 2,
+            "maxLength": 64
+          },
+          "label": {
+            "type": "string",
+            "description": "界面标题。"
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "tcp",
+              "udp"
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "web",
+              "other"
+            ]
+          },
+          "host_port_key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "bind_address_key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "container_port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "service": {
+            "type": "string",
+            "description": "Compose 服务名称。",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "path": {
+            "type": "string",
+            "description": "用于展示的 HTTP 路径，选填。",
+            "pattern": "^/[^?#]*$",
+            "maxLength": 255
+          }
+        }
+      }
+    },
+    "actions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "install",
+        "uninstall"
+      ],
+      "properties": {
+        "install": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "strategy"
+          ],
+          "properties": {
+            "strategy": {
+              "const": "script"
+            },
+            "path": {
+              "const": "deploy/install.sh"
+            },
+            "argv": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "maxItems": 0,
+              "default": []
+            },
+            "remove_orphans": {
+              "const": false
+            },
+            "description": {
+              "type": "string",
+              "description": "操作的界面说明。"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "strategy": {
+                    "const": "script"
+                  }
+                },
+                "required": [
+                  "strategy"
+                ]
+              },
+              "then": {
+                "required": [
+                  "path"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "strategy": {
+                    "const": "compose_down"
+                  }
+                },
+                "required": [
+                  "strategy"
+                ]
+              },
+              "then": {
+                "not": {
+                  "required": [
+                    "path"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "update": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "strategy"
+          ],
+          "properties": {
+            "strategy": {
+              "const": "script"
+            },
+            "path": {
+              "const": "deploy/update.sh"
+            },
+            "argv": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "maxItems": 0,
+              "default": []
+            },
+            "remove_orphans": {
+              "const": false
+            },
+            "description": {
+              "type": "string",
+              "description": "操作的界面说明。"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "strategy": {
+                    "const": "script"
+                  }
+                },
+                "required": [
+                  "strategy"
+                ]
+              },
+              "then": {
+                "required": [
+                  "path"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "strategy": {
+                    "const": "compose_down"
+                  }
+                },
+                "required": [
+                  "strategy"
+                ]
+              },
+              "then": {
+                "not": {
+                  "required": [
+                    "path"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "uninstall": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "strategy"
+          ],
+          "properties": {
+            "strategy": {
+              "const": "script"
+            },
+            "path": {
+              "const": "deploy/uninstall.sh"
+            },
+            "argv": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "maxItems": 0,
+              "default": []
+            },
+            "remove_orphans": {
+              "const": false
+            },
+            "description": {
+              "type": "string",
+              "description": "操作的界面说明。"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "strategy": {
+                    "const": "script"
+                  }
+                },
+                "required": [
+                  "strategy"
+                ]
+              },
+              "then": {
+                "required": [
+                  "path"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "strategy": {
+                    "const": "compose_down"
+                  }
+                },
+                "required": [
+                  "strategy"
+                ]
+              },
+              "then": {
+                "not": {
+                  "required": [
+                    "path"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "required_services",
+        "state"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "const": "docker_compose"
+        },
+        "required_services": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "description": "Compose 服务名称。",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$"
+          }
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "running",
+            "healthy"
+          ]
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 1200,
+          "default": 180
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "paths"
+      ],
+      "properties": {
+        "paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$",
+            "description": "相对 SOFTWARE_ROOT 的用户数据路径，例如 portainer/data；空列表表示没有受管数据路径。必须核对 Compose 挂载归属。"
+          }
+        },
+        "named_volumes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "minLength": 2,
+            "maxLength": 64
+          },
+          "default": []
+        },
+        "default_retain": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config",
+        "secrets"
+      ],
+      "properties": {
+        "config": {
+          "const": "config.yaml"
+        },
+        "secrets": {
+          "const": "secrets.yaml"
+        }
+      }
+    },
+    "icon": {
+      "type": "string",
+      "pattern": "^assets/[A-Za-z0-9_-]+\\.(svg|png|webp)$",
+      "maxLength": 256
+    }
+  },
+  "$defs": {
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$",
+      "description": "相对仓库或软件根目录的安全 POSIX 路径，禁止 .. 和绝对路径；语义校验还会拒绝符号链接、隐藏凭据与特殊文件。"
+    }
+  }
+}

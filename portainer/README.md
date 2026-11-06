@@ -1,5 +1,8 @@
 # Portainer CE
 
+> 应用商店 v2：本应用的字段定义在 `config.yaml`、`secrets.yaml`，图标在 `assets/icon.svg`；实际配置位于 `<SOFTWARE_ROOT>/portainer/config/.env`、`config/.secrets`。先运行 `sudo bash deploy.sh env` 和 `sudo bash deploy.sh portainer sync` 初始化，再编辑实际文件。旧全局值仅在新文件缺少对应项时迁入，更新不覆盖已有值。全局镜像源等公共设置仍在 `deploy/.env`。参见[通用契约与操作说明](../docs/app-store-contract.md)。
+
+
 这个目录用于部署 Portainer CE LTS。
 
 ## 目录

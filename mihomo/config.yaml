@@ -1,0 +1,49 @@
+fields:
+- key: MIHOMO_MIXED_PORT
+  label: 代理端口
+  type: port
+  required: true
+  default: 7011
+  description: 代理端口
+  custom_input: true
+  editable: true
+- key: MIHOMO_API_PORT
+  label: Web 管理端口
+  type: port
+  required: true
+  default: 7012
+  description: Web 管理端口
+  custom_input: true
+  editable: true
+- key: MIHOMO_CORE_API_PORT
+  label: 内核 API 端口
+  type: port
+  required: true
+  default: 7013
+  description: 内核 API 端口
+  custom_input: true
+  editable: true
+- key: MIHOMO_PROXY_BIND_IP
+  label: 代理监听地址
+  type: ipv4
+  required: true
+  default: 127.0.0.1
+  description: 代理监听地址
+  custom_input: true
+  editable: true
+- key: MIHOMO_API_BIND_IP
+  label: Web 监听地址
+  type: ipv4
+  required: true
+  default: 0.0.0.0
+  description: Web 监听地址
+  custom_input: true
+  editable: true
+- key: MIHOMO_CORE_API_BIND_IP
+  label: 内核 API 监听地址
+  type: ipv4
+  required: true
+  default: 0.0.0.0
+  description: 内核 API 监听地址
+  custom_input: true
+  editable: true

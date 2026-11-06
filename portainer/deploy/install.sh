@@ -95,6 +95,14 @@ load_dotenv_file() {
 }
 
 prepare_env() {
+    if [ -f "$BASE_DIR/deploy/config.env.example" ]; then
+        local config_lib="$SOFTWARE_ROOT/deploy/lib/app-config.sh"
+        [ -f "$config_lib" ] || config_lib="$SOFTWARE_ROOT/lib/app-config.sh"
+        # shellcheck source=../../lib/app-config.sh
+        source "$config_lib"
+        deploy_load_app_config "$SOFTWARE_ROOT" "$(basename "$BASE_DIR")"
+        return $?
+    fi
     [ -f "$ENV_FILE" ] || {
         echo "统一普通配置文件不存在: $ENV_FILE" >&2
         echo "请先在 deploy 仓库根目录执行: sudo bash deploy.sh env" >&2
@@ -221,7 +229,9 @@ IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
 # shellcheck source=../../lib/image-sources.sh
 source "$IMAGE_SOURCES_LIB"
 DEPLOY_PORTAINER_IMAGE=portainer/portainer-ce:lts
-deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_PORTAINER_IMAGE
+IMAGE_CONFIG_FILE="$SOFTWARE_ROOT/deploy/.env"
+[ -f "$IMAGE_CONFIG_FILE" ] || IMAGE_CONFIG_FILE="$ENV_FILE"
+deploy_prepare_images "$SOFTWARE_ROOT" "$IMAGE_CONFIG_FILE" DEPLOY_PORTAINER_IMAGE
 
 echo "=================================================="
 if [ "$MODE" = "update" ]; then
