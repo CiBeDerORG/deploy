@@ -42,8 +42,9 @@ if launchctl print "gui/$uid" >/dev/null 2>&1; then
     # 第二阶段 Docker API 与持久任务入口必须存在且拒绝未配对控制端。
     inventory_code="$(curl -ksS -o /dev/null -w '%{http_code}' https://127.0.0.1:7018/v1/docker/inventory)"
     task_code="$(curl -ksS -o /dev/null -w '%{http_code}' https://127.0.0.1:7018/v1/tasks)"
-    [[ "$inventory_code" == 401 && "$task_code" == 401 ]] || {
-        echo "Docker 资源与任务接口鉴权验收失败：$inventory_code/$task_code" >&2
+    market_code="$(curl -ksS -X POST -H 'Content-Type: application/json' -d '{"apps":[]}' -o /dev/null -w '%{http_code}' https://127.0.0.1:7018/v1/apps/status)"
+    [[ "$inventory_code" == 401 && "$task_code" == 401 && "$market_code" == 401 ]] || {
+        echo "Docker 资源、任务与应用市场接口鉴权验收失败：$inventory_code/$task_code/$market_code" >&2
         exit 1
     }
     bash deploy.sh easyhostagent status >/dev/null
