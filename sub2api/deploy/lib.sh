@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Shared by this service's install and update entry points.
+LIB_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${SOFTWARE_ROOT:-}" ]; then
+    SOFTWARE_ROOT="$(cd -- "$LIB_DIR/../.." && pwd)"
+fi
 PLATFORM_LIB="$SOFTWARE_ROOT/deploy/lib/platform.sh"
 [ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$SOFTWARE_ROOT/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$LIB_DIR/../../lib/platform.sh"
 [ -f "$PLATFORM_LIB" ] || { echo "缺少跨平台 Deploy 辅助脚本。" >&2; exit 1; }
 # shellcheck source=../../lib/platform.sh
 source "$PLATFORM_LIB"
