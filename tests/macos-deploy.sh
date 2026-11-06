@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # 在 GitHub macos runner 上执行；不下载镜像，也不需要真实 Docker Engine。
 set -euo pipefail
+# 保证后续 bash 命令使用 macOS 系统自带的 Bash 3.2。
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 export SOFTWARE_ROOT="$RUNNER_TEMP/macos-deploy-fixture"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
