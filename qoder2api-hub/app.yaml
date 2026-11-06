@@ -13,6 +13,7 @@ compatibility:
   platforms:
   - linux
   - fnos
+  - macos
   architectures:
   - amd64
   - arm64
@@ -35,6 +36,8 @@ package:
     destination: qoder2api-hub/deploy/lib.sh
   - source: lib/image-sources.sh
     destination: deploy/lib/image-sources.sh
+  - source: lib/platform.sh
+    destination: deploy/lib/platform.sh
   - source: qoder2api-hub/config.yaml
     destination: qoder2api-hub/config.yaml
     mode: '0644'

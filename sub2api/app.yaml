@@ -12,6 +12,7 @@ compatibility:
   platforms:
   - linux
   - fnos
+  - macos
   architectures:
   - amd64
   - arm64
@@ -34,6 +35,8 @@ package:
     destination: sub2api/deploy/lib.sh
   - source: lib/image-sources.sh
     destination: deploy/lib/image-sources.sh
+  - source: lib/platform.sh
+    destination: deploy/lib/platform.sh
   - source: sub2api/config.yaml
     destination: sub2api/config.yaml
     mode: '0644'

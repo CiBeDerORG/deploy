@@ -112,3 +112,15 @@ sudo sed -n '/^SUB2API_POSTGRES_PASSWORD=/p' /software/sub2api/config/.secrets
 将 `/software` 换成实际软件根目录，fnOS 可能是 `/vol3/1000/software`。官方首启生成的管理员凭据按应用 README 的日志方法读取。
 
 Docker 应用沿用清单声明的平台、架构及 Docker Engine / Compose v2 要求，不新增硬件最低配置。验收需覆盖新安装、旧全局配置迁移、同机两个应用隔离、更新保留凭据、卸载保留数据、旧 Agent 拒绝 v2、图标回退与只读字段。`docker compose -f <SOFTWARE_ROOT>/<应用>/deploy/docker-compose.yaml ps` 或 `docker ps` 可查看状态；真实安装、端口连通及 NAS/Windows 权限须单独验证，契约测试不代表真机部署通过。
+
+
+## macOS 应用市场安装 / 更新 / 卸载
+
+macOS Apple Silicon 主机使用当前登录用户的 Docker Desktop，不以 root 启动 EasyHostAgent。应用市场仍调用每个应用原有的 `deploy/install.sh`、`update.sh` 和 `uninstall.sh`，不另建一套容器生命周期接口。
+
+- Agent 向脚本传入 `EASYHOSTAGENT_PLATFORM=macos`，并将 `DOCKER_HOST` 固定到当前用户的 Docker Desktop Unix Socket；PATH 包含 Docker Desktop 与 Homebrew 常见 CLI 目录。
+- Linux / fnOS 仍按原契约要求 root；macOS 跳过仅为 Linux 主机准备的 root / chown 操作，配置文件由当前登录用户持有并保持 0600。
+- 通过共享的 `deploy/lib/platform.sh` 处理 macOS 的 BSD `sed -i` 语法和权限差异。安装包仍使用同一 Compose 文件、镜像、配置字段和应用脚本。
+- 目前应用清单中的五个 Docker Compose 应用声明支持 macOS ARM64；需先启动 Docker Desktop 并确认当前用户可以运行 `docker info` 与 `docker compose version`。
+
+应用数据卷与配置的保留策略仍以各应用原有 `uninstall.sh` 为准；不会因 macOS 适配额外删除卷或数据。

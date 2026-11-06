@@ -47,8 +47,9 @@ class DeployManifestTests(unittest.TestCase):
                 self.assertEqual(actual["runtime"]["compose_project"], name)
                 self.assertIn(f"{name}/deploy/docker-compose.yaml",
                               [f["destination"] for f in actual["package"]["files"]])
-                self.assertIn("deploy/lib/image-sources.sh",
-                              [f["destination"] for f in actual["package"]["files"]])
+                destinations = {f["destination"] for f in actual["package"]["files"]}
+                self.assertIn("deploy/lib/image-sources.sh", destinations)
+                self.assertIn("deploy/lib/platform.sh", destinations)
 
     def test_portainer_installer_does_not_destroy_unowned_same_name_containers(self):
         source = (ROOT / "portainer/deploy/install.sh").read_text(encoding="utf-8")
