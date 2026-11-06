@@ -166,7 +166,7 @@ persist_secret_password() {
         die "密钥文件必须是受保护的普通文件"
     tmp="$(mktemp "$secret.tmp.XXXXXXXX")" || die "无法创建密码临时文件"
     while IFS= read -r line || [[ -n "$line" ]]; do
-        if [[ "$line" =~ ^[[:space:]]*$key[[:space:]]*= ]]; then
+        if [[ "$line" =~ ^[[:space:]]*${key}[[:space:]]*= ]]; then
             printf '%s=%s\n' "$key" "$value"
             found=1
         else
