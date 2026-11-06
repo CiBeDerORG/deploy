@@ -35,7 +35,7 @@ HELP
 ensure_root_writable() {
     if [[ ! -d "$SOFTWARE_ROOT" ]]; then
         mkdir -p "$SOFTWARE_ROOT" 2>/dev/null ||
-            die "无法创建 $SOFTWARE_ROOT。请先执行：sudo mkdir -p '$SOFTWARE_ROOT' && sudo chown \"$(id -u):$(id -g)\" '$SOFTWARE_ROOT'"
+            die "无法创建 ${SOFTWARE_ROOT}。请先执行：sudo mkdir -p '$SOFTWARE_ROOT' && sudo chown \"$(id -u):$(id -g)\" '$SOFTWARE_ROOT'"
     fi
     [[ -d "$SOFTWARE_ROOT" && -w "$SOFTWARE_ROOT" ]] ||
         die "$SOFTWARE_ROOT 不可写；请把该目录授权给当前登录用户，不要使用 sudo 运行部署"
