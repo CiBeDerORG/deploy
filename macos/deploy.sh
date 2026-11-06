@@ -79,7 +79,7 @@ create_env_file() {
         [[ "$line" == *=* ]] || continue
         key="${line%%=*}"
         [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
-        if ! grep -Eq "^[[:space:]]*$key[[:space:]]*=" "$target"; then
+        if ! grep -Eq "^[[:space:]]*${key}[[:space:]]*=" "$target"; then
             if [[ "$key" == SOFTWARE_ROOT ]]; then line="SOFTWARE_ROOT=$SOFTWARE_ROOT"; fi
             printf '%s\n' "$line" >> "$target"
             printf '已补充配置项：%s\n' "$key"
