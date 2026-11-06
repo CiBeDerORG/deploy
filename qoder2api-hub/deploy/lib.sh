@@ -5,7 +5,7 @@ PLATFORM_LIB="$SOFTWARE_ROOT/deploy/lib/platform.sh"
 [ -f "$PLATFORM_LIB" ] || { echo "缺少跨平台 Deploy 辅助脚本。" >&2; exit 1; }
 # shellcheck source=../../lib/platform.sh
 source "$PLATFORM_LIB"
-fail { printf 'Qoder2API Hub 部署错误：%s\n' "$*" >&2; exit 1; }
+fail() { printf 'Qoder2API Hub 部署错误：%s\n' "$*" >&2; exit 1; }
 require_root() {
     deploy_require_root "$@" || fail "请使用 root 或 sudo 执行。"
 }
