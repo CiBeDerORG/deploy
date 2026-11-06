@@ -151,11 +151,15 @@ yaml_scalar() {
 cors_yaml() {
     local port="$1" addr origin item found
     local -a origins=("http://localhost:$port" "http://127.0.0.1:$port")
-    if command -v hostname >/dev/null 2>&1; then
-        for addr in $(hostname -I 2>/dev/null || :); do
-            [[ "$addr" =~ ^[0-9]+(\.[0-9]+){3}$ ]] && origins+=("http://$addr:$port")
-        done
+    local addresses
+    if deploy_is_macos; then
+        addresses="$(ifconfig -a 2>/dev/null | awk '/inet / {print $2}')"
+    else
+        addresses="$(hostname -I 2>/dev/null || :)"
     fi
+    for addr in $addresses; do
+        [[ "$addr" =~ ^[0-9]+(\.[0-9]+){3}$ ]] && origins+=("http://$addr:$port")
+    done
     if [ -n "${MYAI_IP:-}" ]; then
         check_ipv4 MYAI_IP "$MYAI_IP"
         origin="http://$MYAI_IP:$port"
