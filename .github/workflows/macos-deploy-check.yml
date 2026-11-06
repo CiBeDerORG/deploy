@@ -10,6 +10,7 @@ on:
       - macos/**
       - easynettopo/deploy/docker-compose.macos.yaml
       - tests/macos-deploy.sh
+      - tests/macos-agent-install.sh
       - .github/workflows/macos-deploy-check.yml
   pull_request:
     paths:
@@ -32,3 +33,13 @@ jobs:
       - name: Run native macOS compatibility checks
         shell: /bin/bash --noprofile --norc -eo pipefail {0}
         run: /bin/bash tests/macos-deploy.sh
+
+  macos-native-agent:
+    name: macOS 第一阶段原生 Agent 发布包及 launchd 安装测试
+    runs-on: macos-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: 验证安装器实际下载、签名摘要、身份保留及服务生命周期
+        shell: /bin/bash --noprofile --norc -eo pipefail {0}
+        run: /bin/bash tests/macos-agent-install.sh
