@@ -25,6 +25,7 @@ macOS 通用部署命令（请用普通用户运行，不要 sudo）：
   bash deploy.sh <应用> sync
   bash deploy.sh easynettopo install|update|uninstall
   bash deploy.sh portainer install|update|uninstall
+  bash deploy.sh easyhostagent install|update|uninstall|status|identity|pairing
 
 默认 SOFTWARE_ROOT=/opt/software，可用 SOFTWARE_ROOT=/绝对路径 覆盖。
 仅已通过 macOS 适配的应用允许 install/update/uninstall。
@@ -112,6 +113,7 @@ list_tasks() {
         task="$(basename "$(dirname "$(dirname "$installer")")")"
         case "$task" in
             easynettopo|portainer) available="安装/更新/卸载/同步" ;;
+            easyhostagent) available="原生 LaunchAgent 安装/更新/卸载/身份/配对" ;;
             *) available="仅同步；原生或 Docker 安装尚未适配" ;;
         esac
         printf '%-28s %s\n' "$task" "$available"
@@ -151,6 +153,16 @@ case "${1:-}" in
         [[ "$#" -le 2 ]] || die "参数过多"
         task="$1"
         task_exists "$task" || die "未知应用：$task"
+        if [[ "$task" == easyhostagent ]]; then
+            case "$action" in
+                install|update|uninstall|status|pairing|identity)
+                    ensure_env
+                    if [[ "$action" == install || "$action" == update ]]; then sync_task "$task"; fi
+                    exec /bin/bash "$ROOT_DIR/macos/agent-install.sh" "$action" "$SOFTWARE_ROOT" ;;
+                sync) sync_task "$task"; exit ;;
+                *) die "EasyHostAgent macOS 仅支持 install/update/uninstall/status/pairing/identity/sync" ;;
+            esac
+        fi
         case "$action" in
             sync) sync_task "$task" ;;
             install|update|uninstall)
