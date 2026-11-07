@@ -2,6 +2,7 @@ schema_version: 2
 id: opencode
 name: OpenCode
 summary: 容器化 OpenCode Web 服务与独立开发工作空间
+enabled: false
 category: developer
 runtime:
   kind: docker_compose
