@@ -53,9 +53,7 @@ validate_port() {
     [[ "$value" =~ ^[0-9]{1,5}$ ]] && (( 10#$value > 0 && 10#$value <= 65535 )) ||
         die "无效端口：$value"
 }
-# 本入口暂只支持原始镜像源。遇到 mirror 必须明确拒绝而非悄然忽略。
-IMAGE_MODE="$(read_global DOCKER_IMAGE_SOURCE)"
-case "$IMAGE_MODE" in ''|original) ;; mirror) die "Mac 入口暂不支持 GHCR 镜像源轮换，请在统一 .env 中设置 DOCKER_IMAGE_SOURCE=original" ;; *) die "无效的 DOCKER_IMAGE_SOURCE" ;; esac
+# GHCR 路由与 Linux/fnOS 共用 lib/image-sources.sh；卸载不读取镜像配置、不推进轮换记录。
 
 compose() {
     if [[ "$TASK" == easynettopo ]]; then
@@ -235,6 +233,20 @@ esac
 TZ="$(read_global TZ)"
 [[ -n "$TZ" ]] || TZ=Asia/Shanghai
 export TZ
+# 从部署目录加载已有的共享 GHCR 路由模块。只在 install/update 准备好镜像变量后选站一次，
+# 使 compose config / pull / up 共用同一地址；Docker Hub、本地镜像不参与轮换。
+image_source_lib="$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
+[[ -f "$image_source_lib" && ! -L "$image_source_lib" && -O "$image_source_lib" ]] ||
+    die "共享镜像来源模块缺失或所有权不安全，请先从最新 deploy 仓库同步"
+# shellcheck source=../lib/image-sources.sh
+source "$image_source_lib"
+if [[ "$TASK" == easynettopo ]]; then
+    deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_EASYNETTOPO_IMAGE ||
+        die "EasyNetTopo 镜像来源解析失败"
+else
+    deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_PORTAINER_IMAGE ||
+        die "Portainer 镜像来源解析失败"
+fi
 compose config --quiet || die "Compose 配置校验失败"
 if [[ "$TASK" == easynettopo && "$DEPLOY_EASYNETTOPO_IMAGE" == easynettopo:local ]]; then
     docker image inspect easynettopo:local >/dev/null || die "本地镜像 easynettopo:local 不存在"
