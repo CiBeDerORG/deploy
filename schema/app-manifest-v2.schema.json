@@ -44,6 +44,11 @@
       "minLength": 1,
       "maxLength": 500
     },
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "是否在应用商店展示并允许安装；缺省为 true，false 时应用源应隐藏该应用并拒绝安装。"
+    },
     "category": {
       "type": "string",
       "enum": [
