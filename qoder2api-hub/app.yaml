@@ -2,6 +2,7 @@ schema_version: 2
 id: qoder2api-hub
 name: Qoder2API Hub
 summary: Multi-account Qoder gateway with OpenAI and Anthropic compatible APIs
+enabled: false
 category: developer
 homepage: https://github.com/shuishuipingan/qoder2api-hub
 runtime:
