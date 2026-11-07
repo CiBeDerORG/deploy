@@ -43,6 +43,7 @@ fields:
     editable: true
 ```
 
+- `enabled` 可选，默认 `true`：控制应用是否在应用商店展示并允许安装；设为 `false` 表示停用该应用，不删除应用文件、配置或数据。
 - `custom_input` 必填：关闭时不提供页面输入；后端保留已有值，缺失时使用默认值。
 - `editable` 默认 `true`：开启页面输入但设为 `false` 时显示只读字段。隐藏或只读字段不得由请求覆盖。
 - `type` 支持 `string`、`number`（整数）、`boolean`、`port`、`ipv4`、`secret`。默认值必须符合对应类型；密钥类型只允许出现在 `secrets.yaml`。
