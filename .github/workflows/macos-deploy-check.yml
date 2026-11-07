@@ -3,6 +3,7 @@ name: macOS Deploy CLI Compatibility
 on:
   push:
     branches:
+      - main
       - feat/macos-deploy-entry-20261106
       - feat/macos-easyhostagent-phase1-20261106
       - feat/macos-docker-phase2-20261106
@@ -22,6 +23,7 @@ on:
       - sub2api/**
       - schema/**
       - docs/app-store-contract.md
+      - docs/macos-deploy.md
       - .github/workflows/macos-deploy-check.yml
   pull_request:
     paths:
