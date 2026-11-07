@@ -51,7 +51,7 @@ read_pairs() {
         while IFS= read -r line || [ -n "$line" ]; do
             decode_pair "$line" "$file" k v || continue
             duplicate=0
-            for seen_key in "${seen[@]}"; do
+            for seen_key in "${seen[@]+"${seen[@]}"}"; do
                 [ "$seen_key" = "$k" ] && { duplicate=1; break; }
             done
             [ "$duplicate" -eq 0 ] || die "配置中变量 $k 重复定义；请保留唯一配置（值不打印）"
@@ -89,7 +89,7 @@ secret_when_blank() {
     while IFS= read -r line || [ -n "$line" ]; do
         if decode_pair "$line" "$SECRETS_FILE" k v; then
             duplicate=0
-            for seen_key in "${seen[@]}"; do
+            for seen_key in "${seen[@]+"${seen[@]}"}"; do
                 [ "$seen_key" = "$k" ] && { duplicate=1; break; }
             done
             [ "$duplicate" -eq 0 ] || die "敏感配置中变量 $k 重复定义；未写入任何密钥（值不打印）"
