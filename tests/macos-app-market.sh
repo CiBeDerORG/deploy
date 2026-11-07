@@ -53,6 +53,7 @@ printf '%s\n' "$cors_output" | grep -Fq 'http://192.168.1.20:7012'
 
 # Exercise the existing Qoder and Sub2API helpers with the current-user model.
 SOFTWARE_ROOT="$TMP_ROOT/qoder"
+BASE_DIR="$SOFTWARE_ROOT"
 mkdir -p "$SOFTWARE_ROOT/deploy/lib"
 cp "$ROOT_DIR/lib/platform.sh" "$SOFTWARE_ROOT/deploy/lib/platform.sh"
 ENV_FILE="$SOFTWARE_ROOT/deploy/.env"
@@ -64,6 +65,7 @@ load_global_config
 [[ "$QODER2API_HUB_PORT" == 8790 ]]
 
 SOFTWARE_ROOT="$TMP_ROOT/sub2api"
+BASE_DIR="$SOFTWARE_ROOT"
 mkdir -p "$SOFTWARE_ROOT/deploy/lib"
 cp "$ROOT_DIR/lib/platform.sh" "$SOFTWARE_ROOT/deploy/lib/platform.sh"
 ENV_FILE="$SOFTWARE_ROOT/deploy/.env"
