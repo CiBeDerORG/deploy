@@ -39,51 +39,7 @@ printf 'MIHOMO_API_SECRET=\n' > "$ROOT/deploy/.secrets"
 source "$ROOT_DIR/mihomo/deploy/common.sh"
 load_settings "$ROOT"
 secret_when_blank MIHOMO_API_SECRET
-grep -Eq '^MIHOMO_API_SECRET=[a-f0-9]{64}
-
-# Exercise the existing Qoder and Sub2API helpers with the current-user model.
-SOFTWARE_ROOT="$TMP_ROOT/qoder"
-mkdir -p "$SOFTWARE_ROOT/deploy/lib"
-cp "$ROOT_DIR/lib/platform.sh" "$SOFTWARE_ROOT/deploy/lib/platform.sh"
-ENV_FILE="$SOFTWARE_ROOT/deploy/.env"
-SECRETS_FILE="$SOFTWARE_ROOT/deploy/.secrets"
-printf 'QODER2API_HUB_PORT=8790\nQODER2API_HUB_BIND_IP=127.0.0.1\n' > "$ENV_FILE"
-printf 'QODER2API_HUB_API_KEY=test-key\n' > "$SECRETS_FILE"
-source "$ROOT_DIR/qoder2api-hub/deploy/lib.sh"
-load_global_config
-[[ "$QODER2API_HUB_PORT" == 8790 ]]
-
-SOFTWARE_ROOT="$TMP_ROOT/sub2api"
-mkdir -p "$SOFTWARE_ROOT/deploy/lib"
-cp "$ROOT_DIR/lib/platform.sh" "$SOFTWARE_ROOT/deploy/lib/platform.sh"
-ENV_FILE="$SOFTWARE_ROOT/deploy/.env"
-SECRETS_FILE="$SOFTWARE_ROOT/deploy/.secrets"
-printf 'SUB2API_HTTP_PORT=7010\nSUB2API_BIND_IP=127.0.0.1\n' > "$ENV_FILE"
-printf 'SUB2API_POSTGRES_PASSWORD=\n' > "$SECRETS_FILE"
-source "$ROOT_DIR/sub2api/deploy/lib.sh"
-load_global_config
-ensure_hex_secret SUB2API_POSTGRES_PASSWORD
-grep -Eq '^SUB2API_POSTGRES_PASSWORD=[a-f0-9]{64}$' "$SECRETS_FILE"
-
-# Every existing app lifecycle script must parse under macOS' system Bash.
-for app in mihomo opencode portainer qoder2api-hub sub2api; do
-    for file in "$ROOT_DIR/$app"/deploy/*.sh; do
-        /bin/bash -n "$file"
-    done
-done
-/bin/bash -n "$ROOT_DIR/lib/image-sources.sh"
-APP_ROOT="$TMP_ROOT/config-app"
-mkdir -p "$APP_ROOT/demo/deploy"
-printf 'APP_PORT=7001\n' > "$APP_ROOT/demo/deploy/config.env.example"
-printf 'APP_SECRET=\n' > "$APP_ROOT/demo/deploy/config.secrets.example"
-source "$ROOT_DIR/lib/app-config.sh"
-deploy_load_app_config "$APP_ROOT" demo
-[[ -f "$APP_ROOT/demo/config/.env" && -f "$APP_ROOT/demo/config/.secrets" ]]
-[[ "$(stat -f '%Lp' "$APP_ROOT/demo/config/.env")" == 600 ]]
-[[ "$(stat -f '%Lp' "$APP_ROOT/demo/config/.secrets")" == 600 ]]
-
-echo "macOS app market lifecycle compatibility checks passed"
- "$ROOT/deploy/.secrets"
+grep -Eq '^MIHOMO_API_SECRET=[a-f0-9]{64}$' "$ROOT/deploy/.secrets"
 mkdir -p "$TMP_ROOT/mihomo/bin"
 cat > "$TMP_ROOT/mihomo/bin/ifconfig" <<'EOF_IFCONFIG'
 #!/bin/sh
