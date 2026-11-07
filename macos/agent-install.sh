@@ -50,8 +50,9 @@ listen="$(read_config EASYHOSTAGENT_LISTEN_ADDRESS)"
 transport="$(read_config EASYHOSTAGENT_TRANSPORT)"
 [[ -n "$transport" ]] || transport=https
 case "$transport" in http|https) ;; *) fail "EASYHOSTAGENT_TRANSPORT 只能是 http 或 https" ;; esac
-release="$(read_config EASYHOSTAGENT_MACOS_RELEASE)"
-[[ -n "$release" ]] || release=v0.1.0-macos-phase2.dev
+# Linux/fnOS 与 macOS 共用 Release 标签；此处按 macOS 平台下载 darwin/arm64 资产。
+release="$(read_config EASYHOSTAGENT_RELEASE)"
+[[ -n "$release" ]] || release=v0.1.0-deploy-manifest-lifecycle.dev
 [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+[-.a-zA-Z0-9]*$ ]] || fail "macOS Release 标签格式不合法"
 local_binary="$(read_config EASYHOSTAGENT_MACOS_LOCAL_BINARY)"
 if [[ -n "$local_binary" ]]; then
