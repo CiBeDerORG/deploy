@@ -140,7 +140,7 @@ _deploy_image_pick() (
             *) _deploy_image_error "DOCKER_IMAGE_MIRRORS 仅支持 dockerproxy、ghproxy、nju、1ms、daocloud"; return 1 ;;
         esac
         _dim_pick_duplicate=0
-        for _dim_pick_seen_item in "${_dim_pick_providers[@]}"; do
+        for _dim_pick_seen_item in "${_dim_pick_providers[@]+"${_dim_pick_providers[@]}"}"; do
             if [ "$_dim_pick_seen_item" = "$_dim_pick_item" ]; then
                 _dim_pick_duplicate=1
                 break
@@ -229,7 +229,7 @@ deploy_prepare_images() {
             _dim_remote+=("$_dim_ref")
         fi
     done
-    if [ "$_dim_source" = mirror ] && (( ${#_dim_remote[@]} > 0 )); then
+    if [ "$_dim_source" = mirror ] && [ -n "${_dim_remote[0]:-}" ]; then
         if [ "${_DEPLOY_IMAGE_PICK_PID:-}" = "$$" ] &&
            [ "${_DEPLOY_IMAGE_PICK_ROOT:-}" = "$_dim_root" ] &&
            [ "${_DEPLOY_IMAGE_PICK_LIST:-}" = "$_dim_list" ]; then
