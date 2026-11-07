@@ -1,7 +1,7 @@
 schema_version: 2
 id: sub2api
 name: Sub2API
-summary: API service with PostgreSQL and Redis
+summary: 集成 PostgreSQL 和 Redis 的 API 服务与管理系统
 category: developer
 runtime:
   kind: docker_compose
@@ -54,7 +54,7 @@ package:
     mode: '0644'
 ports:
 - id: web
-  label: Web API
+  label: Web API 服务
   protocol: tcp
   purpose: web
   host_port_key: SUB2API_HTTP_PORT
