@@ -174,5 +174,5 @@ fi
 launchctl bootstrap "gui/$uid" "$plist" ||
     fail "启动 LaunchAgent 失败；需要登录图形用户会话，可运行 launchctl bootstrap gui/$uid '$plist'"
 launchctl kickstart -k "$launch_label" || fail "LaunchAgent 未成功启动"
-echo "EasyHostAgent macOS 已安装，传输：$transport，监听 $listen"
+echo "EasyHostAgent macOS 已安装，传输：${transport}，监听 ${listen}"
 echo "身份配对命令：bash deploy.sh easyhostagent pairing"
