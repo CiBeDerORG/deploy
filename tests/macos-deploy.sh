@@ -49,7 +49,10 @@ case "$1" in
   info) exit 0 ;;
   ps) exit 0 ;;
   container) exit 1 ;;
+  image) exit 0 ;;
   compose)
+    # Capture the effective image used by each Compose operation without logging secrets.
+    printf '%s|%s\n' "$*" "${DEPLOY_EASYNETTOPO_IMAGE:-}" >> "$MOCK_DOCKER_LOG"
     case " $* " in
       *" version "*) echo 'Docker Compose version v2.mock'; exit 0 ;;
       *" exec -T easynettopo wget "*) printf '{"initialized":false}\n'; exit 0 ;;
@@ -62,6 +65,8 @@ esac
 DOCKER
 chmod +x "$FAKE_BIN/docker"
 export PATH="$FAKE_BIN:$PATH"
+export MOCK_DOCKER_LOG="$RUNNER_TEMP/mock-docker-images.log"
+: > "$MOCK_DOCKER_LOG"
 bash deploy.sh easynettopo install
 grep -Eq '^EASYNETTOPO_ADMIN_PASSWORD=[a-f0-9]{48}$' "$SOFTWARE_ROOT/deploy/.secrets"
 grep -Fxq 'KEEP-ME' "$SOFTWARE_ROOT/easynettopo/data/sentinel"
@@ -69,5 +74,66 @@ grep -Fxq 'KEEP-ME' "$SOFTWARE_ROOT/easynettopo/data/sentinel"
 touch "$SOFTWARE_ROOT/easynettopo/data/app.db"
 bash deploy.sh easynettopo update
 bash deploy.sh easynettopo uninstall
+grep -Fxq 'KEEP-ME' "$SOFTWARE_ROOT/easynettopo/data/sentinel"
+
+# The macOS installer must reuse Linux/fnOS GHCR routing for the entire
+# config/pull/up operation; a choice is persisted only for a GHCR mirror install.
+ENV_FILE="$SOFTWARE_ROOT/deploy/.env"
+MIRROR_STATE="$SOFTWARE_ROOT/deploy/state/image-mirror.last"
+ORIGIN_IMAGE="ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle"
+[[ ! -e "$MIRROR_STATE" ]] || { echo "original mode advanced mirror rotation" >&2; exit 1; }
+assert_compose_image() {
+    local expected="$1"
+    grep -Fq " config --quiet|$expected" "$MOCK_DOCKER_LOG"
+    grep -Fq " pull|$expected" "$MOCK_DOCKER_LOG"
+    grep -Fq " up -d --remove-orphans --pull never --wait --wait-timeout 180|$expected" "$MOCK_DOCKER_LOG"
+}
+sed -i '' 's/^DOCKER_IMAGE_SOURCE=.*/DOCKER_IMAGE_SOURCE=mirror/' "$ENV_FILE"
+: > "$MOCK_DOCKER_LOG"
+bash deploy.sh easynettopo install
+[[ "$(cat "$MIRROR_STATE")" == dockerproxy ]]
+assert_compose_image "ghcr.dockerproxy.net/cibederorg/easynettopo:feat-deploy-manifest-lifecycle"
+: > "$MOCK_DOCKER_LOG"
+bash deploy.sh easynettopo update
+[[ "$(cat "$MIRROR_STATE")" == ghproxy ]]
+assert_compose_image "gh-proxy.com/docker/$ORIGIN_IMAGE"
+
+# A local image does not get rewritten, pulled, or advance the saved provider.
+sed -i '' 's#^EASYNETTOPO_IMAGE=.*#EASYNETTOPO_IMAGE=easynettopo:local#' "$ENV_FILE"
+: > "$MOCK_DOCKER_LOG"
+bash deploy.sh easynettopo update
+[[ "$(cat "$MIRROR_STATE")" == ghproxy ]]
+grep -Fq " config --quiet|easynettopo:local" "$MOCK_DOCKER_LOG"
+if grep -Fq " pull|" "$MOCK_DOCKER_LOG"; then
+    echo "local image unexpectedly used compose pull" >&2
+    exit 1
+fi
+
+# Switching back to original restores GHCR (not a stale accelerated address).
+sed -i '' "s#^EASYNETTOPO_IMAGE=.*#EASYNETTOPO_IMAGE=$ORIGIN_IMAGE#" "$ENV_FILE"
+sed -i '' 's/^DOCKER_IMAGE_SOURCE=.*/DOCKER_IMAGE_SOURCE=original/' "$ENV_FILE"
+: > "$MOCK_DOCKER_LOG"
+bash deploy.sh easynettopo update
+[[ "$(cat "$MIRROR_STATE")" == ghproxy ]]
+assert_compose_image "$ORIGIN_IMAGE"
+
+# Invalid mirror list fails before Compose pull, preserving the last state.
+sed -i '' 's/^DOCKER_IMAGE_SOURCE=.*/DOCKER_IMAGE_SOURCE=mirror/' "$ENV_FILE"
+sed -i '' 's/^DOCKER_IMAGE_MIRRORS=.*/DOCKER_IMAGE_MIRRORS=unknown-provider/' "$ENV_FILE"
+: > "$MOCK_DOCKER_LOG"
+if bash deploy.sh easynettopo update >"$RUNNER_TEMP/invalid-mirror.out" 2>&1; then
+    echo "invalid mirror provider was unexpectedly accepted" >&2
+    exit 1
+fi
+grep -Fq "DOCKER_IMAGE_MIRRORS" "$RUNNER_TEMP/invalid-mirror.out"
+[[ "$(cat "$MIRROR_STATE")" == ghproxy ]]
+if grep -Fq " pull|" "$MOCK_DOCKER_LOG"; then
+    echo "invalid mirror config reached compose pull" >&2
+    exit 1
+fi
+
+# Uninstall remains offline and must not rotate a mirror, even with invalid settings.
+bash deploy.sh easynettopo uninstall
+[[ "$(cat "$MIRROR_STATE")" == ghproxy ]]
 grep -Fxq 'KEEP-ME' "$SOFTWARE_ROOT/easynettopo/data/sentinel"
 echo "macOS deployment entry smoke checks passed"
