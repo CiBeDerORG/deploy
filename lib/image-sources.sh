@@ -119,16 +119,17 @@ _deploy_image_rewrite() {
     printf '%s/%s\n' "$_dim_rewrite_host" "$_dim_rewrite_path"
 }
 
-# Run in a subshell so the lock fd and temporary-file trap cannot leak into the
-# installer or be held throughout docker pull/build/up. Only the provider name
-# goes to stdout; diagnostics go to stderr.
+# Run in a subshell so the lock and temporary-file trap cannot leak into
+# the installer or be held throughout docker pull/build/up. Only the provider
+# name goes to stdout; diagnostics go to stderr. Uses mkdir locking so the same
+# mirror rotation works with macOS' built-in Bash and without util-linux flock.
 _deploy_image_pick() (
     local _dim_pick_root="$1" _dim_pick_list="$2"
     local _dim_pick_item _dim_pick_previous='' _dim_pick_start=0 _dim_pick_index _dim_pick_selected
     local _dim_pick_dir="$_dim_pick_root/deploy/state" _dim_pick_file _dim_pick_temp=''
-    local _dim_pick_fd
+    local _dim_pick_lock_dir _dim_pick_wait=0 _dim_pick_seen_item _dim_pick_duplicate
+    local _dim_pick_pid
     local -a _dim_pick_input=() _dim_pick_providers=()
-    local -A _dim_pick_seen=()
     IFS=, read -r -a _dim_pick_input <<< "$_dim_pick_list"
     for _dim_pick_item in "${_dim_pick_input[@]}"; do
         _dim_pick_item="${_dim_pick_item#"${_dim_pick_item%%[![:space:]]*}"}"
@@ -138,26 +139,42 @@ _deploy_image_pick() (
             dockerproxy|ghproxy|nju|1ms|daocloud) ;;
             *) _deploy_image_error "DOCKER_IMAGE_MIRRORS 仅支持 dockerproxy、ghproxy、nju、1ms、daocloud"; return 1 ;;
         esac
-        [[ ! ${_dim_pick_seen[$_dim_pick_item]+set} ]] || continue
-        _dim_pick_seen[$_dim_pick_item]=1
+        _dim_pick_duplicate=0
+        for _dim_pick_seen_item in "${_dim_pick_providers[@]+"${_dim_pick_providers[@]}"}"; do
+            if [ "$_dim_pick_seen_item" = "$_dim_pick_item" ]; then
+                _dim_pick_duplicate=1
+                break
+            fi
+        done
+        [ "$_dim_pick_duplicate" -eq 1 ] && continue
         _dim_pick_providers+=("$_dim_pick_item")
     done
     if (( ${#_dim_pick_providers[@]} == 0 )); then
         _deploy_image_error "DOCKER_IMAGE_MIRRORS 没有有效候选站；留空可使用默认列表"
         return 1
     fi
-    command -v flock >/dev/null 2>&1 || {
-        _deploy_image_error "加速轮换需要 flock（util-linux）；请安装后重试或选择 original"
-        return 1
-    }
     umask 077
-    mkdir -p -- "$_dim_pick_dir" || { _deploy_image_error "无法创建镜像轮换状态目录"; return 1; }
+    mkdir -p "$_dim_pick_dir" || { _deploy_image_error "无法创建镜像轮换状态目录"; return 1; }
     _dim_pick_file="$_dim_pick_dir/image-mirror.last"
-    exec {_dim_pick_fd}>"$_dim_pick_dir/image-mirror.lock" || {
-        _deploy_image_error "无法打开镜像轮换锁"
-        return 1
-    }
-    flock -x -w 10 "$_dim_pick_fd" || { _deploy_image_error "镜像轮换状态正被其他部署占用，请稍后重试"; return 1; }
+    _dim_pick_lock_dir="$_dim_pick_dir/image-mirror.lock.d"
+    while ! mkdir "$_dim_pick_lock_dir" 2>/dev/null; do
+        _dim_pick_pid=''
+        if [ -f "$_dim_pick_lock_dir/pid" ]; then
+            IFS= read -r _dim_pick_pid < "$_dim_pick_lock_dir/pid" || true
+        fi
+        if [[ "$_dim_pick_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$_dim_pick_pid" 2>/dev/null; then
+            rm -rf "$_dim_pick_lock_dir"
+            continue
+        fi
+        if [ "$_dim_pick_wait" -ge 10 ]; then
+            _deploy_image_error "镜像轮换状态正被其他部署占用，请稍后重试"
+            return 1
+        fi
+        sleep 1
+        _dim_pick_wait=$((_dim_pick_wait + 1))
+    done
+    printf '%s\n' "$$" > "$_dim_pick_lock_dir/pid"
+    trap 'rm -rf "$_dim_pick_lock_dir"; [ -z "${_dim_pick_temp:-}" ] || rm -f "$_dim_pick_temp"' EXIT
     if [ -f "$_dim_pick_file" ]; then
         IFS= read -r _dim_pick_previous < "$_dim_pick_file" || [ -n "$_dim_pick_previous" ] || true
     fi
@@ -167,16 +184,13 @@ _deploy_image_pick() (
             break
         fi
     done
-    # Every registered provider has a GHCR route; other registries never enter
-    # this selector and therefore cannot affect the round-robin position.
     _dim_pick_selected="${_dim_pick_providers[_dim_pick_start]}"
     _dim_pick_temp="$(mktemp "${_dim_pick_file}.tmp.XXXXXXXX")" || {
         _deploy_image_error "无法暂存镜像轮换状态"
         return 1
     }
-    trap '[ -z "${_dim_pick_temp:-}" ] || rm -f -- "$_dim_pick_temp"' EXIT
     if ! printf '%s\n' "$_dim_pick_selected" > "$_dim_pick_temp" ||
-       ! mv -f -- "$_dim_pick_temp" "$_dim_pick_file"; then
+       ! mv -f "$_dim_pick_temp" "$_dim_pick_file"; then
         _deploy_image_error "无法保存镜像轮换状态"
         return 1
     fi
@@ -185,7 +199,7 @@ _deploy_image_pick() (
 )
 
 # Do not accept inherited environment as a prepared deployment. Cached choices
-# remain in this Bash process only and are checked against BASHPID and root.
+# remain in this Bash process only and are checked against the current Bash process and root.
 _DEPLOY_IMAGE_PICK_PID=''
 _DEPLOY_IMAGE_PICK_ROOT=''
 _DEPLOY_IMAGE_PICK_LIST=''
@@ -215,14 +229,14 @@ deploy_prepare_images() {
             _dim_remote+=("$_dim_ref")
         fi
     done
-    if [ "$_dim_source" = mirror ] && (( ${#_dim_remote[@]} > 0 )); then
-        if [ "${_DEPLOY_IMAGE_PICK_PID:-}" = "$BASHPID" ] &&
+    if [ "$_dim_source" = mirror ] && [ -n "${_dim_remote[0]:-}" ]; then
+        if [ "${_DEPLOY_IMAGE_PICK_PID:-}" = "$$" ] &&
            [ "${_DEPLOY_IMAGE_PICK_ROOT:-}" = "$_dim_root" ] &&
            [ "${_DEPLOY_IMAGE_PICK_LIST:-}" = "$_dim_list" ]; then
             _dim_provider="$_DEPLOY_IMAGE_PICK_PROVIDER"
         else
             _dim_provider="$(_deploy_image_pick "$_dim_root" "$_dim_list")" || return 1
-            _DEPLOY_IMAGE_PICK_PID="$BASHPID"
+            _DEPLOY_IMAGE_PICK_PID="$$"
             _DEPLOY_IMAGE_PICK_ROOT="$_dim_root"
             _DEPLOY_IMAGE_PICK_LIST="$_dim_list"
             _DEPLOY_IMAGE_PICK_PROVIDER="$_dim_provider"

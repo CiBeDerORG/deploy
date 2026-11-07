@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# macOS 原生第一阶段：普通登录用户安装 launchd LaunchAgent；不依赖 Docker。
+# macOS 原生 Agent：普通登录用户安装 launchd LaunchAgent；Docker Desktop 可选。
 set -euo pipefail
 umask 077
 fail() { printf 'EasyHostAgent macOS：%s\n' "$*" >&2; exit 1; }
@@ -48,9 +48,9 @@ listen="$(read_config EASYHOSTAGENT_LISTEN_ADDRESS)"
 [[ -n "$listen" ]] || listen=0.0.0.0:7018
 [[ "$listen" =~ ^[0-9.]+:[0-9]+$ ]] || fail "EASYHOSTAGENT_LISTEN_ADDRESS 必须是 IPv4:端口"
 transport="$(read_config EASYHOSTAGENT_TRANSPORT)"
-[[ "$transport" == "" || "$transport" == https ]] || fail "第一阶段 macOS 仅支持 HTTPS"
+[[ "$transport" == "" || "$transport" == https ]] || fail "macOS 原生 Agent 仅支持 HTTPS"
 release="$(read_config EASYHOSTAGENT_MACOS_RELEASE)"
-[[ -n "$release" ]] || release=v0.1.0-macos-phase1.dev
+[[ -n "$release" ]] || release=v0.1.0-macos-phase2.dev
 [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+[-.a-zA-Z0-9]*$ ]] || fail "macOS Release 标签格式不合法"
 local_binary="$(read_config EASYHOSTAGENT_MACOS_LOCAL_BINARY)"
 if [[ -n "$local_binary" ]]; then

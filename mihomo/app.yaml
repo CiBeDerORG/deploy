@@ -12,6 +12,7 @@ compatibility:
   platforms:
   - linux
   - fnos
+  - macos
   architectures:
   - amd64
   - arm64
@@ -41,6 +42,8 @@ package:
     destination: mihomo/deploy/default-profile.yaml
   - source: lib/image-sources.sh
     destination: deploy/lib/image-sources.sh
+  - source: lib/platform.sh
+    destination: deploy/lib/platform.sh
   - source: mihomo/config.yaml
     destination: mihomo/config.yaml
     mode: '0644'

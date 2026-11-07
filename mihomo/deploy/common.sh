@@ -2,8 +2,20 @@
 # Standalone helpers for the MetaCubeXD All-in-One deploy. Never source .secrets.
 die() { printf 'Mihomo 部署错误：%s\n' "$*" >&2; exit 1; }
 
+COMMON_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${ROOT:-}" ]; then
+    APP_DIR="$(cd -- "$COMMON_DIR/.." && pwd)"
+    ROOT="$(cd -- "$APP_DIR/.." && pwd)"
+fi
+PLATFORM_LIB="$ROOT/deploy/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$ROOT/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$COMMON_DIR/../../lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || die "缺少跨平台 Deploy 辅助脚本"
+# shellcheck source=../../lib/platform.sh
+source "$PLATFORM_LIB"
+
 must_be_root() {
-    [ "$(id -u)" -eq 0 ] || die "请用 sudo bash deploy.sh mihomo 运行"
+    deploy_require_root "$@" || die "请用 sudo bash deploy.sh mihomo 运行"
 }
 docker_ready() {
     command -v docker >/dev/null 2>&1 || die "Docker 未安装"
@@ -32,15 +44,18 @@ decode_pair() {
     printf -v "$4" '%s' "$decoded_value"
 }
 read_pairs() {
-    local file line k v
-    local -A seen=()
+    local file line k v seen_key duplicate
+    local -a seen=()
     for file in "$@"; do
         [ -f "$file" ] || die "缺少配置：$file，请先运行 sudo bash deploy.sh env"
         while IFS= read -r line || [ -n "$line" ]; do
             decode_pair "$line" "$file" k v || continue
-            [[ ! ${seen[$k]+defined} ]] || die "配置中变量 $k 重复定义；请保留唯一配置（值不打印）"
-            seen[$k]=1
-            # MYAI_IP is the existing global public IP setting; no new Mihomo variable.
+            duplicate=0
+            for seen_key in "${seen[@]+"${seen[@]}"}"; do
+                [ "$seen_key" = "$k" ] && { duplicate=1; break; }
+            done
+            [ "$duplicate" -eq 0 ] || die "配置中变量 $k 重复定义；请保留唯一配置（值不打印）"
+            seen+=("$k")
             case "$k" in MIHOMO_*|TZ|MYAI_IP) printf -v "$k" '%s' "$v"; export "$k" ;; esac
         done < "$file"
     done
@@ -57,8 +72,7 @@ load_settings() {
     fi
     local ordinary="$root/deploy/.env" private="$root/deploy/.secrets"
     [ -f "$ordinary" ] && [ -f "$private" ] || die "请先运行 sudo bash deploy.sh env"
-    chown root:root "$ordinary" "$private"
-    chmod 0600 "$ordinary" "$private"
+    deploy_secure_config_files "$ordinary" "$private" || die "无法安全设置统一配置文件权限"
     read_pairs "$ordinary" "$private"
     SECRETS_FILE="$private"
 }
@@ -67,15 +81,19 @@ load_settings() {
 # No character set or length restrictions on nonempty user-provided credentials.
 secret_when_blank() {
     local key="$1" value="${!1:-}" generated line k v stored="" index=-1 temp ending=""
-    local -a records=()
-    local -A seen=()
+    local -a records=() seen=()
+    local seen_key duplicate
     [ -f "$SECRETS_FILE" ] || die "缺少敏感配置，请先运行 sudo bash deploy.sh env"
     # Re-read the same syntax as read_pairs before writing: stale environment
     # values must never overwrite a configured nonempty value or hide duplicates.
     while IFS= read -r line || [ -n "$line" ]; do
         if decode_pair "$line" "$SECRETS_FILE" k v; then
-            [[ ! ${seen[$k]+defined} ]] || die "敏感配置中变量 $k 重复定义；未写入任何密钥（值不打印）"
-            seen[$k]=1
+            duplicate=0
+            for seen_key in "${seen[@]+"${seen[@]}"}"; do
+                [ "$seen_key" = "$k" ] && { duplicate=1; break; }
+            done
+            [ "$duplicate" -eq 0 ] || die "敏感配置中变量 $k 重复定义；未写入任何密钥（值不打印）"
+            seen+=("$k")
             if [ "$k" = "$key" ]; then
                 index=${#records[@]}
                 stored="$v"
@@ -102,9 +120,9 @@ secret_when_blank() {
     # so an omitted key cannot be concatenated onto another credential's value.
     # Stage beside the original for atomic replacement, retaining its ownership.
     temp="$(mktemp "${SECRETS_FILE}.tmp.XXXXXXXX")" || die "无法暂存敏感配置"
-    if ! cp -p -- "$SECRETS_FILE" "$temp" || ! chmod 0600 "$temp" ||
-       ! printf '%s\n' "${records[@]}" > "$temp" || ! mv -f -- "$temp" "$SECRETS_FILE"; then
-        rm -f -- "$temp"
+    if ! cp -p "$SECRETS_FILE" "$temp" || ! chmod 0600 "$temp" ||
+       ! printf '%s\n' "${records[@]}" > "$temp" || ! mv -f "$temp" "$SECRETS_FILE"; then
+        rm -f "$temp"
         die "无法持久化 $key；请检查敏感配置文件权限"
     fi
     printf -v "$key" '%s' "$generated"
@@ -133,11 +151,15 @@ yaml_scalar() {
 cors_yaml() {
     local port="$1" addr origin item found
     local -a origins=("http://localhost:$port" "http://127.0.0.1:$port")
-    if command -v hostname >/dev/null 2>&1; then
-        for addr in $(hostname -I 2>/dev/null || :); do
-            [[ "$addr" =~ ^[0-9]+(\.[0-9]+){3}$ ]] && origins+=("http://$addr:$port")
-        done
+    local addresses
+    if deploy_is_macos; then
+        addresses="$(ifconfig -a 2>/dev/null | awk '/inet / {print $2}')"
+    else
+        addresses="$(hostname -I 2>/dev/null || :)"
     fi
+    for addr in $addresses; do
+        [[ "$addr" =~ ^[0-9]+(\.[0-9]+){3}$ ]] && origins+=("http://$addr:$port")
+    done
     if [ -n "${MYAI_IP:-}" ]; then
         check_ipv4 MYAI_IP "$MYAI_IP"
         origin="http://$MYAI_IP:$port"

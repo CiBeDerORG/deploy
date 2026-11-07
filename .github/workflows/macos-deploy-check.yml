@@ -5,12 +5,23 @@ on:
     branches:
       - feat/macos-deploy-entry-20261106
       - feat/macos-easyhostagent-phase1-20261106
+      - feat/macos-docker-phase2-20261106
     paths:
       - deploy.sh
       - macos/**
       - easynettopo/deploy/docker-compose.macos.yaml
       - tests/macos-deploy.sh
       - tests/macos-agent-install.sh
+      - tests/macos-app-market.sh
+      - tests/contracts/test_manifest_v1.py
+      - lib/**
+      - mihomo/**
+      - opencode/**
+      - portainer/**
+      - qoder2api-hub/**
+      - sub2api/**
+      - schema/**
+      - docs/app-store-contract.md
       - .github/workflows/macos-deploy-check.yml
   pull_request:
     paths:
@@ -18,6 +29,16 @@ on:
       - macos/**
       - easynettopo/deploy/docker-compose.macos.yaml
       - tests/macos-deploy.sh
+      - tests/macos-app-market.sh
+      - tests/contracts/test_manifest_v1.py
+      - lib/**
+      - mihomo/**
+      - opencode/**
+      - portainer/**
+      - qoder2api-hub/**
+      - sub2api/**
+      - schema/**
+      - docs/app-store-contract.md
       - .github/workflows/macos-deploy-check.yml
 
 permissions:
@@ -33,9 +54,12 @@ jobs:
       - name: Run native macOS compatibility checks
         shell: /bin/bash --noprofile --norc -eo pipefail {0}
         run: /bin/bash tests/macos-deploy.sh
+      - name: Run macOS app market lifecycle compatibility checks
+        shell: /bin/bash --noprofile --norc -eo pipefail {0}
+        run: /bin/bash tests/macos-app-market.sh
 
   macos-native-agent:
-    name: macOS 第一阶段原生 Agent 发布包及 launchd 安装测试
+    name: macOS 原生 Agent 开发版、launchd 与 Docker 管理入口测试
     runs-on: macos-latest
     timeout-minutes: 12
     steps:

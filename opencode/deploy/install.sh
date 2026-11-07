@@ -6,18 +6,15 @@ fi
 
 set -Eeuo pipefail
 
-if [ "$(id -u)" -ne 0 ]; then
-    if command -v sudo >/dev/null 2>&1; then
-        exec sudo -- bash "$0" "$@"
-    fi
-
-    echo "需要 root 权限执行该脚本，请使用 sudo。" >&2
-    exit 1
-fi
-
 DEPLOY_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(cd -- "$DEPLOY_DIR/.." && pwd)"
 SOFTWARE_ROOT="$(cd -- "$BASE_DIR/.." && pwd)"
+PLATFORM_LIB="$SOFTWARE_ROOT/deploy/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$SOFTWARE_ROOT/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || { echo "缺少跨平台 Deploy 辅助脚本。" >&2; exit 1; }
+# shellcheck source=../../lib/platform.sh
+source "$PLATFORM_LIB"
+deploy_require_root "$@" || exit 1
 CONFIG_DIR="$BASE_DIR/config"
 DATA_DIR="$BASE_DIR/data"
 STATE_DIR="$BASE_DIR/state"
@@ -122,16 +119,15 @@ prepare_env() {
         exit 1
     }
 
-    chown root:root "$ENV_FILE" "$SECRETS_FILE"
-    chmod 0600 "$ENV_FILE" "$SECRETS_FILE"
+    deploy_secure_config_files "$ENV_FILE" "$SECRETS_FILE" || exit 1
 
     if grep -q $'\r' "$ENV_FILE"; then
-        sed -i 's/\r$//' "$ENV_FILE"
+        deploy_sed_in_place 's/\r$//' "$ENV_FILE"
         echo "      已自动将 $ENV_FILE 的 CRLF 行尾转换为 LF。"
     fi
 
     if grep -q $'\r' "$SECRETS_FILE"; then
-        sed -i 's/\r$//' "$SECRETS_FILE"
+        deploy_sed_in_place 's/\r$//' "$SECRETS_FILE"
         echo "      已自动将 $SECRETS_FILE 的 CRLF 行尾转换为 LF。"
     fi
 
@@ -155,7 +151,7 @@ fix_permissions() {
 
     mkdir -p "$CONFIG_DIR" "$DATA_DIR" "$STATE_DIR" "$WORKSPACE_DIR"
 
-    chown -R "$OWNER_USER:$OWNER_GROUP" \
+    deploy_chown_if_needed -R "$OWNER_USER:$OWNER_GROUP" \
         "$DATA_DIR" \
         "$STATE_DIR" \
         "$WORKSPACE_DIR" \
@@ -175,15 +171,17 @@ fix_permissions() {
         -type d -exec chmod g+s {} +
 
     # 只调整原生应用配置，绝不将部署密钥临时改为组可读。
-    find "$CONFIG_DIR" -type f ! -name '.env' ! -name '.secrets' \
-        -exec chown "$OWNER_USER:$OWNER_GROUP" {} + \
-        -exec chmod 0660 {} +
+    if ! deploy_is_macos; then
+        find "$CONFIG_DIR" -type f ! -name '.env' ! -name '.secrets' \
+            -exec chown "$OWNER_USER:$OWNER_GROUP" {} +
+    fi
+    find "$CONFIG_DIR" -type f ! -name '.env' ! -name '.secrets' -exec chmod 0660 {} +
     [ ! -f "$CONFIG_FILE" ] || chmod 0660 "$CONFIG_FILE"
     # 应用原生配置允许维护组编辑；部署凭据保持 root 专属且不可由组成员替换。
     if [ "$ENV_FILE" = "$CONFIG_DIR/.env" ]; then
-        chown root:"$OWNER_GROUP" "$CONFIG_DIR"
+        deploy_chown_if_needed root:"$OWNER_GROUP" "$CONFIG_DIR"
         chmod 0750 "$CONFIG_DIR"
-        chown root:root "$ENV_FILE" "$SECRETS_FILE"
+        deploy_chown_if_needed root:root "$ENV_FILE" "$SECRETS_FILE"
         chmod 0600 "$ENV_FILE" "$SECRETS_FILE"
     fi
 }
@@ -196,11 +194,12 @@ backup_data() {
 
     mkdir -p "$backup_dir"
 
-    find "$DATA_DIR" -maxdepth 1 -type f \
-        \( -name '*.db' -o -name '*.db-*' -o -name 'auth.json' \) \
-        -exec cp -a {} "$backup_dir/" \;
+    for file in "$DATA_DIR"/*.db "$DATA_DIR"/*.db-* "$DATA_DIR"/auth.json; do
+        [ -f "$file" ] || continue
+        cp -a "$file" "$backup_dir/"
+    done
 
-    if find "$backup_dir" -mindepth 1 -print -quit | grep -q .; then
+    if [ -n "$(ls -A "$backup_dir")" ]; then
         echo "      已备份到: $backup_dir"
     else
         rmdir "$backup_dir"
@@ -262,9 +261,9 @@ generate_opencode_password() {
     chmod 0600 "$tmp"
     awk '!/^[[:space:]]*OPENCODE_SERVER_PASSWORD[[:space:]]*=/' "$SECRETS_FILE" > "$tmp"
     printf 'OPENCODE_SERVER_PASSWORD=%s\n' "$value" >> "$tmp"
-    chown root:root "$tmp"
+    deploy_chown_if_needed root:root "$tmp"
     chmod 0600 "$tmp"
-    mv -f -- "$tmp" "$SECRETS_FILE"
+    mv -f "$tmp" "$SECRETS_FILE"
     OPENCODE_SERVER_PASSWORD="$value"
     export OPENCODE_SERVER_PASSWORD
     echo "OpenCode 首次密码已写入应用 .secrets（值不输出）。"

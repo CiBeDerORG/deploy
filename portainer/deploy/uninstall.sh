@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # 只卸载本项目 Compose 资源；绝不删除 Portainer 数据或管理凭据。
 set -Eeuo pipefail
-if (( EUID != 0 )); then
-    echo "请使用 sudo 执行" >&2
-    exit 1
-fi
 DEPLOY_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(cd -- "$DEPLOY_DIR/.." && pwd)"
 SOFTWARE_ROOT="$(cd -- "$BASE_DIR/.." && pwd)"
+PLATFORM_LIB="$SOFTWARE_ROOT/deploy/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$SOFTWARE_ROOT/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || { echo "缺少跨平台 Deploy 辅助脚本。" >&2; exit 1; }
+# shellcheck source=../../lib/platform.sh
+source "$PLATFORM_LIB"
+deploy_require_root || exit 1
 ENV_FILE="$SOFTWARE_ROOT/deploy/.env"
 SECRETS_FILE="$SOFTWARE_ROOT/deploy/.secrets"
 if [ -f "$BASE_DIR/deploy/config.env.example" ]; then

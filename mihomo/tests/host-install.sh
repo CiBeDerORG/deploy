@@ -17,9 +17,10 @@ fixture() {
     runtime="$module/runtime/host"
     deploy="$module/deploy"
     unit="$case_dir/systemd/deploy-mihomo.service"
-    mkdir -p "$deploy" "$runtime/releases" "$case_dir/software/deploy" "$case_dir/systemd" \
+    mkdir -p "$deploy" "$runtime/releases" "$case_dir/software/deploy/lib" "$case_dir/systemd" \
         "$module/data/all-in-one/profiles"
     cp "$SOURCE/common.sh" "$SOURCE/migrate.sh" "$deploy/"
+    cp "$SOURCE/../../lib/platform.sh" "$case_dir/software/deploy/lib/platform.sh"
     printf 'MIHOMO_API_PORT=7012\nMIHOMO_CORE_API_PORT=7013\nMIHOMO_MIXED_PORT=7011\n' > "$case_dir/software/deploy/.env"
     printf 'MIHOMO_API_SECRET=fixture-api\nMIHOMO_CONTROL_TOKEN=fixture-control\n' > "$case_dir/software/deploy/.secrets"
     printf 'rules: []\n' > "$module/data/all-in-one/active.yaml"

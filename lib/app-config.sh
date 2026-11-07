@@ -51,9 +51,9 @@ deploy_init_config_file() {
             for (i=1;i<=n;i++) { key=keys[i]; if (!present[key]) print key "=" (hasold[key] ? old[key] : defaults[key]) }
         }
     ' "$template" "$legacy" "$target" > "$staged"; then
-        rm -f -- "$staged"; deploy_config_error "配置格式错误或键重复，未覆盖原文件"; return 1
+        rm -f "$staged"; deploy_config_error "配置格式错误或键重复，未覆盖原文件"; return 1
     fi
-    chmod 0600 "$staged" && mv -f -- "$staged" "$target" || { rm -f -- "$staged"; return 1; }
+    chmod 0600 "$staged" && mv -f "$staged" "$target" || { rm -f "$staged"; return 1; }
 }
 
 deploy_load_app_config() {

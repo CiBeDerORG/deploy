@@ -12,6 +12,7 @@ compatibility:
   platforms:
   - linux
   - fnos
+  - macos
   architectures:
   - amd64
   - arm64
@@ -39,6 +40,8 @@ package:
     destination: opencode/config/opencode.jsonc
   - source: lib/image-sources.sh
     destination: deploy/lib/image-sources.sh
+  - source: lib/platform.sh
+    destination: deploy/lib/platform.sh
   - source: opencode/config.yaml
     destination: opencode/config.yaml
     mode: '0644'

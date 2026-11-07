@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-(( EUID == 0 )) || { echo "OpenCode 卸载需要 root 权限" >&2; exit 1; }
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(cd -- "$HERE/.." && pwd)"
+SOFTWARE_ROOT="$(cd -- "$BASE_DIR/.." && pwd)"
+PLATFORM_LIB="$SOFTWARE_ROOT/deploy/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$SOFTWARE_ROOT/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || { echo "缺少跨平台 Deploy 辅助脚本。" >&2; exit 1; }
+# shellcheck source=../../lib/platform.sh
+source "$PLATFORM_LIB"
+deploy_require_root || exit 1
 command -v docker >/dev/null && docker compose version >/dev/null || { echo "Docker Compose 不可用" >&2; exit 1; }
 if docker inspect opencode >/dev/null 2>&1; then
   work="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' opencode)"

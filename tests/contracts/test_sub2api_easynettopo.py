@@ -36,6 +36,7 @@ class EasyNetTopoSub2APITests(unittest.TestCase):
             "sub2api/deploy/uninstall.sh",
             "sub2api/deploy/lib.sh",
             "deploy/lib/image-sources.sh",
+            "deploy/lib/platform.sh",
             "deploy/lib/app-config.sh",
             "sub2api/config.yaml", "sub2api/secrets.yaml",
             "sub2api/deploy/config.env.example", "sub2api/deploy/config.secrets.example",
@@ -65,7 +66,7 @@ class EasyNetTopoSub2APITests(unittest.TestCase):
         self.assertIn('source "$DEPLOY_DIR/lib.sh"', script)
         self.assertIn('source "$IMAGE_SOURCES_LIB"', script)
         self.assertIn('[ -f "$ENV_FILE" ] && [ -f "$SECRETS_FILE" ]', shared)
-        self.assertIn("chmod 0600", shared)
+        self.assertIn("deploy_secure_config_files", shared)
 
     def test_generated_secrets_match_the_real_installer(self):
         script = (ROOT / "sub2api/deploy/install.sh").read_text(encoding="utf-8")
