@@ -72,7 +72,7 @@ CI 在 GitHub 的 macOS Runner 上验证 Bash 3.2 语法、`list/env/sync`、目
 
 此功能已合并至 deploy 的 `main`；上游 EasyHostAgent 的 macOS 原生第一阶段与 Docker Desktop 第二阶段已一并合并至 `feat/deploy-manifest-lifecycle`。
 
-**运行要求：** Apple Silicon 的 macOS；登录的普通图形会话用户；Bash 3.2、`curl`、`shasum`、`launchctl`、`plutil`、`file` 等系统工具；能访问 GitHub Release。第一阶段不依赖 Docker Desktop，但也不向控制端开放容器和应用商店接口。LaunchAgent **仅在该用户登录后**运行，不能保证注销后或未登录时继续运行。默认 HTTPS `0.0.0.0:7018` 可在可信 LAN 访问；应仅在防火墙放行受信任管理端，禁止直接公网暴露。
+**运行要求：** Apple Silicon 的 macOS；登录的普通图形会话用户；Bash 3.2、`curl`、`shasum`、`launchctl`、`plutil`、`file` 等系统工具；能访问 GitHub Release。Agent 通过当前用户的 LaunchAgent 运行；Docker Desktop 未安装或未启动时，Agent 仍可提供身份配对和主机概况，但 Docker 管理功能不可用。LaunchAgent **仅在该用户登录后**运行，不能保证注销后或未登录时继续运行。默认 HTTPS `0.0.0.0:7018` 可在可信 LAN 访问；应仅在防火墙放行受信任管理端，禁止直接公网暴露。
 
 **配置：** `/opt/software/deploy/.env`，示例：
 
@@ -91,8 +91,8 @@ EASYHOSTAGENT_TRANSPORT=https
 **安装、检查、配对、更新、卸载：**
 
 ```bash
-# 当前开发分支（不要 sudo）
-git clone -b feat/macos-easyhostagent-phase1-20261106 https://github.com/CiBeDerORG/deploy.git
+# 使用 deploy/main（不要 sudo）
+git clone -b main https://github.com/CiBeDerORG/deploy.git
 cd deploy
 sudo mkdir -p /opt/software
 sudo chown "$(id -u):$(id -g)" /opt/software
@@ -107,7 +107,7 @@ bash deploy.sh easyhostagent uninstall
 
 `status` 调用 `launchctl print`。可在 Mac 本机执行 `curl -k https://127.0.0.1:7018/v1/health` 做简单可达性检查；`-k` **仅供本机诊断**，生产控制端必须按 Agent 公钥 SPKI 指纹校验证书。用户服务 plist 位于 `~/Library/LaunchAgents/org.cibeder.easyhostagent.plist`，二进制位于 `/opt/software/easyhostagent/native/bin/easyhostagent`，身份、配对信息、日志保存在上述用户私有数据目录。重新安装/更新不主动重置身份、配对或数据；卸载仅删除受管程序及 plist，默认保留数据目录与统一配置；不可逆数据清除需要自行单独确认。
 
-当前 macOS 第一阶段的 `/v1/host/maintenance/update` 不提供远程自更新操作；请在 Mac 的受信任本机终端运行 `bash deploy.sh easyhostagent update`。第二、三阶段所需的 Docker 管理和商店安装接口当前故意不注册。
+当前 `/v1/host/maintenance/update` 不提供远程自更新操作；请在 Mac 的受信任本机终端运行 `bash deploy.sh easyhostagent update`。Docker 管理和应用市场接口由已合并的第二阶段提供，并要求 Docker Desktop 正常运行及控制端完成配对鉴权。
 
 **验收限制：** GitHub Actions 原生 macOS 构建、HTTPS 与配对测试若成功，证明 macOS Runner 能运行；不等同于已验证你的 Mac mini 上的 launchd、文件权限、路由器访问及开机重登行为。须在目标机器补做实测。
 
@@ -121,7 +121,7 @@ macOS Docker Desktop 第二阶段已合并至 EasyHostAgent 的 `feat/deploy-man
 
 **运行前检查：** Apple Silicon Mac、Docker Desktop 已安装且当前登录用户已启动（若需要 Docker 管理）；`docker info`、`docker compose version`、`ls -l "$HOME/.docker/run/docker.sock"` 均能正常执行。硬件 CPU/RAM 没有本脚本额外设定的最低门槛，以 Docker Desktop 官方要求和所运行容器的负载为准。需要从 EasyNetTopo 访问 Mac LAN IP 的 7018 端口，禁止直接暴露公网；当前登录用户退出时 LaunchAgent 不保证继续运行。
 
-**配置与升级：** 使用 `/opt/software/deploy/.env`，保留所有已有其他配置与密钥，只需把原 macOS Release 一行改为：
+**配置与升级：** 使用 `/opt/software/deploy/.env`，保留所有已有其他配置与密钥；Linux/fnOS 与 macOS 统一读取同一个 `EASYHOSTAGENT_RELEASE`：
 
 ```dotenv
 EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev
@@ -133,7 +133,7 @@ EASYHOSTAGENT_TRANSPORT=https
 注意：`bash deploy.sh env` 不覆盖现存的 `.env`；请确保其中的 `EASYHOSTAGENT_RELEASE` 指向当前统一开发版。此前配置过独立 macOS Release 的旧值不再使用。本地可信安装包可设置 `EASYHOSTAGENT_MACOS_LOCAL_BINARY` 并提供同名 `.sha256`，不必从 GitHub 下载。Agent 不需要配置初始密码；本机自动生成身份与 TLS 私钥，私钥与配对信息留在 `~/Library/Application Support/EasyHostAgent` 的用户私有目录，不能复制到公共日志。
 
 ```bash
-git clone -b feat/macos-docker-phase2-20261106 https://github.com/CiBeDerORG/deploy.git
+git clone -b main https://github.com/CiBeDerORG/deploy.git
 cd deploy
 bash deploy.sh env
 # 确认 /opt/software/deploy/.env 中的 EASYHOSTAGENT_RELEASE 指向统一版本后：
@@ -147,4 +147,4 @@ bash deploy.sh easyhostagent update
 bash deploy.sh easyhostagent uninstall
 ```
 
-安装和更新仅在完成 SHA-256 核验、原生二进制检查和配置检查后替换程序；默认卸载不删除身份、配置、Docker 镜像、容器或卷，也不改变 Docker Desktop 本身。若需要不可逆清理数据，应另行人工评估与明确确认，本脚本不会自动清除。命令说明仅针对当前开发分支；实机 Docker Desktop 与本地网络访问仍需 Mac mini 验收。
+安装和更新仅在完成 SHA-256 核验、原生二进制检查和配置检查后替换程序；默认卸载不删除身份、配置、Docker 镜像、容器或卷，也不改变 Docker Desktop 本身。若需要不可逆清理数据，应另行人工评估与明确确认，本脚本不会自动清除。命令适用于 deploy/main；实机 Docker Desktop 与本地网络访问仍需在目标 Mac mini 验收。
