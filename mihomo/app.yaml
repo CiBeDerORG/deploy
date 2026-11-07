@@ -1,7 +1,7 @@
 schema_version: 2
 id: mihomo
 name: Mihomo
-summary: MetaCubeXD All-in-One 代理内核、Web 面板与管理服务（Docker）
+summary: 集成 Mihomo 代理内核、MetaCubeXD Web 面板和管理服务的 Docker 应用
 category: network
 runtime:
   kind: docker_compose
@@ -61,7 +61,7 @@ package:
     mode: '0644'
 ports:
 - id: proxy
-  label: 混合代理
+  label: 混合代理端口
   protocol: tcp
   purpose: other
   host_port_key: MIHOMO_MIXED_PORT
@@ -69,7 +69,7 @@ ports:
   container_port: 7890
   service: mihomo
 - id: web
-  label: 管理面板
+  label: Web 管理面板
   protocol: tcp
   purpose: web
   host_port_key: MIHOMO_API_PORT
@@ -78,7 +78,7 @@ ports:
   service: mihomo
   path: /
 - id: core
-  label: 内核接口
+  label: 内核 API 接口
   protocol: tcp
   purpose: other
   host_port_key: MIHOMO_CORE_API_PORT
