@@ -1,27 +1,27 @@
 fields:
 - key: QODER2API_HUB_IMAGE
-  label: Docker image
+  label: Docker 镜像地址
   type: string
   required: false
   default: ghcr.io/shuishuipingan/qoder2api-hub:latest
-  description: Docker image
+  description: Qoder2API Hub 使用的 Docker 镜像地址
   custom_input: true
   editable: true
 - key: QODER2API_HUB_BIND_IP
-  label: Bind address
+  label: 服务监听地址
   type: ipv4
   required: true
   default: 127.0.0.1
-  description: Bind address
+  description: 容器服务绑定的宿主机 IPv4 地址（127.0.0.1 仅本机可访问）
   custom_input: true
   editable: true
 - key: QODER2API_HUB_PORT
-  label: Web/API port
+  label: Web 与 API 访问端口
   type: port
   required: true
   default: 8790
   minimum: 1
   maximum: 65535
-  description: Web/API port
+  description: Web 面板及 API 服务在宿主机上映射的端口
   custom_input: true
   editable: true
