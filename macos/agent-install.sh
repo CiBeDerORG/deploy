@@ -48,7 +48,8 @@ listen="$(read_config EASYHOSTAGENT_LISTEN_ADDRESS)"
 [[ -n "$listen" ]] || listen=0.0.0.0:7018
 [[ "$listen" =~ ^[0-9.]+:[0-9]+$ ]] || fail "EASYHOSTAGENT_LISTEN_ADDRESS 必须是 IPv4:端口"
 transport="$(read_config EASYHOSTAGENT_TRANSPORT)"
-[[ "$transport" == "" || "$transport" == https ]] || fail "macOS 原生 Agent 仅支持 HTTPS"
+[[ -n "$transport" ]] || transport=https
+case "$transport" in http|https) ;; *) fail "EASYHOSTAGENT_TRANSPORT 只能是 http 或 https" ;; esac
 release="$(read_config EASYHOSTAGENT_MACOS_RELEASE)"
 [[ -n "$release" ]] || release=v0.1.0-macos-phase2.dev
 [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+[-.a-zA-Z0-9]*$ ]] || fail "macOS Release 标签格式不合法"
@@ -60,7 +61,7 @@ fi
 run_agent() {
     EASYHOSTAGENT_PLATFORM=macos EASYHOSTAGENT_SOFTWARE_ROOT="$root" \
     EASYHOSTAGENT_DATA_DIR="$data_dir" EASYHOSTAGENT_LISTEN_ADDRESS="$listen" \
-    EASYHOSTAGENT_TRANSPORT=https "$binary" "$@"
+    EASYHOSTAGENT_TRANSPORT="$transport" "$binary" "$@"
 }
 case "$mode" in
     pairing)
@@ -120,7 +121,7 @@ file "$tmp/$asset" | grep -q "Mach-O.*arm64" || fail "二进制不是 macOS ARM6
 chmod 0700 "$tmp/$asset"
 EASYHOSTAGENT_PLATFORM=macos EASYHOSTAGENT_SOFTWARE_ROOT="$root" \
 EASYHOSTAGENT_DATA_DIR="$data_dir" EASYHOSTAGENT_LISTEN_ADDRESS="$listen" \
-EASYHOSTAGENT_TRANSPORT=https "$tmp/$asset" -check-config >/dev/null ||
+EASYHOSTAGENT_TRANSPORT="$transport" "$tmp/$asset" -check-config >/dev/null ||
     fail "Agent 原生配置自检失败"
 # plist 字符串 XML 转义，禁止路径含特殊字符时注入新的 plist 键。
 xml() { printf '%s' "$1" | sed -e 's/\&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'; }
@@ -128,6 +129,7 @@ xml_bin="$(xml "$binary")"
 xml_data="$(xml "$data_dir")"
 xml_root="$(xml "$root")"
 xml_listen="$(xml "$listen")"
+xml_transport="$(xml "$transport")"
 xml_out="$(xml "$data_dir/agent.stdout.log")"
 xml_err="$(xml "$data_dir/agent.stderr.log")"
 cat > "$tmp/agent.plist" <<EOF
@@ -142,7 +144,7 @@ cat > "$tmp/agent.plist" <<EOF
     <key>EASYHOSTAGENT_SOFTWARE_ROOT</key><string>$xml_root</string>
     <key>EASYHOSTAGENT_DATA_DIR</key><string>$xml_data</string>
     <key>EASYHOSTAGENT_LISTEN_ADDRESS</key><string>$xml_listen</string>
-    <key>EASYHOSTAGENT_TRANSPORT</key><string>https</string>
+    <key>EASYHOSTAGENT_TRANSPORT</key><string>$xml_transport</string>
     <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>RunAtLoad</key><true/>
@@ -172,5 +174,5 @@ fi
 launchctl bootstrap "gui/$uid" "$plist" ||
     fail "启动 LaunchAgent 失败；需要登录图形用户会话，可运行 launchctl bootstrap gui/$uid '$plist'"
 launchctl kickstart -k "$launch_label" || fail "LaunchAgent 未成功启动"
-echo "EasyHostAgent macOS 已安装，HTTPS 监听 $listen"
+echo "EasyHostAgent macOS 已安装，传输：$transport，监听 $listen"
 echo "身份配对命令：bash deploy.sh easyhostagent pairing"
