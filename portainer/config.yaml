@@ -1,11 +1,11 @@
 fields:
 - key: PORTAINER_HTTP_PORT
-  label: Web port
+  label: Web 访问端口
   type: port
   required: true
   default: 7004
   minimum: 1
   maximum: 65535
-  description: Web port
+  description: Portainer Web 管理界面在宿主机上对外开放的端口
   custom_input: true
   editable: true
