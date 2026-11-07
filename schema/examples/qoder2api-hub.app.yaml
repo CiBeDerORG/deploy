@@ -2,7 +2,7 @@
 schema_version: 1
 id: qoder2api-hub
 name: Qoder2API Hub
-summary: Multi-account Qoder gateway with OpenAI and Anthropic compatible APIs
+summary: 支持多账号管理的 Qoder API 网关，兼容 OpenAI 与 Anthropic 接口
 category: developer
 homepage: https://github.com/shuishuipingan/qoder2api-hub
 runtime:
@@ -80,7 +80,7 @@ config:
     default: ""
 ports:
   - id: web-api
-    label: Web dashboard and API
+    label: Web 管理面板与 API 服务
     protocol: tcp
     purpose: web
     host_port_key: QODER2API_HUB_PORT
