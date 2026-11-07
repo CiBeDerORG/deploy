@@ -42,7 +42,7 @@ load_config_file() {
             *) continue ;;
         esac
         local seen_key duplicate=0
-        for seen_key in "${QODER_CONFIG_SEEN[@]}"; do
+        for seen_key in "${QODER_CONFIG_SEEN[@]+"${QODER_CONFIG_SEEN[@]}"}"; do
             [ "$seen_key" = "$key" ] && { duplicate=1; break; }
         done
         [ "$duplicate" -eq 0 ] || fail "$key 在统一配置中重复定义；拒绝猜测应使用哪个值"
