@@ -1,7 +1,7 @@
 schema_version: 2
 id: opencode
 name: OpenCode
-summary: 容器化 OpenCode Web 服务与独立开发工作空间
+summary: 基于 Docker 的 OpenCode Web 编程服务与独立开发工作空间
 enabled: false
 category: developer
 runtime:
@@ -60,7 +60,7 @@ package:
     mode: '0644'
 ports:
 - id: web
-  label: OpenCode Web
+  label: OpenCode Web 服务
   protocol: tcp
   purpose: web
   host_port_key: OPENCODE_PORT
