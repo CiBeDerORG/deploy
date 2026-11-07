@@ -735,10 +735,10 @@ sudo bash deploy.sh github-runner
 
 ### EasyHostAgent · 原生主机执行器
 
-使用 GitHub Actions 构建的 Linux AMD64/ARM64 原生二进制，可从 Release 下载或使用上传的本地安装包。普通配置统一写入 `.env`：
+使用 GitHub Actions 构建的 Linux AMD64/ARM64 与 macOS ARM64 原生二进制，共用同一个 GitHub Release 标签；安装器按本机平台下载对应资产。普通配置统一写入 `.env`：
 
 ```dotenv
-EASYHOSTAGENT_RELEASE=v0.1.0-appstore.dev
+EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev
 EASYHOSTAGENT_LOCAL_BINARY=
 EASYHOSTAGENT_TRANSPORT=https
 EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018
