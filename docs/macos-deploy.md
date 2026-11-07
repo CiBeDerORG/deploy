@@ -1,6 +1,6 @@
 # macOS（Apple Silicon / Intel）通用安装入口
 
-> 开发适配分支：`feat/macos-deploy-entry-20261106`。当前仅保证已列明的 Docker Desktop 应用按独立入口执行；这不是 macOS 原生 EasyHostAgent 支持。
+> `main` 已包含 macOS Docker Desktop 部署入口与原生 EasyHostAgent 安装入口；实际 Docker Desktop 文件共享和容器数据持久化仍需在目标 Mac 验证。
 
 ## 支持范围
 
@@ -31,7 +31,7 @@ sudo chown "$(id -u):$(id -g)" /opt/software
 
 ```bash
 # 克隆（或切换到已合并的主分支）
-git clone -b feat/macos-deploy-entry-20261106 https://github.com/CiBeDerORG/deploy.git
+git clone https://github.com/CiBeDerORG/deploy.git
 cd deploy
 
 # 初始化安全的配置文件（只需首次）
@@ -53,7 +53,14 @@ bash deploy.sh portainer uninstall
 
 Portainer 首次安装如未设置密码，会使用安全随机源生成 48 位十六进制管理员密码，写入受保护的 `/opt/software/portainer/config/.secrets`；已有非空值不会被轮换。旧版统一 `deploy/.secrets` 的非空密码优先作为迁移来源。EasyNetTopo 首次初始化会自动生成随机管理员密码并保存于统一 `deploy/.secrets`，不会输出密码到日志。
 
-配置文件权限为当前登录用户 `0600`，**绝不通过 `source .env` 执行配置内容**。部署互斥锁使用 macOS 原生 `lockf`。默认保持 `DOCKER_IMAGE_SOURCE=original`；当前 Mac 入口遇到镜像源 `mirror` 会明确拒绝，暂未移植 GHCR 镜像轮换。安装与更新将拉取镜像；无法连接仓库时会失败但保留原有数据。
+配置文件权限为当前登录用户 `0600`，**绝不通过 `source .env` 执行配置内容**。部署互斥锁使用 macOS 原生 `lockf`。macOS 的 Docker Compose 安装/更新已复用 Linux/fnOS 的 `lib/image-sources.sh`，默认 `DOCKER_IMAGE_SOURCE=original`。如需 GHCR 加速站轮换，在 `/opt/software/deploy/.env` 中设置：
+
+```dotenv
+DOCKER_IMAGE_SOURCE=mirror
+DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
+```
+
+只有 `ghcr.io` 镜像才会转换到本轮加速站，非 GHCR（例如 Docker Hub）和 `easynettopo:local` 始终保持原样且不推进轮换。每次包含 GHCR 镜像的安装/更新选择一个站，`docker compose config/pull/up` 共用相同镜像地址；结果保存在 `<SOFTWARE_ROOT>/deploy/state/image-mirror.last`。切换回 `original` 不会修改轮换状态。与 Linux 一样，单次操作不会在某站拉取失败后自动尝试下一站；下次安装/更新才轮到下一个站。加速站可用性取决于所在网络，镜像拉取失败不会删除原有数据。卸载不读取镜像源配置，也不推进轮换。
 
 Mac 版 EasyNetTopo 的 Compose override 使用当前用户 UID/GID，以便访问 Docker Desktop 共享的宿主机目录。真实文件共享行为依赖 Docker Desktop 版本和配置，必须在目标 Mac 上验证数据持久化与容器内写入。原 Linux/fnOS `deploy.sh` 路径与 systemd 安装逻辑保持不变。
 
