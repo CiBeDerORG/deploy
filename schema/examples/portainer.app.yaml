@@ -2,7 +2,7 @@
 schema_version: 1
 id: portainer
 name: Portainer
-summary: Docker and Compose management UI
+summary: 用于管理 Docker 容器、镜像和 Compose 项目的 Web 控制台
 category: infrastructure
 homepage: https://www.portainer.io/
 runtime:
@@ -47,7 +47,7 @@ config:
     min_length: 12
 ports:
   - id: web
-    label: Web UI
+    label: Web 管理界面
     protocol: tcp
     purpose: web
     host_port_key: PORTAINER_HTTP_PORT
