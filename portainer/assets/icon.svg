@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16382f"/><text x="32" y="41" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#9cecc8">P</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Portainer Docker 容器管理">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#103F69"/><stop offset="1" stop-color="#0B2C4D"/></linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="13" fill="url(#bg)"/>
+  <path d="M11 21h42M32 12v36M17 21l15-9 17 9" fill="none" stroke="#D4F8FF" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M18 24v10h10V24M14 35h20v13H14Z" fill="#2DD0F5" stroke="#B6F5FF" stroke-width="2"/>
+  <path d="M20 35v13M27 35v13" stroke="#0E688B" stroke-width="2"/>
+  <path d="M11 53c4-5 10-5 14 0 4-5 11-5 15 0 4-5 10-5 14 0" fill="none" stroke="#D1F6FF" stroke-width="3" stroke-linecap="round"/>
+</svg>
