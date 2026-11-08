@@ -300,7 +300,9 @@ IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
 [ -f "$IMAGE_SOURCES_LIB" ] || { echo "镜像源公共脚本不存在，请通过 deploy.sh 同步部署文件。" >&2; exit 1; }
 # shellcheck source=../../lib/image-sources.sh
 source "$IMAGE_SOURCES_LIB"
-DEPLOY_EASYTIER_IMAGE="${EASYTIER_IMAGE:-ghcr.io/cibederorg/easytier:feat-node-attributes-main}"
+source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
+deploy_load_versions "$SOFTWARE_ROOT" || exit 1
+DEPLOY_EASYTIER_IMAGE="$EASYTIER_IMAGE"
 deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_EASYTIER_IMAGE
 
 cd "$DEPLOY_DIR"
