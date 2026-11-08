@@ -41,9 +41,11 @@ IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
 [ -f "$IMAGE_SOURCES_LIB" ] || fail "镜像源公共脚本不存在，请通过 deploy.sh 同步部署文件。"
 # shellcheck source=../../lib/image-sources.sh
 source "$IMAGE_SOURCES_LIB"
-DEPLOY_SUB2API_IMAGE=weishaw/sub2api:latest
-DEPLOY_SUB2API_POSTGRES_IMAGE=postgres:18-alpine
-DEPLOY_SUB2API_REDIS_IMAGE=redis:8-alpine
+source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
+deploy_load_versions "$SOFTWARE_ROOT" || exit 1
+DEPLOY_SUB2API_IMAGE="$SUB2API_IMAGE"
+DEPLOY_SUB2API_POSTGRES_IMAGE="$SUB2API_POSTGRES_IMAGE"
+DEPLOY_SUB2API_REDIS_IMAGE="$SUB2API_REDIS_IMAGE"
 IMAGE_CONFIG_FILE="$SOFTWARE_ROOT/deploy/.env"
 [ -f "$IMAGE_CONFIG_FILE" ] || IMAGE_CONFIG_FILE="$ENV_FILE"
 deploy_prepare_images "$SOFTWARE_ROOT" "$IMAGE_CONFIG_FILE" \
