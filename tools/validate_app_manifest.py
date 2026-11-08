@@ -194,15 +194,20 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
         source, dest = item["source"], item["destination"]
         segments = safe_parts(dest, "package.destination", allow_shared=False)
         require((len(segments) >= 2 and segments[0] == app) or
-                (len(segments) >= 3 and segments[:2] == ("deploy", "lib")),
+                (len(segments) >= 3 and segments[:2] == ("deploy", "lib")) or
+                dest == "deploy/versions.env",
                 f"package.destination outside application/shared library: {dest}")
         require(dest.casefold() not in dest_keys and source.casefold() not in src_keys,
                 "Duplicate package source or destination, including case-only collisions")
         dest_keys.add(dest.casefold())
         src_keys.add(source.casefold())
-        require(source.startswith(app + "/") or source.startswith("lib/"),
+        require(source.startswith(app + "/") or source.startswith("lib/") or source == "versions.env",
                 f"package.source outside application/shared library: {source}")
-        if dest.startswith("deploy/lib/"):
+        if dest == "deploy/versions.env":
+            # The only writable shared non-library file is the checked-in version registry.
+            require(source == "versions.env",
+                    "Shared version registry destination must preserve its root source")
+        elif dest.startswith("deploy/lib/"):
             require(source == dest.removeprefix("deploy/"),
                     "Shared library destinations must preserve lib/ source paths")
         else:
