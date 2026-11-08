@@ -1,6 +1,6 @@
 # EasyNetTopo 部署
 
-从 deploy 仓库根目录运行以下命令。EasyNetTopo 使用单个 Go 容器直接提供前端页面和 HTTP API，不再依赖 Caddy 网关。默认镜像 `ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle` 由应用生命周期开发分支构建，支持 amd64 和 arm64。对旧版官方默认镜像标签，更新脚本会自动迁移统一 `.env`，无需手动修改；自定义镜像标签和 `easynettopo:local` 不会被覆盖。
+从 deploy 仓库根目录运行以下命令。EasyNetTopo 使用单个 Go 容器直接提供前端页面和 HTTP API，不再依赖 Caddy 网关。默认镜像 `ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle` 由应用生命周期开发分支构建，支持 amd64 和 arm64。镜像标签统一取自本仓库根目录的真实 `versions.env`；安装/更新自动同步该文件，不再从用户 `.env` 接收镜像版本。
 
 ## 1. 配置文件
 
@@ -22,14 +22,13 @@ sudo bash deploy.sh env
 TZ=Asia/Shanghai
 EASYNETTOPO_HTTP_PORT=7017
 EASYNETTOPO_BIND_IP=0.0.0.0
-EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle
 EASYNETTOPO_GIT_ALLOWED_HOSTS=github.com
 EASYNETTOPO_GIT_ALLOW_HTTP=false
 DOCKER_IMAGE_SOURCE=original
 DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
 ```
 
-需要加速时，把 `DOCKER_IMAGE_SOURCE` 改为 `mirror`。安装和更新按公共轮换规则为 EasyNetTopo 的 GHCR 镜像选择加速站；不再拉取 Caddy 镜像。原始镜像配置保留在 `.env`。可选加速站与使用限制见[仓库镜像源说明](../README.md)。
+需要加速时，把 `DOCKER_IMAGE_SOURCE` 改为 `mirror`。安装和更新按公共轮换规则为 EasyNetTopo 的 GHCR 镜像选择加速站；不再拉取 Caddy 镜像。原始镜像由仓库 `versions.env` 统一指定。可选加速站与使用限制见[仓库镜像源说明](../README.md)。
 
 ## 2. 运行要求
 
@@ -63,7 +62,7 @@ sudo sed -n 's/^EASYNETTOPO_ADMIN_PASSWORD=//p' /software/deploy/.secrets
 sudo docker build -t easynettopo:local ../EasyNetTopo
 ```
 
-然后在 `.env` 中设置 `EASYNETTOPO_IMAGE=easynettopo:local`。此模式只使用本机已构建的控制端镜像，不再拉取网关。
+然后仅用于开发测试时，将仓库 `versions.env` 的 `EASYNETTOPO_IMAGE` 改为 `easynettopo:local`（不要修改统一 `.env`）。此模式只使用本机已构建的控制端镜像，不再拉取网关。
 
 ```bash
 sudo bash deploy.sh easynettopo install
@@ -90,4 +89,4 @@ git pull --ff-only origin main
 sudo bash deploy.sh easynettopo update
 ```
 
-从最新 deploy 运行更新，脚本会在校验旧值后将 `EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-docker-app-store` 自动改为 `ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle`，随后拉取最新移动标签镜像；若你明确填写了其他镜像或本地镜像，则保持不变。更新保留数据库及凭据，并按当前 `.env` 中的 `EASYNETTOPO_BIND_IP` 重新绑定宿主机端口。GitHub Actions 发布的默认 GHCR 分支镜像无需在目标机器编译，更新命令会直接重新拉取；如选用自建 `easynettopo:local`，则需自行更新该镜像。
+从最新 deploy 运行更新，会自动读取仓库 `versions.env` 的镜像版本并同步到软件目录；旧 `.env` 的 `EASYNETTOPO_IMAGE` 字段会被忽略，不会覆盖仓库版本。更新保留数据库及凭据，并按当前 `.env` 中的 `EASYNETTOPO_BIND_IP` 重新绑定宿主机端口。GitHub Actions 发布的默认 GHCR 分支镜像无需在目标机器编译，更新命令会直接重新拉取；如选用自建 `easynettopo:local`，则需自行更新该镜像。
