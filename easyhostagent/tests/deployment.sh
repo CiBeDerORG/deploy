@@ -29,7 +29,7 @@ test -f "$file"
 grep -qx "GITHUB_RELEASE_SOURCE=original" "$file"
 grep -qx "GITHUB_RELEASE_MIRRORS=ghproxy,ghfast,ghproxy-net" "$file"
 ! grep -q '^EASYHOSTAGENT_RELEASE=' "$file"
-grep -qx 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/versions.env"
+grep -qx 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/lib/versions.env"
 grep -qx 'EASYHOSTAGENT_TRANSPORT=https' "$file"
 grep -qx 'EASYHOSTAGENT_LOCAL_BINARY=' "$file"
 grep -qx 'EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018' "$file"
@@ -87,13 +87,13 @@ if bash deploy.sh easyhostagent update > "$tmp/bad-checksum.log" 2>&1; then
 fi
 grep -F 'SHA-256 校验失败' "$tmp/bad-checksum.log" >/dev/null
 ! grep -q '^EASYHOSTAGENT_RELEASE=' "$file"
-grep -Fxq 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/versions.env"
+grep -Fxq 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/lib/versions.env"
 test "$(cat "$persisted")" = persisted-identity
 cp "$EASYHOSTAGENT_TEST_BINARY" "$uploaded"
 bash deploy.sh easyhostagent update > "$tmp/update.log" 2>&1 || { cat "$tmp/update.log"; exit 1; }
 grep -qx 'EASYHOSTAGENT_TRANSPORT=http' "$native"
 ! grep -q '^EASYHOSTAGENT_RELEASE=' "$file"
-grep -Fxq 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/versions.env"
+grep -Fxq 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/lib/versions.env"
 grep -qx 'EASYHOSTAGENT_LISTEN_ADDRESS=127.0.0.1:7018' "$native"
 grep -qx 'CUSTOM_AGENT_SETTING=keep' "$native"
 grep -qx 'EASYHOSTAGENT_PLATFORM=fnos' "$native"
@@ -139,7 +139,7 @@ sed -i 's#^EASYHOSTAGENT_DATA_DIR=.*#EASYHOSTAGENT_DATA_DIR=/var/lib/easyhostage
 printf 'EASYHOSTAGENT_RELEASE=v2.3.4-custom\n' >> "$file"
 bash deploy.sh env >/dev/null
 ! grep -q '^EASYHOSTAGENT_RELEASE=' "$file"
-grep -Fxq 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/versions.env"
+grep -Fxq 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/lib/versions.env"
 
 bash deploy.sh easyhostagent uninstall > "$tmp/uninstall.log" 2>&1 || { cat "$tmp/uninstall.log"; exit 1; }
 test ! -e "$EASYHOSTAGENT_STAGING_ROOT/usr/local/bin/easyhostagent"
