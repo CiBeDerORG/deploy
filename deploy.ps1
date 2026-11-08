@@ -909,7 +909,7 @@ function Prepare-Task {
             Write-Warning 'EasyTier Compose 使用 host 网络、/dev/net/tun 和 Linux 主机 machine-id；Windows Docker Desktop 的网络/TUN 行为与 Linux 主机不同，请确认 Docker Desktop 支持后再继续。'
         }
         'easytier-automation-executor' {
-            $image = Get-ConfigValue 'EASYTIER_EXECUTOR_IMAGE' 'ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center'
+            $image = Get-ConfigValue 'EASYTIER_EXECUTOR_IMAGE'
             if (-not $image) { throw 'EASYTIER_EXECUTOR_IMAGE 不能为空。' }
             $null = Test-Port 'EASYTIER_EXECUTOR_PORT' (Get-ConfigValue 'EASYTIER_EXECUTOR_PORT' '8766')
             Test-IPv4 'EASYTIER_EXECUTOR_BIND_IP' (Get-ConfigValue 'EASYTIER_EXECUTOR_BIND_IP' '127.0.0.1')
@@ -951,7 +951,7 @@ function Prepare-Task {
             }
         }
         'qoder2api-hub' {
-            $image = Get-ConfigValue 'QODER2API_HUB_IMAGE' 'ghcr.io/shuishuipingan/qoder2api-hub:latest'
+            $image = Get-ConfigValue 'QODER2API_HUB_IMAGE'
             if (-not $image) { throw 'QODER2API_HUB_IMAGE 不能为空。' }
             $null = Test-Port 'QODER2API_HUB_PORT' (Get-ConfigValue 'QODER2API_HUB_PORT' '8790')
             Test-IPv4 'QODER2API_HUB_BIND_IP' (Get-ConfigValue 'QODER2API_HUB_BIND_IP' '127.0.0.1')
@@ -1128,7 +1128,7 @@ function Invoke-Task {
         }
         'easytier-automation-executor' {
             Invoke-Compose $Task @('pull','easytier-automation-executor')
-            $image = Get-ConfigValue 'DEPLOY_EASYTIER_EXECUTOR_IMAGE' (Get-ConfigValue 'EASYTIER_EXECUTOR_IMAGE' 'ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center')
+            $image = Get-ConfigValue 'DEPLOY_EASYTIER_EXECUTOR_IMAGE'
             $arch = Get-DockerOutput @('image','inspect','--format','{{.Architecture}}',$image)
             if ($arch -and $arch -ne 'amd64') { throw "执行器镜像架构为 $arch，预期 amd64；未替换容器。" }
             Invoke-Compose $Task @('up','-d','--no-deps','--force-recreate','--pull','never','easytier-automation-executor')
