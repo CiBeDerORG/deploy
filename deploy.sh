@@ -214,12 +214,12 @@ migrate_legacy_envs() {
 remove_deprecated_env_keys() {
     local key
     for key in "${DEPRECATED_ENV_KEYS[@]}"; do
-        if run_root grep -Eq "^[[:space:]]*$key[[:space:]]*=" "$GLOBAL_ENV"; then
-            run_root sed -i "/^[[:space:]]*$key[[:space:]]*=/d" "$GLOBAL_ENV"
+        if run_root grep -Eq "^[[:space:]]*${key}[[:space:]]*=" "$GLOBAL_ENV"; then
+            run_root sed -i "/^[[:space:]]*${key}[[:space:]]*=/d" "$GLOBAL_ENV"
             GLOBAL_ENV_UPDATED=1
         fi
-        if [ -f "$GLOBAL_SECRETS" ] && run_root grep -Eq "^[[:space:]]*$key[[:space:]]*=" "$GLOBAL_SECRETS"; then
-            run_root sed -i "/^[[:space:]]*$key[[:space:]]*=/d" "$GLOBAL_SECRETS"
+        if [ -f "$GLOBAL_SECRETS" ] && run_root grep -Eq "^[[:space:]]*${key}[[:space:]]*=" "$GLOBAL_SECRETS"; then
+            run_root sed -i "/^[[:space:]]*${key}[[:space:]]*=/d" "$GLOBAL_SECRETS"
             GLOBAL_ENV_UPDATED=1
         fi
     done
@@ -402,6 +402,7 @@ ensure_global_env() {
     remove_deprecated_env_keys
     run_root chown root:root "$GLOBAL_ENV" "$GLOBAL_SECRETS"
     run_root chmod 0600 "$GLOBAL_ENV" "$GLOBAL_SECRETS"
+    sync_shared_libraries || return $?
 
     if [ "$GLOBAL_ENV_CREATED" -eq 1 ] || [ "$GLOBAL_SECRETS_CREATED" -eq 1 ]; then
         echo "请检查并填写："
