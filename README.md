@@ -26,6 +26,22 @@ macOS 默认 `SOFTWARE_ROOT=/opt/software`，首次需给当前用户设置目�
 
 > `.env` / `.secrets` 是运行配置，不应提交到 Git。仓库中的 `.env.example` 与 `.secrets.example` 只是模板。
 
+### 镜像与二进制版本统一管理
+
+**仓库根目录真实存在的 [`versions.env`](./versions.env) 是所有应用镜像标签、GitHub Release / 二进制版本的唯一来源**，不提供 `versions.env.example`，也不需要用户拷贝改名。
+
+Linux/fnOS 执行 `sudo bash deploy.sh env` 或安装/更新应用、macOS 执行 `bash deploy.sh env`、Windows 执行 `.\\deploy.ps1 <应用> install/update` 时，部署入口会自动把真实版本文件同步到 `<SOFTWARE_ROOT>/deploy/versions.env`；已发布的应用包也包含相同的仓库版本清单。**更换版本只编辑 Git 仓库中的 `versions.env` 并提交后更新部署来源，不再改 `.env` 或应用的 `config/.env`。**旧版 IMAGE/RELEASE 键会被新入口清理或忽略。
+
+```dotenv
+# versions.env（Git 跟踪、无需手工复制）
+EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev
+EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle
+EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
+```
+
+其中 `latest`、`lts` 等滚动标签仍采用原来动态拉取策略；要锁定到明确版本，请在 `versions.env` 设置固定标签或镜像 digest。端口、主机路径、网络、代理和密钥等仍分别由原 `.env` / `.secrets` 管理。
+
+
 ## 部署回答与维护规范
 
 **全局强制规范**见 [AGENTS.md](./AGENTS.md)。以后**新增应用、更新安装脚本，或用户询问安装方式**，文档与回答都必须提供以下信息：
@@ -385,8 +401,8 @@ DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
 
 | 项目 | 镜像来源与处理方式 |
 | --- | --- |
-| EasyTier | 默认 GHCR 镜像会加速；`EASYTIER_IMAGE` 指定非 GHCR 镜像时保留原地址，cloud / intranet 共用 |
-| EasyTier 手机执行器 | 独立 `EASYTIER_EXECUTOR_IMAGE`，仅原始 GHCR 镜像参与同一全局轮换，不触发主服务更新 |
+| EasyTier | 从 `versions.env` 读取统一镜像地址；GHCR 镜像会加速，非 GHCR 保持原地址 |
+| EasyTier 手机执行器 | 从 `versions.env` 读取独立镜像；只让 GHCR 参与全局轮换，不触发主服务更新 |
 | FRPS | GHCR 服务镜像会加速 |
 | Mihomo Docker | GHCR 完整版镜像会加速；启动前检查和 Compose 共用本轮镜像 |
 | FlatNas | 当前为 Docker Hub 镜像，原样使用 |
@@ -404,7 +420,7 @@ DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
 - `original` 模式、没有 GHCR 镜像的部署、`env`、`list`、`sync`、代理网络管理不推进轮换。GitHub Runner、Mihomo 原生模式、EasyTier OpenWrt 使用原生安装流程，也不推进镜像轮换。
 - 同一次部署混用 GHCR 与其他仓库时，仅转换 GHCR 镜像，其余镜像原样使用。识别按仓库域名进行，路径中包含 `ghcr.io` 或 `ghcr.io.example.com` 这样的其他域名不会误判为 GHCR。
 
-配置中的原始镜像始终保留。例如 EasyTier 继续填写：
+仓库版本文件中的原始镜像始终保留。例如 `versions.env` 统一配置：
 
 ```dotenv
 EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
@@ -593,7 +609,6 @@ EASYTIER_CONFIG_PORT=7008
 云端 `.env`：
 
 ```dotenv
-EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
 EASYTIER_ROLE=cloud
 EASYTIER_HOSTNAME=easytier
 EASYTIER_PRIVILEGED=false
@@ -602,7 +617,7 @@ EASYTIER_WEB_API_HOST=http://<公网IP>:7007
 EASYTIER_CONFIG_SERVER=
 ```
 
-`EASYTIER_IMAGE` 是可选的 Docker 镜像配置，cloud / intranet 共用；留空或未配置时使用上述默认镜像。在统一 `.env` 修改完整镜像地址（支持标签或 digest）后执行 `sudo bash deploy.sh easytier update`，即可拉取指定镜像并重建容器，无需修改 Compose。执行 `sudo bash deploy.sh env` 会补齐缺失项并保留已有镜像值。自定义镜像的兼容要求见 [Docker 镜像](./easytier/README.md#docker-镜像)。
+`EASYTIER_IMAGE` 不再属于用户 `.env`。如需切换云端/内网镜像，请直接修改仓库 `versions.env` 的 `EASYTIER_IMAGE`，然后更新 deploy 仓库并执行 `sudo bash deploy.sh easytier update`，入口会自动同步并使用新值。自定义镜像兼容性见 [Docker 镜像](./easytier/README.md#docker-镜像)。
 
 `EASYTIER_HOSTNAME` 是可选的容器主机名配置，cloud / intranet 均适用；默认、留空或未配置时使用 `easytier`。例如可在统一 `.env` 中设置 `EASYTIER_HOSTNAME=fnos`，更新服务后生效，无需修改 Compose 文件。详见 [容器主机名](./easytier/README.md#容器主机名)。
 
@@ -619,7 +634,6 @@ cloud Core 自动连接 `udp://127.0.0.1:7008/admin`。云端的**网络名称�
 内网 `.env`：
 
 ```dotenv
-EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
 EASYTIER_ROLE=intranet
 EASYTIER_HOSTNAME=easytier
 EASYTIER_PRIVILEGED=true
@@ -738,7 +752,6 @@ sudo bash deploy.sh github-runner
 使用 GitHub Actions 构建的 Linux AMD64/ARM64 与 macOS ARM64 原生二进制，共用同一个 GitHub Release 标签；安装器按本机平台下载对应资产。普通配置统一写入 `.env`：
 
 ```dotenv
-EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev
 EASYHOSTAGENT_LOCAL_BINARY=
 EASYHOSTAGENT_TRANSPORT=https
 EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018
