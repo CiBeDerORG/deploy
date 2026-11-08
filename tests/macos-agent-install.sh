@@ -20,8 +20,8 @@ cleanup() {
 }
 trap cleanup EXIT
 bash deploy.sh env
-# 首先在不启动 launchd 的模式下验证真实程序的安装、哈希校验和 plist 生成。
-bash macos/agent-install.sh install "$SOFTWARE_ROOT" --no-start
+# 测试调用端未导出 SOFTWARE_ROOT：安装器应使用显式传入的根目录。
+env -u SOFTWARE_ROOT bash macos/agent-install.sh install "$SOFTWARE_ROOT" --no-start
 [[ -x "$binary" && -f "$plist" ]]
 plutil -lint "$plist"
 bash deploy.sh easyhostagent identity >"$RUNNER_TEMP/phase1-identity"
@@ -51,7 +51,7 @@ if launchctl print "gui/$uid" >/dev/null 2>&1; then
 else
     echo "Runner 没有 gui/$uid，跳过 launchctl 实际注册验证"
 fi
-bash macos/agent-install.sh update "$SOFTWARE_ROOT" --no-start
+env -u SOFTWARE_ROOT bash macos/agent-install.sh update "$SOFTWARE_ROOT" --no-start
 bash deploy.sh easyhostagent identity >"$RUNNER_TEMP/phase1-identity-after"
 cmp "$RUNNER_TEMP/phase1-identity" "$RUNNER_TEMP/phase1-identity-after"
 bash deploy.sh easyhostagent uninstall
