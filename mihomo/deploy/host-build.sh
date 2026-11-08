@@ -34,7 +34,10 @@ case "$(uname -m)" in
     aarch64|arm64) node_arch=linux-arm64; kernel_arch=arm64 ;;
     *) echo "原生模式仅支持 amd64 / arm64" >&2; exit 1 ;;
 esac
-NODE_VERSION=v22.23.4
+SOFTWARE_ROOT="$(cd -- "$RUNTIME/../../.." && pwd -P)"
+source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
+deploy_load_versions "$SOFTWARE_ROOT" || exit 1
+NODE_VERSION="$MIHOMO_NODE_VERSION"
 NODE_DIR="node-$NODE_VERSION-$node_arch"
 node="$RUNTIME/$NODE_DIR/bin/node"
 if [ ! -x "$node" ]; then
@@ -55,17 +58,25 @@ fi
 export PATH="$RUNTIME/$NODE_DIR/bin:$PATH"
 # The public release redirect avoids the shared anonymous GitHub API quota.
 # Accept only a canonical release URL from the official repository.
-release_url="$(curl -fsSLI --retry 3 --output /dev/null --write-out '%{url_effective}' https://github.com/MetaCubeX/metacubexd/releases/latest)"
-[[ "$release_url" =~ ^https://github\.com/MetaCubeX/metacubexd/releases/tag/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]] || {
-    echo "无法识别官方最新发布地址" >&2; exit 1;
-}
-tag="${BASH_REMATCH[1]}"
+if [ "$MIHOMO_METACUBEXD_VERSION" = latest ]; then
+    release_url="$(curl -fsSLI --retry 3 --output /dev/null --write-out '%{url_effective}' https://github.com/MetaCubeX/metacubexd/releases/latest)"
+    [[ "$release_url" =~ ^https://github\.com/MetaCubeX/metacubexd/releases/tag/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]] || {
+        echo "无法识别官方最新发布地址" >&2; exit 1;
+    }
+    tag="${BASH_REMATCH[1]}"
+else
+    tag="$MIHOMO_METACUBEXD_VERSION"
+fi
 [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "无法识别官方发布版本" >&2; exit 1; }
 echo "构建官方 MetaCubeXD $tag（server 与 UI 产物隔离）..."
 git clone --depth 1 --branch "$tag" https://github.com/MetaCubeX/metacubexd.git "$work/source"
 source_dir="$work/source"
-version="$(sed -nE 's/^ARG MIHOMO_VERSION=(v[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$source_dir/apps/server/Dockerfile" | head -n 1)"
-[[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "无法识别上游内核版本" >&2; exit 1; }
+if [ "$MIHOMO_KERNEL_VERSION" = upstream ]; then
+    version="$(sed -nE 's/^ARG MIHOMO_VERSION=(v[0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$source_dir/apps/server/Dockerfile" | head -n 1)"
+else
+    version="$MIHOMO_KERNEL_VERSION"
+fi
+[[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "无效的 Mihomo 内核版本" >&2; exit 1; }
 corepack enable pnpm --install-directory "$RUNTIME/$NODE_DIR/bin"
 (
     cd "$source_dir"
