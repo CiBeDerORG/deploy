@@ -91,3 +91,39 @@ sudo bash deploy.sh easynettopo update
 ```
 
 从最新 deploy 运行更新，脚本会在校验旧值后将 `EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-docker-app-store` 自动改为 `ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle`，随后拉取最新移动标签镜像；若你明确填写了其他镜像或本地镜像，则保持不变。更新保留数据库及凭据，并按当前 `.env` 中的 `EASYNETTOPO_BIND_IP` 重新绑定宿主机端口。GitHub Actions 发布的默认 GHCR 分支镜像无需在目标机器编译，更新命令会直接重新拉取；如选用自建 `easynettopo:local`，则需自行更新该镜像。
+
+## 7. GitHub Actions 构建成功 Hook（异步批量更新）
+
+EasyNetTopo 新版控制端支持 `POST /api/hooks/deploy/update`。
+部署时请先使用包含该功能的 EasyNetTopo 镜像（例如测试分支镜像
+`ghcr.io/cibederorg/easynettopo:feat-async-host-app-tasks-20261108`），
+而不是老的 `feat-deploy-manifest-lifecycle` 标签。未经发布成功的测试镜像不应视为可用。
+
+通过 `sudoedit <SOFTWARE_ROOT>/deploy/.secrets` 设置：
+
+```dotenv
+EASYNETTOPO_HOOK_TOKEN=请自行生成至少32字符的随机密钥
+```
+
+该值仅从 root:root、0600 的 `.secrets` 加载；缺失/留空则 Hook 接口保持禁用。
+配置完成后执行：
+
+```bash
+sudo bash deploy.sh easynettopo update
+```
+
+然后在发送通知的 GitHub 仓库中，分别配置 `EASYNETTOPO_HOOK_URL` 和
+`EASYNETTOPO_HOOK_TOKEN` 为 Actions Secrets；URL 必须是可供 GitHub 访问的 HTTPS 地址。
+
+只有构建和推送成功后才触发以下 HTTP 请求（示例主机和服务名应替换成 EasyNetTopo 中实际登记的名称）：
+
+```bash
+curl --fail --retry 2 -X POST "$EASYNETTOPO_HOOK_URL" \
+  -H "Authorization: Bearer $EASYNETTOPO_HOOK_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"trigger_source":"github_actions","targets":[{"host_name":"Mac-mini","service_name":"app-a"},{"host_name":"Linux-server","service_name":"app-b"}]}'
+```
+
+成功受理返回 HTTP 202 和 HT/AT 任务编号；此时仍未代表更新成功。
+不同主机可以并发，一台主机上的应用依次执行。控制端的主机及应用卡片
+会展示当前编号、状态和触发来源，成功后只保留最近执行时间。
