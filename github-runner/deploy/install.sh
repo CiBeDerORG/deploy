@@ -23,7 +23,9 @@ RUNNER_DIR="$DATA_DIR/runner"
 ENV_FILE="$SOFTWARE_ROOT/deploy/.env"
 SECRETS_FILE="$SOFTWARE_ROOT/deploy/.secrets"
 MODE="${1:-install}"
-RUNNER_VERSION="latest"
+source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
+deploy_load_versions "$SOFTWARE_ROOT" || exit 1
+RUNNER_VERSION="$GITHUB_RUNNER_VERSION"
 RUNNER_WORKDIR="_work"
 
 load_dotenv_file() {
