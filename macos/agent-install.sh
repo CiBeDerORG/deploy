@@ -51,8 +51,8 @@ transport="$(read_config EASYHOSTAGENT_TRANSPORT)"
 [[ -n "$transport" ]] || transport=https
 case "$transport" in http|https) ;; *) fail "EASYHOSTAGENT_TRANSPORT 只能是 http 或 https" ;; esac
 # Linux/fnOS 与 macOS 共用 Release 标签；此处按 macOS 平台下载 darwin/arm64 资产。
-source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
-deploy_load_versions "$SOFTWARE_ROOT" || exit 1
+source "$root/deploy/lib/versions.sh"
+deploy_load_versions "$root" || exit 1
 release="$EASYHOSTAGENT_RELEASE"
 [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+[-.a-zA-Z0-9]*$ ]] || fail "macOS Release 标签格式不合法"
 local_binary="$(read_config EASYHOSTAGENT_MACOS_LOCAL_BINARY)"
