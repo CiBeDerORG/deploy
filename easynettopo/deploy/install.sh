@@ -16,7 +16,7 @@ SECRETS_FILE="$SOFTWARE_ROOT/deploy/.secrets"
 source "$DEPLOY_DIR/config.sh"
 
 # 凭据只从 .secrets 读取；普通设置只从统一 .env 读取。
-unset EASYNETTOPO_ADMIN_USERNAME EASYNETTOPO_ADMIN_PASSWORD EASYNETTOPO_IMAGE EASYNETTOPO_HTTP_PORT EASYNETTOPO_BIND_IP
+unset EASYNETTOPO_ADMIN_USERNAME EASYNETTOPO_ADMIN_PASSWORD EASYNETTOPO_IMAGE EASYNETTOPO_HTTP_PORT EASYNETTOPO_BIND_IP EASYNETTOPO_HOOK_TOKEN
 unset EASYNETTOPO_GIT_ALLOWED_HOSTS EASYNETTOPO_GIT_ALLOW_HTTP TZ
 [[ -f "$ENV_FILE" ]] || fail "请先执行 sudo bash deploy.sh env"
 source_migration="$SOFTWARE_ROOT/deploy/lib/source-migration.sh"
@@ -29,6 +29,17 @@ if [[ "$mode" != uninstall ]]; then
         "ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle" || fail "迁移镜像默认值失败"
 fi
 load_settings "$ENV_FILE" env
+# 可选 Hook Token 仅从权限受控的 .secrets 读取，不允许 .env 覆盖。
+if [[ -f "$SECRETS_FILE" ]]; then
+    [[ ! -L "$SECRETS_FILE" && "$(stat -c '%u:%g:%a' "$SECRETS_FILE")" == 0:0:600 ]] ||
+        fail ".secrets 必须是 root:root 所有、权限 0600 的普通文件"
+    load_settings "$SECRETS_FILE" secrets
+fi
+if [[ -n "${EASYNETTOPO_HOOK_TOKEN:-}" && ${#EASYNETTOPO_HOOK_TOKEN} -lt 32 ]]; then
+    fail "EASYNETTOPO_HOOK_TOKEN 至少需要 32 个字符，或保持空值禁用"
+fi
+export EASYNETTOPO_HOOK_TOKEN="${EASYNETTOPO_HOOK_TOKEN:-}"
+
 export EASYNETTOPO_HTTP_PORT="${EASYNETTOPO_HTTP_PORT:-7017}"
 export EASYNETTOPO_BIND_IP="${EASYNETTOPO_BIND_IP:-0.0.0.0}"
 export EASYNETTOPO_GIT_ALLOWED_HOSTS="${EASYNETTOPO_GIT_ALLOWED_HOSTS:-github.com}"
