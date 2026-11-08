@@ -1,7 +1,7 @@
 name: sub2api
 services:
   sub2api:
-    image: "${DEPLOY_SUB2API_IMAGE:-weishaw/sub2api:latest}"
+    image: "${DEPLOY_SUB2API_IMAGE:?run deploy.sh to load versions.env}"
     container_name: sub2api
     restart: unless-stopped
     security_opt:
@@ -45,7 +45,7 @@ services:
       start_period: 120s
 
   postgres:
-    image: "${DEPLOY_SUB2API_POSTGRES_IMAGE:-postgres:18-alpine}"
+    image: "${DEPLOY_SUB2API_POSTGRES_IMAGE:?run deploy.sh to load versions.env}"
     container_name: sub2api-postgres
     restart: unless-stopped
     environment:
@@ -64,7 +64,7 @@ services:
       start_period: 60s
 
   redis:
-    image: "${DEPLOY_SUB2API_REDIS_IMAGE:-redis:8-alpine}"
+    image: "${DEPLOY_SUB2API_REDIS_IMAGE:?run deploy.sh to load versions.env}"
     container_name: sub2api-redis
     restart: unless-stopped
     command: ["redis-server", "--save", "60", "1", "--appendonly", "yes", "--appendfsync", "everysec", "--requirepass", "${SUB2API_REDIS_PASSWORD:?Redis 密码未设置}"]
