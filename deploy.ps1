@@ -402,10 +402,18 @@ function Resolve-Task {
 }
 
 function Sync-SharedLibrary {
-    $source = Join-Path $script:RootDir 'lib\image-sources.sh'
-    if (-not (Test-Path -LiteralPath $source)) { throw "公共镜像源模块不存在：$source" }
-    $target = Join-Path $script:GlobalEnvDir 'lib\image-sources.sh'
-    New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+    foreach ($module in @('image-sources.sh','versions.sh')) {
+        $source = Join-Path (Join-Path $script:RootDir 'lib') $module
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "公共模块不存在：$source" }
+        $target = Join-Path (Join-Path $script:GlobalEnvDir 'lib') $module
+        New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+        if (-not (Test-Path -LiteralPath $target) -or (Get-FileHash -LiteralPath $source).Hash -ne (Get-FileHash -LiteralPath $target).Hash) {
+            Copy-Item -LiteralPath $source -Destination $target -Force
+        }
+    }
+    $source = Join-Path $script:RootDir 'versions.env'
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "仓库版本文件不存在：$source" }
+    $target = Join-Path $script:GlobalEnvDir 'versions.env'
     if (-not (Test-Path -LiteralPath $target) -or (Get-FileHash -LiteralPath $source).Hash -ne (Get-FileHash -LiteralPath $target).Hash) {
         Copy-Item -LiteralPath $source -Destination $target -Force
     }
