@@ -1,0 +1,97 @@
+schema_version: 2
+id: easynettopo
+name: EasyNetTopo
+summary: 主机与应用管理控制台；当前应用商店只提供已安装实例的更新操作
+enabled: true
+category: infrastructure
+homepage: https://github.com/CiBeDerORG/EasyNetTopo
+runtime:
+  kind: docker_compose
+  compose_project: easynettopo
+  compose_file: deploy/docker-compose.yaml
+  requires_root: true
+compatibility:
+  platforms:
+  - linux
+  - fnos
+  architectures:
+  - amd64
+  - arm64
+  requires_docker: true
+  requires_compose_v2: true
+package:
+  files:
+  - source: easynettopo/deploy/docker-compose.yaml
+    destination: easynettopo/deploy/docker-compose.yaml
+  - source: easynettopo/deploy/config.sh
+    destination: easynettopo/deploy/config.sh
+  - source: easynettopo/deploy/install.sh
+    destination: easynettopo/deploy/install.sh
+    mode: '0755'
+  - source: easynettopo/deploy/update.sh
+    destination: easynettopo/deploy/update.sh
+    mode: '0755'
+  - source: easynettopo/deploy/uninstall.sh
+    destination: easynettopo/deploy/uninstall.sh
+    mode: '0755'
+  - source: lib/versions.env
+    destination: deploy/lib/versions.env
+    mode: '0644'
+  - source: lib/versions.sh
+    destination: deploy/lib/versions.sh
+    mode: '0644'
+  - source: lib/image-sources.sh
+    destination: deploy/lib/image-sources.sh
+    mode: '0644'
+  - source: lib/platform.sh
+    destination: deploy/lib/platform.sh
+    mode: '0644'
+  - source: lib/app-config.sh
+    destination: deploy/lib/app-config.sh
+    mode: '0644'
+  - source: easynettopo/config.yaml
+    destination: easynettopo/config.yaml
+    mode: '0644'
+  - source: easynettopo/secrets.yaml
+    destination: easynettopo/secrets.yaml
+    mode: '0644'
+  - source: easynettopo/deploy/config.env.example
+    destination: easynettopo/deploy/config.env.example
+    mode: '0644'
+  - source: easynettopo/deploy/config.secrets.example
+    destination: easynettopo/deploy/config.secrets.example
+    mode: '0644'
+ports:
+- id: web
+  label: Web 管理界面
+  protocol: tcp
+  purpose: web
+  host_port_key: EASYNETTOPO_HTTP_PORT
+  bind_address_key: EASYNETTOPO_BIND_IP
+  container_port: 8080
+  service: easynettopo
+  path: /
+actions:
+  install:
+    strategy: script
+    path: deploy/install.sh
+  update:
+    strategy: script
+    path: deploy/update.sh
+  uninstall:
+    strategy: script
+    path: deploy/uninstall.sh
+verification:
+  mode: docker_compose
+  required_services:
+  - easynettopo
+  state: healthy
+  timeout_seconds: 180
+data:
+  paths:
+  - easynettopo/data
+  named_volumes: []
+  default_retain: true
+configuration:
+  config: config.yaml
+  secrets: secrets.yaml
