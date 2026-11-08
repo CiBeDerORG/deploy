@@ -20,6 +20,7 @@ class AppConfigurationTests(unittest.TestCase):
         shutil.copytree(ROOT / "schema", self.root / "schema")
         shutil.copytree(ROOT / "sub2api", self.root / "demo-service")
         shutil.copytree(ROOT / "lib", self.root / "lib")
+        shutil.copy2(ROOT / "versions.env", self.root / "versions.env")
         for path in (self.root / "demo-service").rglob("*"):
             if path.is_file() and path.suffix in (".yaml", ".sh"):
                 path.write_text(path.read_text().replace("sub2api", "demo-service"))
