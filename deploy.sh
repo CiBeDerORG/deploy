@@ -499,8 +499,8 @@ sync_shared_libraries() {
 
     # versions.env is tracked in Git, not a user-editable .env.example.
     # Always sync it automatically before installing/updating any application.
-    source_file="$ROOT_DIR/versions.env"
-    target_file="$GLOBAL_ENV_DIR/versions.env"
+    source_file="$ROOT_DIR/lib/versions.env"
+    target_file="$GLOBAL_ENV_DIR/lib/versions.env"
     [ -f "$source_file" ] && [ ! -L "$source_file" ] && [ ! -L "$target_file" ] || {
         echo "仓库版本文件缺失或是符号链接：$source_file / $target_file" >&2
         return 1
