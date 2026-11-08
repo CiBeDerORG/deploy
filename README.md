@@ -28,9 +28,9 @@ macOS 默认 `SOFTWARE_ROOT=/opt/software`，首次需给当前用户设置目�
 
 ### 镜像与二进制版本统一管理
 
-**仓库根目录真实存在的 [`versions.env`](./versions.env) 是所有应用镜像标签、GitHub Release / 二进制版本的唯一来源**，不提供 `versions.env.example`，也不需要用户拷贝改名。
+**仓库根目录真实存在的 [`lib/versions.env`](./lib/versions.env) 是所有应用镜像标签、GitHub Release / 二进制版本的唯一来源**，不提供 `versions.env.example`，也不需要用户拷贝改名。
 
-Linux/fnOS 执行 `sudo bash deploy.sh env` 或安装/更新应用、macOS 执行 `bash deploy.sh env`、Windows 执行 `.\\deploy.ps1 <应用> install/update` 时，部署入口会自动把真实版本文件同步到 `<SOFTWARE_ROOT>/deploy/versions.env`；已发布的应用包也包含相同的仓库版本清单。**更换版本只编辑 Git 仓库中的 `versions.env` 并提交后更新部署来源，不再改 `.env` 或应用的 `config/.env`。**旧版 IMAGE/RELEASE 键会被新入口清理或忽略。
+Linux/fnOS 执行 `sudo bash deploy.sh env` 或安装/更新应用、macOS 执行 `bash deploy.sh env`、Windows 执行 `.\\deploy.ps1 <应用> install/update` 时，部署入口会自动把真实版本文件同步到 `<SOFTWARE_ROOT>/deploy/lib/versions.env`；已发布的应用包也包含相同的仓库版本清单。**更换版本只编辑 Git 仓库中的 `lib/versions.env` 并提交后更新部署来源，不再改 `.env` 或应用的 `config/.env`。**旧版 IMAGE/RELEASE 键会被新入口清理或忽略。
 
 ```dotenv
 # versions.env（Git 跟踪、无需手工复制）
@@ -39,7 +39,7 @@ EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle
 EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
 ```
 
-其中 `latest`、`lts` 等滚动标签仍采用原来动态拉取策略；要锁定到明确版本，请在 `versions.env` 设置固定标签或镜像 digest。端口、主机路径、网络、代理和密钥等仍分别由原 `.env` / `.secrets` 管理。
+其中 `latest`、`lts` 等滚动标签仍采用原来动态拉取策略；要锁定到明确版本，请在 `lib/versions.env` 设置固定标签或镜像 digest。端口、主机路径、网络、代理和密钥等仍分别由原 `.env` / `.secrets` 管理。
 
 
 ## 部署回答与维护规范
@@ -617,7 +617,7 @@ EASYTIER_WEB_API_HOST=http://<公网IP>:7007
 EASYTIER_CONFIG_SERVER=
 ```
 
-`EASYTIER_IMAGE` 不再属于用户 `.env`。如需切换云端/内网镜像，请直接修改仓库 `versions.env` 的 `EASYTIER_IMAGE`，然后更新 deploy 仓库并执行 `sudo bash deploy.sh easytier update`，入口会自动同步并使用新值。自定义镜像兼容性见 [Docker 镜像](./easytier/README.md#docker-镜像)。
+`EASYTIER_IMAGE` 不再属于用户 `.env`。如需切换云端/内网镜像，请直接修改仓库 `lib/versions.env` 的 `EASYTIER_IMAGE`，然后更新 deploy 仓库并执行 `sudo bash deploy.sh easytier update`，入口会自动同步并使用新值。自定义镜像兼容性见 [Docker 镜像](./easytier/README.md#docker-镜像)。
 
 `EASYTIER_HOSTNAME` 是可选的容器主机名配置，cloud / intranet 均适用；默认、留空或未配置时使用 `easytier`。例如可在统一 `.env` 中设置 `EASYTIER_HOSTNAME=fnos`，更新服务后生效，无需修改 Compose 文件。详见 [容器主机名](./easytier/README.md#容器主机名)。
 
