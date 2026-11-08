@@ -137,6 +137,11 @@ sync_task() {
         --exclude '/deploy/.env' --exclude '/deploy/.secrets' \
         "$src/" "$dst/"
     rsync -a "$ROOT_DIR/lib/" "$ENV_DIR/lib/"
+    [[ -f "$ROOT_DIR/versions.env" && ! -L "$ROOT_DIR/versions.env" && ! -L "$ENV_DIR/versions.env" ]] ||
+        die "仓库版本文件缺失或目标不是普通文件"
+    rsync -a "$ROOT_DIR/versions.env" "$ENV_DIR/versions.env"
+    [[ -f "$ENV_DIR/lib/versions.sh" ]] || die "版本读取模块未同步"
+
     echo "已同步应用代码：${dst}（保留运行数据及配置）"
 }
 
