@@ -5,14 +5,14 @@ on:
   push:
     paths:
       - "mihomo/deploy/**"
-      - "versions.env"
+      - "lib/versions.env"
       - "lib/versions.sh"
       - "mihomo/tests/native-smoke.sh"
       - ".github/workflows/mihomo-native-check.yml"
   pull_request:
     paths:
       - "mihomo/deploy/**"
-      - "versions.env"
+      - "lib/versions.env"
       - "lib/versions.sh"
       - "mihomo/tests/native-smoke.sh"
       - ".github/workflows/mihomo-native-check.yml"
@@ -34,7 +34,7 @@ jobs:
           runtime="$RUNNER_TEMP/mihomo-native/mihomo/runtime/host"
           mkdir -p "$runtime/.host-build.ci"
           mkdir -p "$RUNNER_TEMP/mihomo-native/deploy/lib"
-          cp versions.env "$RUNNER_TEMP/mihomo-native/deploy/versions.env"
+          cp lib/versions.env "$RUNNER_TEMP/mihomo-native/deploy/lib/versions.env"
           cp lib/versions.sh "$RUNNER_TEMP/mihomo-native/deploy/lib/versions.sh"
           echo "MIHOMO_HOST_RUNTIME=$runtime" >> "$GITHUB_ENV"
           echo "MIHOMO_TEST_RELEASE=$runtime/.host-build.ci/release" >> "$GITHUB_ENV"
