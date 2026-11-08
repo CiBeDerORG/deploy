@@ -2,7 +2,7 @@ name: easytier-automation-executor
 
 services:
   easytier-automation-executor:
-    image: "${DEPLOY_EASYTIER_EXECUTOR_IMAGE:-${EASYTIER_EXECUTOR_IMAGE:-ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center}}"
+    image: "${DEPLOY_EASYTIER_EXECUTOR_IMAGE:?run deploy.sh to load versions.env}"
     container_name: easytier-automation-executor
     network_mode: host
     init: true
