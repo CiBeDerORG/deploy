@@ -407,7 +407,7 @@ function Resolve-Task {
 }
 
 function Sync-SharedLibrary {
-    foreach ($module in @('image-sources.sh','versions.sh')) {
+    foreach ($module in @('image-sources.sh','versions.sh','versions.env')) {
         $source = Join-Path (Join-Path $script:RootDir 'lib') $module
         if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "公共模块不存在：$source" }
         $target = Join-Path (Join-Path $script:GlobalEnvDir 'lib') $module
@@ -415,12 +415,6 @@ function Sync-SharedLibrary {
         if (-not (Test-Path -LiteralPath $target) -or (Get-FileHash -LiteralPath $source).Hash -ne (Get-FileHash -LiteralPath $target).Hash) {
             Copy-Item -LiteralPath $source -Destination $target -Force
         }
-    }
-    $source = Join-Path $script:RootDir 'versions.env'
-    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "仓库版本文件不存在：$source" }
-    $target = Join-Path $script:GlobalEnvDir 'versions.env'
-    if (-not (Test-Path -LiteralPath $target) -or (Get-FileHash -LiteralPath $source).Hash -ne (Get-FileHash -LiteralPath $target).Hash) {
-        Copy-Item -LiteralPath $source -Destination $target -Force
     }
 }
 
@@ -534,7 +528,7 @@ function Assert-ContainerOwner {
 
 function Load-RepositoryVersions {
     # Tracked versions.env is the sole source of image and native release versions.
-    $path = Join-Path $script:GlobalEnvDir 'versions.env'
+    $path = Join-Path (Join-Path $script:GlobalEnvDir 'lib') 'versions.env'
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "仓库版本文件不存在：$path" }
     $versions = Read-ConfigFile $path
     $required = @(
