@@ -35,7 +35,7 @@ Linux/fnOS 执行 `sudo bash deploy.sh env` 或安装/更新应用、macOS 执�
 ```dotenv
 # lib/versions.env（Git 跟踪、无需手工复制）
 EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev
-EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle
+EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:main
 EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
 ```
 

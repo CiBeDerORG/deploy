@@ -80,7 +80,7 @@ grep -Fxq 'KEEP-ME' "$SOFTWARE_ROOT/easynettopo/data/sentinel"
 # config/pull/up operation; a choice is persisted only for a GHCR mirror install.
 ENV_FILE="$SOFTWARE_ROOT/deploy/.env"
 MIRROR_STATE="$SOFTWARE_ROOT/deploy/state/image-mirror.last"
-ORIGIN_IMAGE="ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle"
+ORIGIN_IMAGE="ghcr.io/cibederorg/easynettopo:main"
 [[ ! -e "$MIRROR_STATE" ]] || { echo "original mode advanced mirror rotation" >&2; exit 1; }
 assert_compose_image() {
     local expected="$1"
@@ -92,7 +92,7 @@ sed -i '' 's/^DOCKER_IMAGE_SOURCE=.*/DOCKER_IMAGE_SOURCE=mirror/' "$ENV_FILE"
 : > "$MOCK_DOCKER_LOG"
 bash deploy.sh easynettopo install
 [[ "$(cat "$MIRROR_STATE")" == dockerproxy ]]
-assert_compose_image "ghcr.dockerproxy.net/cibederorg/easynettopo:feat-deploy-manifest-lifecycle"
+assert_compose_image "ghcr.dockerproxy.net/cibederorg/easynettopo:main"
 : > "$MOCK_DOCKER_LOG"
 bash deploy.sh easynettopo update
 [[ "$(cat "$MIRROR_STATE")" == ghproxy ]]

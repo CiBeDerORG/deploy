@@ -11,7 +11,7 @@ source "$repo/lib/versions.sh"
   export EASYNETTOPO_IMAGE=easynettopo:obsolete
   export EASYHOSTAGENT_RELEASE=v9.9.9-obsolete
   deploy_load_versions "$temp"
-  [[ "$EASYNETTOPO_IMAGE" = ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle ]]
+  [[ "$EASYNETTOPO_IMAGE" = ghcr.io/cibederorg/easynettopo:main ]]
   [[ "$EASYHOSTAGENT_RELEASE" = v0.1.0-deploy-manifest-lifecycle.dev ]]
   [[ "$MIHOMO_NODE_VERSION" = v22.23.4 ]]
 )

@@ -1,0 +1,35 @@
+fields:
+- key: EASYNETTOPO_HTTP_PORT
+  label: Web 服务端口
+  type: port
+  required: true
+  default: 7017
+  minimum: 1
+  maximum: 65535
+  description: EasyNetTopo Web 与 API 宿主机端口
+  custom_input: true
+  editable: true
+- key: EASYNETTOPO_BIND_IP
+  label: 服务监听 IPv4 地址
+  type: ipv4
+  required: true
+  default: 0.0.0.0
+  description: 0.0.0.0 监听所有 IPv4 网卡；需要网络边界与 HTTPS 保护
+  custom_input: true
+  editable: true
+- key: EASYNETTOPO_GIT_ALLOWED_HOSTS
+  label: 允许访问的 Git 主机
+  type: string
+  required: false
+  default: github.com
+  description: Git 应用源允许的远端主机列表
+  custom_input: true
+  editable: true
+- key: EASYNETTOPO_GIT_ALLOW_HTTP
+  label: 允许 HTTP Git 源
+  type: string
+  required: false
+  default: 'false'
+  description: 只能为 true 或 false；默认禁止非加密 HTTP Git 源
+  custom_input: true
+  editable: true

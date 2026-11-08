@@ -1,6 +1,8 @@
 # EasyNetTopo 部署
 
-从 deploy 仓库根目录运行以下命令。EasyNetTopo 使用单个 Go 容器直接提供前端页面和 HTTP API，不再依赖 Caddy 网关。默认镜像 `ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle` 由应用生命周期开发分支构建，支持 amd64 和 arm64。镜像标签统一取自本仓库`lib/versions.env` 真实；安装/更新自动同步该文件，不再从用户 `.env` 接收镜像版本。
+从 deploy 仓库根目录运行以下命令。应用市场现在会展示 EasyNetTopo，但界面仅提供已安装受管实例的“更新”操作；独立安装与卸载仍通过 deploy 命令行完成。
+
+EasyNetTopo 使用单个 Go 容器直接提供前端页面和 HTTP API，不再依赖 Caddy 网关。默认镜像 `ghcr.io/cibederorg/easynettopo:main` 由 EasyNetTopo main 分支的 GitHub Actions 构建，支持 amd64 和 arm64。镜像标签统一取自本仓库内真实存在的 `lib/versions.env`；安装/更新自动同步该文件，不再从用户 `.env` 接收镜像版本。
 
 ## 1. 配置文件
 
