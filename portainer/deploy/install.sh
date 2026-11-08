@@ -224,7 +224,9 @@ IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
 [ -f "$IMAGE_SOURCES_LIB" ] || { echo "镜像源公共脚本不存在，请通过 deploy.sh 同步部署文件。" >&2; exit 1; }
 # shellcheck source=../../lib/image-sources.sh
 source "$IMAGE_SOURCES_LIB"
-DEPLOY_PORTAINER_IMAGE=portainer/portainer-ce:lts
+source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
+deploy_load_versions "$SOFTWARE_ROOT" || exit 1
+DEPLOY_PORTAINER_IMAGE="$PORTAINER_IMAGE"
 IMAGE_CONFIG_FILE="$SOFTWARE_ROOT/deploy/.env"
 [ -f "$IMAGE_CONFIG_FILE" ] || IMAGE_CONFIG_FILE="$ENV_FILE"
 deploy_prepare_images "$SOFTWARE_ROOT" "$IMAGE_CONFIG_FILE" DEPLOY_PORTAINER_IMAGE
