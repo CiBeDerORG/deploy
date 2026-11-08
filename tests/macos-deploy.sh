@@ -75,7 +75,7 @@ grep -Fxq 'KEEP-ME' "$SOFTWARE_ROOT/easynettopo/data/sentinel"
 
 touch "$SOFTWARE_ROOT/easynettopo/data/app.db"
 # 在 macOS 更新时从全局 .secrets 注入 Hook Token，不在构建/测试日志中打印密钥。
-printf 'EASYNETTOPO_HOOK_TOKEN=%s\n' '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef' >> "$SOFTWARE_ROOT/deploy/.secrets"
+sed -i '' 's/^EASYNETTOPO_HOOK_TOKEN=.*/EASYNETTOPO_HOOK_TOKEN=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/' "$SOFTWARE_ROOT/deploy/.secrets"
 : > "$MOCK_DOCKER_LOG"
 bash deploy.sh easynettopo update
 grep -Fxq 'hook-token-length=64' "$MOCK_DOCKER_LOG"
