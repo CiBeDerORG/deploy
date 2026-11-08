@@ -16,10 +16,20 @@ SECRETS_FILE="$SOFTWARE_ROOT/deploy/.secrets"
 source "$DEPLOY_DIR/config.sh"
 
 # 凭据只从 .secrets 读取；普通设置只从统一 .env 读取。
-unset EASYNETTOPO_ADMIN_USERNAME EASYNETTOPO_ADMIN_PASSWORD EASYNETTOPO_IMAGE EASYNETTOPO_HTTP_PORT EASYNETTOPO_BIND_IP
+unset EASYNETTOPO_ADMIN_USERNAME EASYNETTOPO_ADMIN_PASSWORD EASYNETTOPO_HOOK_TOKEN EASYNETTOPO_IMAGE EASYNETTOPO_HTTP_PORT EASYNETTOPO_BIND_IP
 unset EASYNETTOPO_GIT_ALLOWED_HOSTS EASYNETTOPO_GIT_ALLOW_HTTP TZ
 [[ -f "$ENV_FILE" ]] || fail "请先执行 sudo bash deploy.sh env"
 load_settings "$ENV_FILE" env
+# Hook Token 仅从受保护的全局 .secrets 读取，不允许普通 .env 覆盖。
+if [[ -f "$SECRETS_FILE" ]]; then
+    [[ ! -L "$SECRETS_FILE" && "$(stat -c '%u:%g:%a' "$SECRETS_FILE")" == 0:0:600 ]] ||
+        fail ".secrets 必须是 root:root 所有、权限 0600 的普通文件"
+    load_settings "$SECRETS_FILE" secrets
+fi
+if [[ -n "${EASYNETTOPO_HOOK_TOKEN:-}" && ${#EASYNETTOPO_HOOK_TOKEN} -lt 32 ]]; then
+    fail "EASYNETTOPO_HOOK_TOKEN 至少需要 32 个字符，或保持空值禁用"
+fi
+export EASYNETTOPO_HOOK_TOKEN="${EASYNETTOPO_HOOK_TOKEN:-}"
 source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
 deploy_load_versions "$SOFTWARE_ROOT" || exit 1
 export EASYNETTOPO_HTTP_PORT="${EASYNETTOPO_HTTP_PORT:-7017}"

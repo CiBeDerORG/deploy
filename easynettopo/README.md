@@ -92,3 +92,33 @@ sudo bash deploy.sh easynettopo update
 ```
 
 从最新 deploy 运行更新，会自动读取仓库 `lib/versions.env` 的镜像版本并同步到软件目录；旧 `.env` 的 `EASYNETTOPO_IMAGE` 字段会被忽略，不会覆盖仓库版本。更新保留数据库及凭据，并按当前 `.env` 中的 `EASYNETTOPO_BIND_IP` 重新绑定宿主机端口。GitHub Actions 发布的默认 GHCR 分支镜像无需在目标机器编译，更新命令会直接重新拉取；如选用自建 `easynettopo:local`，则需自行更新该镜像。
+
+## 7. GitHub Actions 更新 Hook
+
+Hook Token 由全局敏感配置管理，不放在应用普通 `.env`，也不放入仓库：
+
+```bash
+sudoedit /software/deploy/.secrets
+```
+
+添加一行至少 32 个字符的随机密钥：
+
+```dotenv
+EASYNETTOPO_HOOK_TOKEN=替换为随机密钥
+```
+
+然后更新 EasyNetTopo 容器以注入该变量：
+
+```bash
+sudo bash deploy.sh easynettopo update
+```
+
+同一个值还要保存到 GitHub 仓库 Settings → Secrets and variables → Actions，名称为 `EASYNETTOPO_HOOK_TOKEN`。GitHub Actions 的 `EASYNETTOPO_HOOK_TARGETS_JSON` Repository Variable 用来填写目标主机与服务的 JSON 数组。
+
+当前 EasyNetTopo main 工作流使用的 Hook 地址为：
+
+```
+http://49.235.163.195:7017/api/hooks/deploy/update
+```
+
+HTTP 会明文传输 Bearer Token。该地址如需经公网使用，建议先配置 HTTPS 反向代理并改用 HTTPS 地址。
