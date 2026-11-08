@@ -9,11 +9,13 @@ trap 'sudo rm -rf -- "$tmp"' EXIT
 software="$tmp/software"
 mkdir -p "$software/deploy/lib" "$software/easytier-automation-executor/deploy" "$tmp/bin"
 cp "$ROOT/lib/image-sources.sh" "$software/deploy/lib/image-sources.sh"
+cp "$ROOT/lib/versions.sh" "$software/deploy/lib/versions.sh"
+cp "$ROOT/lib/versions.env" "$software/deploy/lib/versions.env"
 cp "$ROOT/easytier-automation-executor/deploy/"*.sh "$ROOT/easytier-automation-executor/deploy/docker-compose.yaml" "$software/easytier-automation-executor/deploy/"
 cat > "$software/deploy/.env" <<'EOF_ENV'
 DOCKER_IMAGE_SOURCE=mirror
 DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
-EASYTIER_EXECUTOR_IMAGE=ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center
+# 镜像从受控的 deploy/lib/versions.env 读取，旧用户 .env 不再指定镜像版本。
 EASYTIER_EXECUTOR_CALLBACK_URL=http://127.0.0.1:7007
 EOF_ENV
 printf 'EASYTIER_EXECUTOR_TOKEN=\nEASYTIER_EXECUTOR_TURN_SECRET=\n' > "$software/deploy/.secrets"
