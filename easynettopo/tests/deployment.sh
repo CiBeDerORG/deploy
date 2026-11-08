@@ -52,9 +52,9 @@ printf 'EASYNETTOPO_ADMIN_USERNAME =operator_01\r\nEASYNETTOPO_ADMIN_PASSWORD="%
 deploy_app() { bash deploy.sh easynettopo "$1" >> "$tmp/output" 2>&1 || { cat "$tmp/output" >&2; return 1; }; }
 deploy_app install
 ! grep -Eq '^[[:space:]]*EASYNETTOPO_IMAGE[[:space:]]*=' "$settings"
-grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' "$SOFTWARE_ROOT/deploy/lib/versions.env"
+grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:main' "$SOFTWARE_ROOT/deploy/lib/versions.env"
 printf 'operator_01\n%s\n' "$password" | cmp - "$tmp/stdin"
-grep -F 'ghcr.dockerproxy.net/cibederorg/easynettopo:feat-deploy-manifest-lifecycle 0.0.0.0 ' "$tmp/docker-calls" > /dev/null
+grep -F 'ghcr.dockerproxy.net/cibederorg/easynettopo:main 0.0.0.0 ' "$tmp/docker-calls" > /dev/null
 if grep -F -- "$password" "$tmp/docker-calls" "$tmp/output" >/dev/null; then exit 1; fi
 sed -i '/EASYNETTOPO_ADMIN_PASSWORD/c\EASYNETTOPO_ADMIN_PASSWORD=' "$secrets"
 sed -i 's/^EASYNETTOPO_BIND_IP=.*/EASYNETTOPO_BIND_IP=127.0.0.1/' "$settings"
@@ -62,7 +62,7 @@ sed -i 's/^EASYNETTOPO_BIND_IP=.*/EASYNETTOPO_BIND_IP=127.0.0.1/' "$settings"
 printf 'EASYNETTOPO_IMAGE = "easynettopo:local"\n' >> "$settings"
 deploy_app update
 ! grep -Eq '^[[:space:]]*EASYNETTOPO_IMAGE[[:space:]]*=' "$settings"
-grep -F 'gh-proxy.com/docker/ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle 127.0.0.1 ' "$tmp/docker-calls" >/dev/null
+grep -F 'gh-proxy.com/docker/ghcr.io/cibederorg/easynettopo:main 127.0.0.1 ' "$tmp/docker-calls" >/dev/null
 sed -i 's/^EASYNETTOPO_BIND_IP=.*/EASYNETTOPO_BIND_IP=300.168.1.4/' "$settings"
 if bash deploy.sh easynettopo install > "$tmp/invalid-ip-output" 2>&1; then
     echo '无效监听 IPv4 未被拒绝' >&2
@@ -99,5 +99,5 @@ done
 printf 'EASYNETTOPO_IMAGE=easynettopo:local\nEASYNETTOPO_IMAGE=other:tag\n' >> "$settings"
 deploy_app install
 ! grep -Eq '^[[:space:]]*EASYNETTOPO_IMAGE[[:space:]]*=' "$settings"
-grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' "$SOFTWARE_ROOT/deploy/lib/versions.env"
+grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:main' "$SOFTWARE_ROOT/deploy/lib/versions.env"
 printf '%s\n' 'EasyNetTopo 单容器安装、监听 IP、更新、卸载、凭据保留与镜像轮换通过'
