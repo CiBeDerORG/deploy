@@ -6,27 +6,24 @@ fi
 
 set -Eeuo pipefail
 
-if [ "$(id -u)" -ne 0 ]; then
-    if command -v sudo >/dev/null 2>&1; then
-        exec sudo -- bash "$0" "$@"
-    fi
-
-    echo "需要 root 权限执行该脚本，请使用 sudo。" >&2
-    exit 1
-fi
 
 DEPLOY_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(cd -- "$DEPLOY_DIR/.." && pwd)"
 SOFTWARE_ROOT="$(cd -- "$BASE_DIR/.." && pwd)"
 ENV_FILE="$SOFTWARE_ROOT/deploy/.env"
 SECRETS_FILE="$SOFTWARE_ROOT/deploy/.secrets"
+PLATFORM_LIB="$SOFTWARE_ROOT/deploy/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || PLATFORM_LIB="$SOFTWARE_ROOT/lib/platform.sh"
+[ -f "$PLATFORM_LIB" ] || { echo "缺少跨平台辅助脚本。" >&2; exit 1; }
+source "$PLATFORM_LIB"
+deploy_require_root || exit 1
 
 SERVICE="easytier"
 CONTAINER="easytier"
 MODE="${1:-install}"
 
 compose() {
-    docker compose "$@"
+    docker compose -p easytier -f "$DEPLOY_DIR/docker-compose.yaml" "$@"
 }
 
 check_runtime() {
@@ -94,6 +91,15 @@ load_dotenv_file() {
 }
 
 prepare_env() {
+    if [ -f "$BASE_DIR/deploy/config.env.example" ]; then
+        local lib="$SOFTWARE_ROOT/deploy/lib/app-config.sh"
+        [ -f "$lib" ] || lib="$SOFTWARE_ROOT/lib/app-config.sh"
+        [ -f "$lib" ] || { echo "缺少应用配置公共脚本。" >&2; exit 1; }
+        source "$lib"
+        deploy_load_app_config "$SOFTWARE_ROOT" easytier || exit 1
+        EASYTIER_ROLE="${EASYTIER_ROLE:-cloud}"
+        return
+    fi
     [ -f "$ENV_FILE" ] || {
         echo "统一普通配置文件不存在: $ENV_FILE" >&2
         echo "请先在 deploy 仓库根目录执行: sudo bash deploy.sh env" >&2
@@ -106,16 +112,15 @@ prepare_env() {
         exit 1
     }
 
-    chown root:root "$ENV_FILE" "$SECRETS_FILE"
-    chmod 0600 "$ENV_FILE" "$SECRETS_FILE"
+    deploy_secure_config_files "$ENV_FILE" "$SECRETS_FILE" || exit 1
 
     if grep -q $'\r' "$ENV_FILE"; then
-        sed -i 's/\r$//' "$ENV_FILE"
+        deploy_sed_in_place 's/\r$//' "$ENV_FILE"
         echo "      已自动将 $ENV_FILE 的 CRLF 行尾转换为 LF。"
     fi
 
     if grep -q $'\r' "$SECRETS_FILE"; then
-        sed -i 's/\r$//' "$SECRETS_FILE"
+        deploy_sed_in_place 's/\r$//' "$SECRETS_FILE"
         echo "      已自动将 $SECRETS_FILE 的 CRLF 行尾转换为 LF。"
     fi
 
@@ -240,7 +245,14 @@ cleanup_legacy_containers() {
 
     for name in easytier-node easytier-web; do
         if docker inspect "$name" >/dev/null 2>&1; then
-            echo "      移除旧 EasyTier 容器: $name"
+            local project work
+            project="$(docker inspect --format='{{ index .Config.Labels "com.docker.compose.project" }}' "$name" 2>/dev/null || true)"
+            work="$(docker inspect --format='{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' "$name" 2>/dev/null || true)"
+            if [ "$project" != "easytier" ] || [ "$work" != "$DEPLOY_DIR" ]; then
+                echo "旧容器 $name 不属于当前 EasyTier 部署目录，拒绝自动删除。" >&2
+                return 1
+            fi
+            echo "      清理当前 EasyTier 项目旧容器: $name"
             docker rm -f "$name" >/dev/null
         fi
     done
@@ -327,7 +339,15 @@ if ! compose config >/dev/null; then
     exit 1
 fi
 
-echo "[2/5] 拉取 EasyTier 镜像..."
+echo "[2/5] 拉取 EasyTier 官方镜像..."
+if docker inspect "$CONTAINER" >/dev/null 2>&1; then
+    project="$(docker inspect --format='{{ index .Config.Labels "com.docker.compose.project" }}' "$CONTAINER" 2>/dev/null || true)"
+    work="$(docker inspect --format='{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' "$CONTAINER" 2>/dev/null || true)"
+    if [ "$project" != "easytier" ] || [ "$work" != "$DEPLOY_DIR" ]; then
+        echo "现有 easytier 容器不属于标准 EasyTier Compose 项目，拒绝覆盖；请先按迁移文档处理。" >&2
+        exit 1
+    fi
+fi
 compose pull "$SERVICE"
 
 echo "[3/5] 清理旧双容器/旧节点模式..."
