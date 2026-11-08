@@ -8,6 +8,8 @@ on:
       - "qoder2api-hub/**"
       - "openhands/**"
       - ".env.example"
+      - "versions.env"
+      - "lib/versions.sh"
       - ".secrets.example"
       - "mihomo/**"
       - ".github/workflows/compose-check.yml"
@@ -18,6 +20,8 @@ on:
       - "qoder2api-hub/**"
       - "openhands/**"
       - ".env.example"
+      - "versions.env"
+      - "lib/versions.sh"
       - ".secrets.example"
       - "mihomo/**"
       - ".github/workflows/compose-check.yml"
@@ -43,14 +47,12 @@ jobs:
       MIHOMO_CORE_API_BIND_IP: "0.0.0.0"
       MIHOMO_API_SECRET: "test-api-secret"
       MIHOMO_CONTROL_TOKEN: "test-agent-token"
-      DEPLOY_OPENHANDS_IMAGE: "ghcr.io/openhands/agent-canvas:latest"
       OPENHANDS_PORT: "7016"
       OPENHANDS_BIND_IP: "0.0.0.0"
       OPENHANDS_API_KEY: "test-openhands-key"
       QODER2API_HUB_PORT: "8790"
       QODER2API_HUB_BIND_IP: "127.0.0.1"
       QODER2API_HUB_API_KEY: "test-qoder-api-key"
-      QODER2API_HUB_IMAGE: "ghcr.io/shuishuipingan/qoder2api-hub:latest"
       QODER2API_HUB_HTTP_PROXY: ""
       QODER2API_HUB_HTTPS_PROXY: ""
       QODER2API_HUB_ALL_PROXY: ""
@@ -61,6 +63,18 @@ jobs:
 
       - name: Prepare isolated proxy network
         run: docker network create --driver bridge --internal proxy-net
+
+      - name: Load image versions from tracked repository registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/version-root/deploy"
+          cp versions.env "$RUNNER_TEMP/version-root/deploy/versions.env"
+          source lib/versions.sh
+          deploy_load_versions "$RUNNER_TEMP/version-root"
+          for key in EASYNETTOPO_IMAGE SUB2API_IMAGE SUB2API_POSTGRES_IMAGE SUB2API_REDIS_IMAGE QODER2API_HUB_IMAGE OPENHANDS_IMAGE MIHOMO_IMAGE; do
+            printf 'DEPLOY_%s=%s\n' "$key" "${!key}" >> "$GITHUB_ENV"
+          done
 
       - name: Validate Compose files
         shell: bash
@@ -82,6 +96,9 @@ jobs:
           import json
           from pathlib import Path
 
+          versions = dict(line.split('=', 1) for line in Path('versions.env').read_text().splitlines()
+                          if line and not line.startswith('#'))
+
           s = json.loads(Path('/tmp/sub2api-compose.json').read_text())
           q = json.loads(Path('/tmp/qoder2api-hub-compose.json').read_text())
           o = json.loads(Path('/tmp/openhands-compose.json').read_text())
@@ -95,7 +112,7 @@ jobs:
               assert s['services'][component]['volumes'], f'{component} must persist data'
           assert set(o['services']) == {'openhands'}
           oh = o['services']['openhands']
-          assert oh['image'] == 'ghcr.io/openhands/agent-canvas:latest'
+          assert oh['image'] == versions['OPENHANDS_IMAGE']
           assert oh['container_name'] == 'openhands'
           assert oh['ports'][0]['published'] == '7016' and oh['ports'][0]['target'] == 8000
           assert oh['environment']['LOCAL_BACKEND_API_KEY'] == 'test-openhands-key'
@@ -108,7 +125,7 @@ jobs:
           assert oh['healthcheck']
           assert set(q['services']) == {'qoder2api-hub'}
           qoder = q['services']['qoder2api-hub']
-          assert qoder['image'] == 'ghcr.io/shuishuipingan/qoder2api-hub:latest'
+          assert qoder['image'] == versions['QODER2API_HUB_IMAGE']
           assert qoder['container_name'] == 'qoder2api-hub'
           assert qoder['ports'][0]['host_ip'] == '127.0.0.1'
           assert qoder['ports'][0]['published'] == '8790' and qoder['ports'][0]['target'] == 8790
@@ -132,7 +149,7 @@ jobs:
           config = Path('mihomo/deploy/default-profile.yaml').read_text()
           assert 'tun:' in config and 'enable: false' in config
           assert 'external-ui-url' not in config
-          assert mihomo['image'] == 'ghcr.io/metacubex/metacubexd-server:latest'
+          assert mihomo['image'] == versions['MIHOMO_IMAGE']
           assert mihomo['environment']['CLASH_SECRET'] == 'test-api-secret'
           assert mihomo['environment']['CONTROL_TOKEN'] == 'test-agent-token'
           assert mihomo['environment']['CONTROL_PORT'] == '8080'
