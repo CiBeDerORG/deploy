@@ -1,6 +1,6 @@
 services:
   easytier:
-    image: "${DEPLOY_EASYTIER_IMAGE:-${EASYTIER_IMAGE:-ghcr.io/cibederorg/easytier:feat-node-attributes-main}}"
+    image: "${DEPLOY_EASYTIER_IMAGE:?run deploy.sh to load versions.env}"
     pull_policy: always
 
     container_name: easytier
