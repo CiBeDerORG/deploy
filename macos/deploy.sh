@@ -25,7 +25,7 @@ macOS 通用部署命令（请用普通用户运行，不要 sudo）：
   bash deploy.sh <应用> sync
   bash deploy.sh easynettopo install|update|uninstall
   bash deploy.sh portainer install|update|uninstall
-  bash deploy.sh easyhostagent install|update|uninstall|status|identity|pairing
+  bash deploy.sh easyhostagent install|update|force-update|uninstall|status|identity|pairing
 
 默认 SOFTWARE_ROOT=/opt/software，可用 SOFTWARE_ROOT=/绝对路径 覆盖。
 仅已通过 macOS 适配的应用允许 install/update/uninstall。
@@ -166,12 +166,12 @@ case "${1:-}" in
         task_exists "$task" || die "未知应用：$task"
         if [[ "$task" == easyhostagent ]]; then
             case "$action" in
-                install|update|uninstall|status|pairing|identity)
+                install|update|force-update|uninstall|status|pairing|identity)
                     ensure_env
-                    if [[ "$action" == install || "$action" == update ]]; then sync_task "$task"; fi
+                    if [[ "$action" == install || "$action" == update || "$action" == force-update ]]; then sync_task "$task"; fi
                     exec /bin/bash "$ROOT_DIR/macos/agent-install.sh" "$action" "$SOFTWARE_ROOT" ;;
                 sync) sync_task "$task"; exit ;;
-                *) die "EasyHostAgent macOS 仅支持 install/update/uninstall/status/pairing/identity/sync" ;;
+                *) die "EasyHostAgent macOS 仅支持 install/update/force-update/uninstall/status/pairing/identity/sync" ;;
             esac
         fi
         case "$action" in
