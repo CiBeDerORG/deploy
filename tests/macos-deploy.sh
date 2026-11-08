@@ -53,6 +53,8 @@ case "$1" in
   compose)
     # Capture the effective image used by each Compose operation without logging secrets.
     printf '%s|%s\n' "$*" "${DEPLOY_EASYNETTOPO_IMAGE:-}" >> "$MOCK_DOCKER_LOG"
+    hook_token="${EASYNETTOPO_HOOK_TOKEN:-}"
+    printf 'hook-token-length=%s\n' "${#hook_token}" >> "$MOCK_DOCKER_LOG"
     case " $* " in
       *" version "*) echo 'Docker Compose version v2.mock'; exit 0 ;;
       *" exec -T easynettopo wget "*) printf '{"initialized":false}\n'; exit 0 ;;
@@ -72,7 +74,11 @@ grep -Eq '^EASYNETTOPO_ADMIN_PASSWORD=[a-f0-9]{48}$' "$SOFTWARE_ROOT/deploy/.sec
 grep -Fxq 'KEEP-ME' "$SOFTWARE_ROOT/easynettopo/data/sentinel"
 
 touch "$SOFTWARE_ROOT/easynettopo/data/app.db"
+# 在 macOS 更新时从全局 .secrets 注入 Hook Token，不在构建/测试日志中打印密钥。
+printf 'EASYNETTOPO_HOOK_TOKEN=%s\n' '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef' >> "$SOFTWARE_ROOT/deploy/.secrets"
+: > "$MOCK_DOCKER_LOG"
 bash deploy.sh easynettopo update
+grep -Fxq 'hook-token-length=64' "$MOCK_DOCKER_LOG"
 bash deploy.sh easynettopo uninstall
 grep -Fxq 'KEEP-ME' "$SOFTWARE_ROOT/easynettopo/data/sentinel"
 
