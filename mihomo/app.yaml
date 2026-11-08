@@ -40,6 +40,12 @@ package:
     mode: '0755'
   - source: mihomo/deploy/default-profile.yaml
     destination: mihomo/deploy/default-profile.yaml
+  - source: versions.env
+    destination: deploy/versions.env
+    mode: '0644'
+  - source: lib/versions.sh
+    destination: deploy/lib/versions.sh
+    mode: '0644'
   - source: lib/image-sources.sh
     destination: deploy/lib/image-sources.sh
   - source: lib/platform.sh
