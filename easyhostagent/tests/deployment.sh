@@ -28,7 +28,8 @@ file="$SOFTWARE_ROOT/deploy/.env"
 test -f "$file"
 grep -qx "GITHUB_RELEASE_SOURCE=original" "$file"
 grep -qx "GITHUB_RELEASE_MIRRORS=ghproxy,ghfast,ghproxy-net" "$file"
-grep -qx 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$file"
+! grep -q '^EASYHOSTAGENT_RELEASE=' "$file"
+grep -qx 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/versions.env"
 grep -qx 'EASYHOSTAGENT_TRANSPORT=https' "$file"
 grep -qx 'EASYHOSTAGENT_LOCAL_BINARY=' "$file"
 grep -qx 'EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018' "$file"
@@ -61,8 +62,8 @@ fi
 grep -Fq 'pairing 仅支持 easyhostagent' "$tmp/wrong-task.log"
 
 # 持久化身份、未知本地配置在更新时必须保留。
-# 模拟以前 Release 的默认值，update 必须自动迁移并保留自定义二进制选择。
-sed -i 's|^EASYHOSTAGENT_RELEASE=.*|EASYHOSTAGENT_RELEASE = "v0.1.0-appstore.dev"|' "$file"
+# 模拟旧 .env 残留自定义 Release，后续更新必须忽略并清理它。
+printf 'EASYHOSTAGENT_RELEASE=v0.1.0-appstore.dev\n' >> "$file"
 persisted="$EASYHOSTAGENT_STAGING_ROOT/var/lib/easyhostagent/identity.json"
 printf 'persisted-identity' > "$persisted"
 printf 'CUSTOM_AGENT_SETTING=keep\n' >> "$native"
@@ -85,12 +86,14 @@ if bash deploy.sh easyhostagent update > "$tmp/bad-checksum.log" 2>&1; then
     echo "未拒绝篡改的 Agent 本地二进制" >&2; exit 1
 fi
 grep -F 'SHA-256 校验失败' "$tmp/bad-checksum.log" >/dev/null
-grep -Fxq 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$file"
+! grep -q '^EASYHOSTAGENT_RELEASE=' "$file"
+grep -Fxq 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/versions.env"
 test "$(cat "$persisted")" = persisted-identity
 cp "$EASYHOSTAGENT_TEST_BINARY" "$uploaded"
 bash deploy.sh easyhostagent update > "$tmp/update.log" 2>&1 || { cat "$tmp/update.log"; exit 1; }
 grep -qx 'EASYHOSTAGENT_TRANSPORT=http' "$native"
-grep -Fxq 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$file"
+! grep -q '^EASYHOSTAGENT_RELEASE=' "$file"
+grep -Fxq 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/versions.env"
 grep -qx 'EASYHOSTAGENT_LISTEN_ADDRESS=127.0.0.1:7018' "$native"
 grep -qx 'CUSTOM_AGENT_SETTING=keep' "$native"
 grep -qx 'EASYHOSTAGENT_PLATFORM=fnos' "$native"
@@ -132,11 +135,11 @@ fi
 grep -F '与统一 .env 不一致' "$tmp/migration.log" >/dev/null
 sed -i 's#^EASYHOSTAGENT_DATA_DIR=.*#EASYHOSTAGENT_DATA_DIR=/var/lib/easyhostagent#' "$file"
 
-# 用户明确指定的非默认 Release 值不得被自动迁移。
-source "$SOFTWARE_ROOT/deploy/lib/source-migration.sh"
-sed -i 's|^EASYHOSTAGENT_RELEASE=.*|EASYHOSTAGENT_RELEASE=v2.3.4-custom|' "$file"
-deploy_migrate_published_default "$file" EASYHOSTAGENT_RELEASE 'v0.1.0-appstore.dev' 'v0.1.0-deploy-manifest-lifecycle.dev'
-grep -Fxq 'EASYHOSTAGENT_RELEASE=v2.3.4-custom' "$file"
+# 旧版自定义 Release 即使存在，也不能覆盖仓库的受控版本。
+printf 'EASYHOSTAGENT_RELEASE=v2.3.4-custom\n' >> "$file"
+bash deploy.sh env >/dev/null
+! grep -q '^EASYHOSTAGENT_RELEASE=' "$file"
+grep -Fxq 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/versions.env"
 
 bash deploy.sh easyhostagent uninstall > "$tmp/uninstall.log" 2>&1 || { cat "$tmp/uninstall.log"; exit 1; }
 test ! -e "$EASYHOSTAGENT_STAGING_ROOT/usr/local/bin/easyhostagent"
