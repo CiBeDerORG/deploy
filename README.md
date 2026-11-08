@@ -28,12 +28,12 @@ macOS 默认 `SOFTWARE_ROOT=/opt/software`，首次需给当前用户设置目�
 
 ### 镜像与二进制版本统一管理
 
-**仓库根目录真实存在的 [`lib/versions.env`](./lib/versions.env) 是所有应用镜像标签、GitHub Release / 二进制版本的唯一来源**，不提供 `versions.env.example`，也不需要用户拷贝改名。
+**仓库内真实存在的 [`lib/versions.env`](./lib/versions.env) 是所有应用镜像标签、GitHub Release / 二进制版本的唯一来源**，不提供 `versions.env.example`，也不需要用户拷贝改名。
 
 Linux/fnOS 执行 `sudo bash deploy.sh env` 或安装/更新应用、macOS 执行 `bash deploy.sh env`、Windows 执行 `.\\deploy.ps1 <应用> install/update` 时，部署入口会自动把真实版本文件同步到 `<SOFTWARE_ROOT>/deploy/lib/versions.env`；已发布的应用包也包含相同的仓库版本清单。**更换版本只编辑 Git 仓库中的 `lib/versions.env` 并提交后更新部署来源，不再改 `.env` 或应用的 `config/.env`。**旧版 IMAGE/RELEASE 键会被新入口清理或忽略。
 
 ```dotenv
-# versions.env（Git 跟踪、无需手工复制）
+# lib/versions.env（Git 跟踪、无需手工复制）
 EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev
 EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle
 EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
@@ -401,8 +401,8 @@ DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
 
 | 项目 | 镜像来源与处理方式 |
 | --- | --- |
-| EasyTier | 从 `versions.env` 读取统一镜像地址；GHCR 镜像会加速，非 GHCR 保持原地址 |
-| EasyTier 手机执行器 | 从 `versions.env` 读取独立镜像；只让 GHCR 参与全局轮换，不触发主服务更新 |
+| EasyTier | 从 `lib/versions.env` 读取统一镜像地址；GHCR 镜像会加速，非 GHCR 保持原地址 |
+| EasyTier 手机执行器 | 从 `lib/versions.env` 读取独立镜像；只让 GHCR 参与全局轮换，不触发主服务更新 |
 | FRPS | GHCR 服务镜像会加速 |
 | Mihomo Docker | GHCR 完整版镜像会加速；启动前检查和 Compose 共用本轮镜像 |
 | FlatNas | 当前为 Docker Hub 镜像，原样使用 |
@@ -420,7 +420,7 @@ DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
 - `original` 模式、没有 GHCR 镜像的部署、`env`、`list`、`sync`、代理网络管理不推进轮换。GitHub Runner、Mihomo 原生模式、EasyTier OpenWrt 使用原生安装流程，也不推进镜像轮换。
 - 同一次部署混用 GHCR 与其他仓库时，仅转换 GHCR 镜像，其余镜像原样使用。识别按仓库域名进行，路径中包含 `ghcr.io` 或 `ghcr.io.example.com` 这样的其他域名不会误判为 GHCR。
 
-仓库版本文件中的原始镜像始终保留。例如 `versions.env` 统一配置：
+仓库版本文件中的原始镜像始终保留。例如 `lib/versions.env` 统一配置：
 
 ```dotenv
 EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
