@@ -8,7 +8,7 @@ fail() { printf 'EasyHostAgent macOS：%s\n' "$*" >&2; exit 1; }
 mode="${1:-install}"
 root="${2:-/opt/software}"
 no_start="${3:-}"
-case "$mode" in install|update|uninstall|status|pairing|identity) ;; *) fail "命令只支持 install/update/uninstall/status/pairing/identity" ;; esac
+case "$mode" in install|update|force-update|uninstall|status|pairing|identity) ;; *) fail "命令只支持 install/update/force-update/uninstall/status/pairing/identity" ;; esac
 [[ "$root" == /* && -d "$root" && ! -L "$root" ]] || fail "SOFTWARE_ROOT 必须为真实绝对目录"
 [[ "$no_start" == "" || "$no_start" == --no-start ]] || fail "只允许 --no-start"
 uid="$(id -u)"
@@ -55,7 +55,11 @@ source "$root/deploy/lib/versions.sh"
 deploy_load_versions "$root" || exit 1
 release="$EASYHOSTAGENT_RELEASE"
 [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+[-.a-zA-Z0-9]*$ ]] || fail "macOS Release 标签格式不合法"
-local_binary="$(read_config EASYHOSTAGENT_MACOS_LOCAL_BINARY)"
+# Hook/远程强制更新必须读取受控 Release；普通安装和更新仍可使用用户配置的本地包。
+local_binary=""
+if [[ "$mode" != force-update ]]; then
+    local_binary="$(read_config EASYHOSTAGENT_MACOS_LOCAL_BINARY)"
+fi
 if [[ -n "$local_binary" ]]; then
     [[ "$local_binary" == /* && -f "$local_binary" && ! -L "$local_binary" ]] ||
         fail "本地二进制必须是普通绝对路径文件"
