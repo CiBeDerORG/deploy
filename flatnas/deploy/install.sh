@@ -117,7 +117,9 @@ IMAGE_SOURCES_LIB="$SOFTWARE_ROOT/deploy/lib/image-sources.sh"
 [ -f "$IMAGE_SOURCES_LIB" ] || { echo "镜像源公共脚本不存在，请通过 deploy.sh 同步部署文件。" >&2; exit 1; }
 # shellcheck source=../../lib/image-sources.sh
 source "$IMAGE_SOURCES_LIB"
-DEPLOY_FLATNAS_IMAGE=qdnas/flatnas:latest
+source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
+deploy_load_versions "$SOFTWARE_ROOT" || exit 1
+DEPLOY_FLATNAS_IMAGE="$FLATNAS_IMAGE"
 deploy_prepare_images "$SOFTWARE_ROOT" "$ENV_FILE" DEPLOY_FLATNAS_IMAGE
 
 echo "校验 FlatNas Compose 配置..."
