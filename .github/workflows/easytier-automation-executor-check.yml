@@ -7,6 +7,8 @@ on:
       - "easytier-automation-executor/**"
       - "tests/easytier-automation-executor-install.sh"
       - ".env.example"
+      - "lib/versions.env"
+      - "lib/versions.sh"
       - ".secrets.example"
       - "README.md"
       - ".github/workflows/easytier-automation-executor-check.yml"
@@ -37,7 +39,11 @@ jobs:
           grep -Fq '{{.State.Status}}' easytier-automation-executor/deploy/install.sh
           test "$(bash deploy.sh list | grep -c 'easytier-automation-executor')" -eq 1
           grep -q '^EASYTIER_EXECUTOR_CALLBACK_URL=' .env.example
-          grep -q '^EASYTIER_EXECUTOR_IMAGE=' .env.example
+          grep -q '^EASYTIER_EXECUTOR_IMAGE=' lib/versions.env
+          if grep -q '^EASYTIER_EXECUTOR_IMAGE=' .env.example; then
+            echo 'Executor image version must be in lib/versions.env only' >&2
+            exit 1
+          fi
           grep -q '^EASYTIER_EXECUTOR_TOKEN=' .secrets.example
           if grep -q '^EASYTIER_EXECUTOR_TOKEN=' .env.example; then
             echo 'Executor token must not be stored in the public configuration template' >&2
@@ -50,13 +56,14 @@ jobs:
           EASYTIER_EXECUTOR_CALLBACK_URL: http://127.0.0.1:7007
           EASYTIER_EXECUTOR_BIND_IP: 127.0.0.1
           EASYTIER_EXECUTOR_PORT: '8766'
-          DEPLOY_EASYTIER_EXECUTOR_IMAGE: ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center
         run: |
           set -euo pipefail
           file=easytier-automation-executor/deploy/docker-compose.yaml
+          export DEPLOY_EASYTIER_EXECUTOR_IMAGE="$(sed -n 's/^EASYTIER_EXECUTOR_IMAGE=//p' lib/versions.env)"
+          test -n "$DEPLOY_EASYTIER_EXECUTOR_IMAGE"
           docker compose -f "$file" config --quiet
           docker compose -f "$file" config --format json | python3 -c '
-          import json, sys
+          import json, sys, os
           model = json.load(sys.stdin)
           assert list(model["services"]) == ["easytier-automation-executor"]
           service = model["services"]["easytier-automation-executor"]
@@ -67,6 +74,6 @@ jobs:
           targets = {entry["target"] for entry in service["volumes"]}
           assert targets == {"/var/lib/easytier-automation", "/home/automation/.android"}
           assert service["environment"]["AUTOMATION_CALLBACK_URL"] == "http://127.0.0.1:7007"
-          assert service["image"] == "ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center"
+          assert service["image"] == os.environ["DEPLOY_EASYTIER_EXECUTOR_IMAGE"]
           print("Independent executor Compose structure verified without emitting secrets")
           '
