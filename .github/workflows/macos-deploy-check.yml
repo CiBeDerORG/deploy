@@ -10,7 +10,7 @@ on:
       - feat/central-version-registry-20261108
     paths:
       - deploy.sh
-      - versions.env
+      - lib/versions.env
       - macos/**
       - easynettopo/deploy/docker-compose.macos.yaml
       - tests/macos-deploy.sh
@@ -30,7 +30,7 @@ on:
   pull_request:
     paths:
       - deploy.sh
-      - versions.env
+      - lib/versions.env
       - macos/**
       - easynettopo/deploy/docker-compose.macos.yaml
       - tests/macos-deploy.sh
