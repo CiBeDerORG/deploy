@@ -35,6 +35,8 @@ class EasyNetTopoSub2APITests(unittest.TestCase):
             "sub2api/deploy/update.sh",
             "sub2api/deploy/uninstall.sh",
             "sub2api/deploy/lib.sh",
+            "deploy/versions.env",
+            "deploy/lib/versions.sh",
             "deploy/lib/image-sources.sh",
             "deploy/lib/platform.sh",
             "deploy/lib/app-config.sh",
