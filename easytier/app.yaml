@@ -33,10 +33,10 @@ package:
   - { source: easytier/deploy/config.secrets.example, destination: easytier/deploy/config.secrets.example }
   - { source: easytier/assets/icon.svg, destination: easytier/assets/icon.svg }
 ports:
-  - { id: peer_tcp, label: 组网 TCP, protocol: tcp, purpose: other, host_port_key: EASYTIER_PORT, container_port: 7005, service: easytier }
-  - { id: peer_udp, label: 组网 UDP, protocol: udp, purpose: other, host_port_key: EASYTIER_PORT, container_port: 7005, service: easytier }
+  - { id: peer-tcp, label: 组网 TCP, protocol: tcp, purpose: other, host_port_key: EASYTIER_PORT, container_port: 7005, service: easytier }
+  - { id: peer-udp, label: 组网 UDP, protocol: udp, purpose: other, host_port_key: EASYTIER_PORT, container_port: 7005, service: easytier }
   - { id: web, label: 配置中心 Web（仅 cloud）, protocol: tcp, purpose: web, host_port_key: EASYTIER_WEB_PORT, container_port: 7007, service: easytier, path: / }
-  - { id: config_udp, label: 配置下发（仅 cloud）, protocol: udp, purpose: other, host_port_key: EASYTIER_CONFIG_PORT, container_port: 7008, service: easytier }
+  - { id: config-udp, label: 配置下发（仅 cloud）, protocol: udp, purpose: other, host_port_key: EASYTIER_CONFIG_PORT, container_port: 7008, service: easytier }
 actions:
   install: { strategy: script, path: deploy/install.sh }
   update: { strategy: script, path: deploy/update.sh }
