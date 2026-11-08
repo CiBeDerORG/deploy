@@ -8,7 +8,7 @@ on:
       - "qoder2api-hub/**"
       - "openhands/**"
       - ".env.example"
-      - "versions.env"
+      - "lib/versions.env"
       - "lib/versions.sh"
       - ".secrets.example"
       - "mihomo/**"
@@ -20,7 +20,7 @@ on:
       - "qoder2api-hub/**"
       - "openhands/**"
       - ".env.example"
-      - "versions.env"
+      - "lib/versions.env"
       - "lib/versions.sh"
       - ".secrets.example"
       - "mihomo/**"
@@ -68,8 +68,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/version-root/deploy"
-          cp versions.env "$RUNNER_TEMP/version-root/deploy/versions.env"
+          mkdir -p "$RUNNER_TEMP/version-root/deploy/lib"
+          cp lib/versions.env "$RUNNER_TEMP/version-root/deploy/lib/versions.env"
           source lib/versions.sh
           deploy_load_versions "$RUNNER_TEMP/version-root"
           for key in EASYNETTOPO_IMAGE SUB2API_IMAGE SUB2API_POSTGRES_IMAGE SUB2API_REDIS_IMAGE QODER2API_HUB_IMAGE OPENHANDS_IMAGE MIHOMO_IMAGE; do
@@ -96,7 +96,7 @@ jobs:
           import json
           from pathlib import Path
 
-          versions = dict(line.split('=', 1) for line in Path('versions.env').read_text().splitlines()
+          versions = dict(line.split('=', 1) for line in Path('lib/versions.env').read_text().splitlines()
                           if line and not line.startswith('#'))
 
           s = json.loads(Path('/tmp/sub2api-compose.json').read_text())
