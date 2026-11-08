@@ -1,12 +1,4 @@
 fields:
-- key: QODER2API_HUB_IMAGE
-  label: Docker 镜像地址
-  type: string
-  required: false
-  default: ghcr.io/shuishuipingan/qoder2api-hub:latest
-  description: Qoder2API Hub 使用的 Docker 镜像地址
-  custom_input: true
-  editable: true
 - key: QODER2API_HUB_BIND_IP
   label: 服务监听地址
   type: ipv4
