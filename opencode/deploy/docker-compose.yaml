@@ -10,6 +10,7 @@ services:
 
       args:
         OPENCODE_BASE_IMAGE: "${DEPLOY_OPENCODE_BASE_IMAGE:?run deploy.sh to load versions.env}"
+        OPENCODE_CLI_VERSION: "${DEPLOY_OPENCODE_CLI_VERSION:?run deploy.sh to load versions.env}"
         OPENCODE_CACHE_BUST: "${OPENCODE_CACHE_BUST:-manual}"
 
         # 仅在 build 阶段存在，不传入运行时 environment。
