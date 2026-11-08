@@ -533,8 +533,7 @@ function Assert-ContainerOwner {
 }
 
 function Load-RepositoryVersions {
-    # The tracked versions.env is the sole source of image and native release versions.
-    # It is synchronized automatically by Sync-Task, not copied from .env.example.
+    # Tracked versions.env is the sole source of image and native release versions.
     $path = Join-Path $script:GlobalEnvDir 'versions.env'
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "仓库版本文件不存在：$path" }
     $versions = Read-ConfigFile $path
@@ -552,7 +551,15 @@ function Load-RepositoryVersions {
     foreach ($key in $required) {
         if (-not $versions.ContainsKey($key)) { throw "仓库版本文件缺少：$key" }
         $value = [string]$versions[$key]
-        if ($value -notmatch '^[A-Za-z0-9._:/@+-]+
+        if ($value -notmatch '^[A-Za-z0-9._:/@+-]+$') { throw "仓库版本值非法：$key" }
+        [Environment]::SetEnvironmentVariable($key, $value, 'Process')
+        if ($key.EndsWith('_IMAGE')) {
+            [Environment]::SetEnvironmentVariable('DEPLOY_' + $key, $value, 'Process')
+        }
+    }
+}
+
+function Set-MirrorImages {
     param([string]$Task)
     $sourceMode = Get-ConfigValue 'DOCKER_IMAGE_SOURCE' 'original'
     if ($sourceMode -notin @('original','mirror')) { throw 'DOCKER_IMAGE_SOURCE 只能是 original 或 mirror。' }
