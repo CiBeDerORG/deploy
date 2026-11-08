@@ -20,6 +20,8 @@ SECRETS_FILE="$SOFTWARE_ROOT/deploy/.secrets"
 [[ -f "$DEPLOY_DIR/docker-compose.yaml" && ! -L "$DEPLOY_DIR/docker-compose.yaml" ]] ||
     die "应用 Compose 文件缺失或不安全"
 [[ "$(stat -f '%Lp' "$SECRETS_FILE")" == 600 ]] || die ".secrets 必须设为 0600"
+source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
+deploy_load_versions "$SOFTWARE_ROOT" || exit 1
 
 # 仅按字面读取配置，决不 source .env 或 .secrets；配置值不会作为 shell 代码执行。
 read_value() {
@@ -127,7 +129,7 @@ prepare_portainer_config() {
     [[ "${#PORTAINER_ADMIN_PASSWORD}" -ge 12 ]] ||
         die "Portainer 管理员密码至少需要 12 位"
     [[ -S /var/run/docker.sock ]] || die "Portainer 需要 /var/run/docker.sock；请在 Docker Desktop Settings > Advanced 启用默认 Docker socket"
-    DEPLOY_PORTAINER_IMAGE=portainer/portainer-ce:lts
+    DEPLOY_PORTAINER_IMAGE="$PORTAINER_IMAGE"
     export PORTAINER_HTTP_PORT PORTAINER_ADMIN_PASSWORD DEPLOY_PORTAINER_IMAGE
 }
 
@@ -145,9 +147,7 @@ prepare_easynettopo_config() {
     [[ -n "$EASYNETTOPO_GIT_ALLOW_HTTP" ]] || EASYNETTOPO_GIT_ALLOW_HTTP=false
     [[ "$EASYNETTOPO_GIT_ALLOW_HTTP" == true || "$EASYNETTOPO_GIT_ALLOW_HTTP" == false ]] ||
         die "无效的 EASYNETTOPO_GIT_ALLOW_HTTP"
-    DEPLOY_EASYNETTOPO_IMAGE="$(read_global EASYNETTOPO_IMAGE)"
-    [[ -n "$DEPLOY_EASYNETTOPO_IMAGE" ]] ||
-        DEPLOY_EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle
+    DEPLOY_EASYNETTOPO_IMAGE="$EASYNETTOPO_IMAGE"
     [[ "$DEPLOY_EASYNETTOPO_IMAGE" =~ ^[a-zA-Z0-9][a-zA-Z0-9._/@:-]*$ ]] ||
         die "无效镜像引用"
     [[ -f "$DEPLOY_DIR/docker-compose.macos.yaml" ]] || die "缺少 macOS Compose 覆盖文件"
