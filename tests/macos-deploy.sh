@@ -98,24 +98,17 @@ bash deploy.sh easynettopo update
 [[ "$(cat "$MIRROR_STATE")" == ghproxy ]]
 assert_compose_image "gh-proxy.com/docker/$ORIGIN_IMAGE"
 
-# A local image does not get rewritten, pulled, or advance the saved provider.
-sed -i '' 's#^EASYNETTOPO_IMAGE=.*#EASYNETTOPO_IMAGE=easynettopo:local#' "$ENV_FILE"
-: > "$MOCK_DOCKER_LOG"
-bash deploy.sh easynettopo update
-[[ "$(cat "$MIRROR_STATE")" == ghproxy ]]
-grep -Fq " config --quiet|easynettopo:local" "$MOCK_DOCKER_LOG"
-if grep -Fq " pull|" "$MOCK_DOCKER_LOG"; then
-    echo "local image unexpectedly used compose pull" >&2
-    exit 1
-fi
-
-# Switching back to original restores GHCR (not a stale accelerated address).
-sed -i '' "s#^EASYNETTOPO_IMAGE=.*#EASYNETTOPO_IMAGE=$ORIGIN_IMAGE#" "$ENV_FILE"
+# A stale user .env IMAGE override must never change the repository version.
+# Switch to original to confirm no mirror source is selected or rotated.
+printf 'EASYNETTOPO_IMAGE=easynettopo:local\n' >> "$ENV_FILE"
 sed -i '' 's/^DOCKER_IMAGE_SOURCE=.*/DOCKER_IMAGE_SOURCE=original/' "$ENV_FILE"
 : > "$MOCK_DOCKER_LOG"
 bash deploy.sh easynettopo update
 [[ "$(cat "$MIRROR_STATE")" == ghproxy ]]
 assert_compose_image "$ORIGIN_IMAGE"
+# Legacy override is ignored even if it has a valid local tag.
+[[ -f "$SOFTWARE_ROOT/deploy/lib/versions.env" ]]
+grep -Fxq "EASYNETTOPO_IMAGE=$ORIGIN_IMAGE" "$SOFTWARE_ROOT/deploy/lib/versions.env"
 
 # Invalid mirror list fails before Compose pull, preserving the last state.
 sed -i '' 's/^DOCKER_IMAGE_SOURCE=.*/DOCKER_IMAGE_SOURCE=mirror/' "$ENV_FILE"

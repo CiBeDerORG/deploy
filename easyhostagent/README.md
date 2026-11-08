@@ -12,8 +12,7 @@ EasyHostAgent 是直接运行在宿主机上的 Go systemd 服务，不是 Docke
 # 与 DOCKER_IMAGE_SOURCE 相同的 original/mirror 模式，但独立控制 Release 文件。
 GITHUB_RELEASE_SOURCE=mirror
 GITHUB_RELEASE_MIRRORS=ghproxy,ghfast,ghproxy-net
-# GitHub Actions 构建的开发版 Release，发布包附有 SHA-256。
-EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev
+# GitHub Release 标签由真实版本文件 lib/versions.env 的 EASYHOSTAGENT_RELEASE 统一指定。
 # 可选，手动上传时填写绝对路径；留空从 GitHub Release 下载。
 EASYHOSTAGENT_LOCAL_BINARY=
 # 可改为 http；HTTP 明文不适合公网。
@@ -27,11 +26,11 @@ EASYHOSTAGENT_SOFTWARE_ROOT=
 EASYHOSTAGENT_PLATFORM=
 ```
 
-若服务器无法连接 GitHub，可把对应架构的两个文件上传到同一目录，例如 `/software/easyhostagent/easyhostagent-linux-amd64` 和 `/software/easyhostagent/easyhostagent-linux-amd64.sha256`，随后设置 `EASYHOSTAGENT_LOCAL_BINARY=/software/easyhostagent/easyhostagent-linux-amd64`。安装脚本在安装前校验 SHA-256；上传的文件保留原样，不需要手工更改可执行权限。留空仍按 `EASYHOSTAGENT_RELEASE` 下载，`GITHUB_RELEASE_SOURCE=mirror` 时自动轮换站点。两种模式统一使用 `sudo bash deploy.sh easyhostagent install` 和 `update`。**本地文件及同名校验文件必须来自可信 GitHub Release。**
+若服务器无法连接 GitHub，可把对应架构的两个文件上传到同一目录，例如 `/software/easyhostagent/easyhostagent-linux-amd64` 和 `/software/easyhostagent/easyhostagent-linux-amd64.sha256`，随后设置 `EASYHOSTAGENT_LOCAL_BINARY=/software/easyhostagent/easyhostagent-linux-amd64`。安装脚本在安装前校验 SHA-256；上传的文件保留原样，不需要手工更改可执行权限。留空仍按仓库 `lib/versions.env` 的 `EASYHOSTAGENT_RELEASE` 下载，`GITHUB_RELEASE_SOURCE=mirror` 时自动轮换站点。两种模式统一使用 `sudo bash deploy.sh easyhostagent install` 和 `update`。**本地文件及同名校验文件必须来自可信 GitHub Release。**
 
 **GitHub Release 文件加速**：在统一 `.env` 中设置 `GITHUB_RELEASE_SOURCE=mirror`，`GITHUB_RELEASE_MIRRORS` 默认顺序为 `ghproxy,ghfast,ghproxy-net`，分别对应 `gh-proxy.org`、`ghfast.top`、`ghproxy.net`。每次在线安装/更新从上一次首选站的下一个站开始；下载失败或 SHA-256 不一致则尝试下一站，最后尝试 GitHub 原站。轮换状态保存在 `<SOFTWARE_ROOT>/deploy/state/github-release-mirror.last`，不影响 Docker 的 `DOCKER_IMAGE_SOURCE`。`original` 仅直连官方，指定 `EASYHOSTAGENT_LOCAL_BINARY` 时不下载文件也不推进轮换。第三方代理不能等同于官方可信发布源；滚动开发版资产还可能存在缓存滞后，重要环境建议使用不可变版本并核对官方校验值。
 
-安装后将配置同步到 `/etc/easyhostagent/agent.env`，保留其中其他非托管配置项。飞牛 fnOS 的 `/etc/os-release` 可能标记为 Debian，Agent 会额外识别 `/usr/trim/etc/version`；如仍未识别，在统一 `.env` 中设置 `EASYHOSTAGENT_PLATFORM=fnos` 并运行 `sudo bash deploy.sh easyhostagent update`，脚本将把该值写入原生服务配置。该字段留空时不会覆盖已存在的原生显式设置。安装、更新不会重置 Agent 身份、配对授权或已有应用状态。开发版 `v0.1.0-deploy-manifest-lifecycle.dev` 是**发布资产可更新的滚动标签**；生产机器建议改为明确、不可变的正式版本号。相应的 AMD64 / ARM64 二进制、同名 `.sha256` 均由 GitHub Actions 生成。
+安装后将配置同步到 `/etc/easyhostagent/agent.env`，保留其中其他非托管配置项。飞牛 fnOS 的 `/etc/os-release` 可能标记为 Debian，Agent 会额外识别 `/usr/trim/etc/version`；如仍未识别，在统一 `.env` 中设置 `EASYHOSTAGENT_PLATFORM=fnos` 并运行 `sudo bash deploy.sh easyhostagent update`，脚本将把该值写入原生服务配置。该字段留空时不会覆盖已存在的原生显式设置。安装、更新不会重置 Agent 身份、配对授权或已有应用状态。开发版 `v0.1.0-deploy-manifest-lifecycle.dev` 是**发布资产可更新的滚动标签**；生产机器建议在仓库 `lib/versions.env` 将 `EASYHOSTAGENT_RELEASE` 改为明确、不可变的正式版本号。相应的 AMD64 / ARM64 二进制、同名 `.sha256` 均由 GitHub Actions 生成。
 
 ## 2. 运行条件和网络
 

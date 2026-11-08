@@ -33,6 +33,12 @@ package:
     mode: '0755'
   - source: sub2api/deploy/lib.sh
     destination: sub2api/deploy/lib.sh
+  - source: lib/versions.env
+    destination: deploy/lib/versions.env
+    mode: '0644'
+  - source: lib/versions.sh
+    destination: deploy/lib/versions.sh
+    mode: '0644'
   - source: lib/image-sources.sh
     destination: deploy/lib/image-sources.sh
   - source: lib/platform.sh

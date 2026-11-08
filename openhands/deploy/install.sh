@@ -17,7 +17,9 @@ require_root "$@"
 check_docker
 load_config
 
-OPENHANDS_IMAGE="${OPENHANDS_IMAGE:-ghcr.io/openhands/agent-canvas:latest}"
+source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
+deploy_load_versions "$SOFTWARE_ROOT" || exit 1
+OPENHANDS_IMAGE="$OPENHANDS_IMAGE"
 OPENHANDS_BIND_IP="${OPENHANDS_BIND_IP:-0.0.0.0}"
 OPENHANDS_PORT="${OPENHANDS_PORT:-7016}"
 OPENHANDS_API_KEY="${OPENHANDS_API_KEY:-}"

@@ -17,7 +17,9 @@ source "$DEPLOY_DIR/lib.sh"
 require_root "$@"
 check_docker
 load_global_config
-QODER2API_HUB_IMAGE="${QODER2API_HUB_IMAGE:-ghcr.io/shuishuipingan/qoder2api-hub:latest}"
+source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
+deploy_load_versions "$SOFTWARE_ROOT" || exit 1
+QODER2API_HUB_IMAGE="$QODER2API_HUB_IMAGE"
 QODER2API_HUB_BIND_IP="${QODER2API_HUB_BIND_IP:-127.0.0.1}"
 QODER2API_HUB_PORT="${QODER2API_HUB_PORT:-8790}"
 QODER2API_HUB_API_KEY="${QODER2API_HUB_API_KEY:-}"

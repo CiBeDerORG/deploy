@@ -56,7 +56,9 @@ IMAGE_SOURCES_LIB="$ROOT/deploy/lib/image-sources.sh"
 [ -f "$IMAGE_SOURCES_LIB" ] || die "镜像源公共脚本不存在，请通过 deploy.sh 同步部署文件。"
 # shellcheck source=../../lib/image-sources.sh
 source "$IMAGE_SOURCES_LIB"
-DEPLOY_MIHOMO_IMAGE=ghcr.io/metacubex/metacubexd-server:latest
+source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
+deploy_load_versions "$SOFTWARE_ROOT" || exit 1
+DEPLOY_MIHOMO_IMAGE="$MIHOMO_IMAGE"
 IMAGE_CONFIG_FILE="$ROOT/deploy/.env"
 [ -f "$IMAGE_CONFIG_FILE" ] || IMAGE_CONFIG_FILE="$ENV_FILE"
 deploy_prepare_images "$ROOT" "$IMAGE_CONFIG_FILE" DEPLOY_MIHOMO_IMAGE

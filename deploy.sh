@@ -45,6 +45,24 @@ DEPRECATED_ENV_KEYS=(
     EASYTIER_NETWORK_SECRET
     GITHUB_RUNNER_VERSION
     GITHUB_RUNNER_WORKDIR
+    EASYHOSTAGENT_RELEASE
+    EASYNETTOPO_IMAGE
+    OPENHANDS_IMAGE
+    EASYTIER_IMAGE
+    EASYTIER_EXECUTOR_IMAGE
+    WEBTOP_IMAGE
+    QODER2API_HUB_IMAGE
+    MIHOMO_IMAGE
+    FLATNAS_IMAGE
+    SUB2API_IMAGE
+    SUB2API_POSTGRES_IMAGE
+    SUB2API_REDIS_IMAGE
+    OPENCODE_BASE_IMAGE
+    OPENCODE_LOCAL_IMAGE
+    OPENCODE_CLI_VERSION
+    MIHOMO_NODE_VERSION
+    MIHOMO_METACUBEXD_VERSION
+    MIHOMO_KERNEL_VERSION
 )
 
 SENSITIVE_ENV_KEYS=(
@@ -196,12 +214,12 @@ migrate_legacy_envs() {
 remove_deprecated_env_keys() {
     local key
     for key in "${DEPRECATED_ENV_KEYS[@]}"; do
-        if run_root grep -q "^$key=" "$GLOBAL_ENV"; then
-            run_root sed -i "/^$key=/d" "$GLOBAL_ENV"
+        if run_root grep -Eq "^[[:space:]]*${key}[[:space:]]*=" "$GLOBAL_ENV"; then
+            run_root sed -i "/^[[:space:]]*${key}[[:space:]]*=/d" "$GLOBAL_ENV"
             GLOBAL_ENV_UPDATED=1
         fi
-        if [ -f "$GLOBAL_SECRETS" ] && run_root grep -q "^$key=" "$GLOBAL_SECRETS"; then
-            run_root sed -i "/^$key=/d" "$GLOBAL_SECRETS"
+        if [ -f "$GLOBAL_SECRETS" ] && run_root grep -Eq "^[[:space:]]*${key}[[:space:]]*=" "$GLOBAL_SECRETS"; then
+            run_root sed -i "/^[[:space:]]*${key}[[:space:]]*=/d" "$GLOBAL_SECRETS"
             GLOBAL_ENV_UPDATED=1
         fi
     done
@@ -374,6 +392,8 @@ ensure_global_env() {
         GLOBAL_SECRETS_CREATED=1
     fi
 
+    # Remove old IMAGE/RELEASE keys before the duplicate-key scan.
+    remove_deprecated_env_keys
     sync_template_keys "$GLOBAL_ENV_EXAMPLE" "$GLOBAL_ENV" ".env" || return $?
     sync_template_keys "$GLOBAL_SECRETS_EXAMPLE" "$GLOBAL_SECRETS" ".secrets" || return $?
     migrate_easytier_default_ports
@@ -382,6 +402,7 @@ ensure_global_env() {
     remove_deprecated_env_keys
     run_root chown root:root "$GLOBAL_ENV" "$GLOBAL_SECRETS"
     run_root chmod 0600 "$GLOBAL_ENV" "$GLOBAL_SECRETS"
+    sync_shared_libraries || return $?
 
     if [ "$GLOBAL_ENV_CREATED" -eq 1 ] || [ "$GLOBAL_SECRETS_CREATED" -eq 1 ]; then
         echo "请检查并填写："
@@ -441,7 +462,7 @@ resolve_task() {
 sync_shared_libraries() {
     local target_dir="$GLOBAL_ENV_DIR/lib"
     local source_file target_file staged_file module
-    local -a modules=(image-sources.sh release-sources.sh source-migration.sh app-config.sh)
+    local -a modules=(image-sources.sh release-sources.sh source-migration.sh app-config.sh versions.sh)
     run_root mkdir -p "$target_dir" || return $?
 
     for module in "${modules[@]}"; do
@@ -475,6 +496,29 @@ sync_shared_libraries() {
             return 1
         fi
     done
+
+    # versions.env is tracked in Git, not a user-editable .env.example.
+    # Always sync it automatically before installing/updating any application.
+    source_file="$ROOT_DIR/lib/versions.env"
+    target_file="$GLOBAL_ENV_DIR/lib/versions.env"
+    [ -f "$source_file" ] && [ ! -L "$source_file" ] && [ ! -L "$target_file" ] || {
+        echo "仓库版本文件缺失或是符号链接：$source_file / $target_file" >&2
+        return 1
+    }
+    if [ -e "$target_file" ] && [ "$source_file" -ef "$target_file" ]; then
+        run_root chown root:root "$target_file" &&
+            run_root chmod 0644 "$target_file" || return 1
+    else
+        staged_file="$(run_root mktemp "$GLOBAL_ENV_DIR/.versions.XXXXXXXX")" || return $?
+        if ! run_root cp -- "$source_file" "$staged_file" ||
+           ! run_root chown root:root "$staged_file" ||
+           ! run_root chmod 0644 "$staged_file" ||
+           ! run_root mv -f -- "$staged_file" "$target_file"; then
+            run_root rm -f -- "$staged_file"
+            echo "同步仓库版本文件失败" >&2
+            return 1
+        fi
+    fi
 }
 sync_task() {
     local task="$1"

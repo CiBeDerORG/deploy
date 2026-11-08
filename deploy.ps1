@@ -243,7 +243,12 @@ function Ensure-GlobalConfig {
         'PORTAINER_HTTP_CONTAINER_PORT','OPENCODE_VERSION','FRPS_IMAGE','PORTAINER_IMAGE',
         'FRPS_VHOST_HTTP_PORT','FRPS_VHOST_HTTPS_PORT','FRPS_HTTP_PUBLIC_PORT','FRPS_HTTPS_PUBLIC_PORT',
         'EASYTIER_WEB_USERNAME','EASYTIER_MODE','EASYTIER_PEERS','EASYTIER_NETWORK_NAME',
-        'EASYTIER_NETWORK_SECRET','GITHUB_RUNNER_VERSION','GITHUB_RUNNER_WORKDIR'
+        'EASYTIER_NETWORK_SECRET','GITHUB_RUNNER_VERSION','GITHUB_RUNNER_WORKDIR',
+        'EASYHOSTAGENT_RELEASE','EASYNETTOPO_IMAGE','OPENHANDS_IMAGE','EASYTIER_IMAGE',
+        'EASYTIER_EXECUTOR_IMAGE','WEBTOP_IMAGE','QODER2API_HUB_IMAGE','MIHOMO_IMAGE',
+        'FLATNAS_IMAGE','SUB2API_IMAGE','SUB2API_POSTGRES_IMAGE','SUB2API_REDIS_IMAGE',
+        'OPENCODE_BASE_IMAGE','OPENCODE_LOCAL_IMAGE','OPENCODE_CLI_VERSION',
+        'MIHOMO_NODE_VERSION','MIHOMO_METACUBEXD_VERSION','MIHOMO_KERNEL_VERSION'
     )
     $updated = (Remove-ConfigKeys $script:GlobalEnv $deprecated) -or $updated
     $updated = (Remove-ConfigKeys $script:GlobalSecrets $deprecated) -or $updated
@@ -402,12 +407,14 @@ function Resolve-Task {
 }
 
 function Sync-SharedLibrary {
-    $source = Join-Path $script:RootDir 'lib\image-sources.sh'
-    if (-not (Test-Path -LiteralPath $source)) { throw "公共镜像源模块不存在：$source" }
-    $target = Join-Path $script:GlobalEnvDir 'lib\image-sources.sh'
-    New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
-    if (-not (Test-Path -LiteralPath $target) -or (Get-FileHash -LiteralPath $source).Hash -ne (Get-FileHash -LiteralPath $target).Hash) {
-        Copy-Item -LiteralPath $source -Destination $target -Force
+    foreach ($module in @('image-sources.sh','versions.sh','versions.env')) {
+        $source = Join-Path (Join-Path $script:RootDir 'lib') $module
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "公共模块不存在：$source" }
+        $target = Join-Path (Join-Path $script:GlobalEnvDir 'lib') $module
+        New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+        if (-not (Test-Path -LiteralPath $target) -or (Get-FileHash -LiteralPath $source).Hash -ne (Get-FileHash -LiteralPath $target).Hash) {
+            Copy-Item -LiteralPath $source -Destination $target -Force
+        }
     }
 }
 
@@ -519,6 +526,33 @@ function Assert-ContainerOwner {
     }
 }
 
+function Load-RepositoryVersions {
+    # Tracked versions.env is the sole source of image and native release versions.
+    $path = Join-Path (Join-Path $script:GlobalEnvDir 'lib') 'versions.env'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "仓库版本文件不存在：$path" }
+    $versions = Read-ConfigFile $path
+    $required = @(
+        'EASYHOSTAGENT_RELEASE','GITHUB_RUNNER_VERSION','EASYNETTOPO_IMAGE',
+        'EASYTIER_IMAGE','EASYTIER_EXECUTOR_IMAGE','FRPS_IMAGE','PORTAINER_IMAGE',
+        'FLATNAS_IMAGE','WEBTOP_IMAGE','OPENHANDS_IMAGE','QODER2API_HUB_IMAGE',
+        'MIHOMO_IMAGE','SUB2API_IMAGE','SUB2API_POSTGRES_IMAGE','SUB2API_REDIS_IMAGE',
+        'OPENCODE_BASE_IMAGE','OPENCODE_LOCAL_IMAGE','OPENCODE_CLI_VERSION',
+        'MIHOMO_METACUBEXD_VERSION','MIHOMO_KERNEL_VERSION','MIHOMO_NODE_VERSION'
+    )
+    foreach ($key in $versions.Keys) {
+        if ($required -notcontains $key) { throw "仓库版本文件含未知键：$key" }
+    }
+    foreach ($key in $required) {
+        if (-not $versions.ContainsKey($key)) { throw "仓库版本文件缺少：$key" }
+        $value = [string]$versions[$key]
+        if ($value -notmatch '^[A-Za-z0-9._:/@+-]+$') { throw "仓库版本值非法：$key" }
+        [Environment]::SetEnvironmentVariable($key, $value, 'Process')
+        if ($key.EndsWith('_IMAGE')) {
+            [Environment]::SetEnvironmentVariable('DEPLOY_' + $key, $value, 'Process')
+        }
+    }
+}
+
 function Set-MirrorImages {
     param([string]$Task)
     $sourceMode = Get-ConfigValue 'DOCKER_IMAGE_SOURCE' 'original'
@@ -530,23 +564,23 @@ function Set-MirrorImages {
     switch ($Task) {
         frps {
             $key = 'DEPLOY_FRPS_IMAGE'
-            $image = 'ghcr.io/cibeder/frps:dev-multi-latest'
+            $image = Get-ConfigValue 'FRPS_IMAGE'
         }
         easytier {
             $key = 'DEPLOY_EASYTIER_IMAGE'
-            $image = Get-ConfigValue 'EASYTIER_IMAGE' 'ghcr.io/cibederorg/easytier:feat-node-attributes-main'
+            $image = Get-ConfigValue 'EASYTIER_IMAGE'
         }
         'easytier-automation-executor' {
             $key = 'DEPLOY_EASYTIER_EXECUTOR_IMAGE'
-            $image = Get-ConfigValue 'EASYTIER_EXECUTOR_IMAGE' 'ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center'
+            $image = Get-ConfigValue 'EASYTIER_EXECUTOR_IMAGE'
         }
         'qoder2api-hub' {
             $key = 'DEPLOY_QODER2API_HUB_IMAGE'
-            $image = Get-ConfigValue 'QODER2API_HUB_IMAGE' 'ghcr.io/shuishuipingan/qoder2api-hub:latest'
+            $image = Get-ConfigValue 'QODER2API_HUB_IMAGE'
         }
         mihomo {
             $key = 'DEPLOY_MIHOMO_IMAGE'
-            $image = 'ghcr.io/metacubex/metacubexd-server:latest'
+            $image = Get-ConfigValue 'MIHOMO_IMAGE'
         }
         default { return }
     }
@@ -875,7 +909,7 @@ function Prepare-Task {
             Write-Warning 'EasyTier Compose 使用 host 网络、/dev/net/tun 和 Linux 主机 machine-id；Windows Docker Desktop 的网络/TUN 行为与 Linux 主机不同，请确认 Docker Desktop 支持后再继续。'
         }
         'easytier-automation-executor' {
-            $image = Get-ConfigValue 'EASYTIER_EXECUTOR_IMAGE' 'ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center'
+            $image = Get-ConfigValue 'EASYTIER_EXECUTOR_IMAGE'
             if (-not $image) { throw 'EASYTIER_EXECUTOR_IMAGE 不能为空。' }
             $null = Test-Port 'EASYTIER_EXECUTOR_PORT' (Get-ConfigValue 'EASYTIER_EXECUTOR_PORT' '8766')
             Test-IPv4 'EASYTIER_EXECUTOR_BIND_IP' (Get-ConfigValue 'EASYTIER_EXECUTOR_BIND_IP' '127.0.0.1')
@@ -917,7 +951,7 @@ function Prepare-Task {
             }
         }
         'qoder2api-hub' {
-            $image = Get-ConfigValue 'QODER2API_HUB_IMAGE' 'ghcr.io/shuishuipingan/qoder2api-hub:latest'
+            $image = Get-ConfigValue 'QODER2API_HUB_IMAGE'
             if (-not $image) { throw 'QODER2API_HUB_IMAGE 不能为空。' }
             $null = Test-Port 'QODER2API_HUB_PORT' (Get-ConfigValue 'QODER2API_HUB_PORT' '8790')
             Test-IPv4 'QODER2API_HUB_BIND_IP' (Get-ConfigValue 'QODER2API_HUB_BIND_IP' '127.0.0.1')
@@ -1036,6 +1070,7 @@ function Invoke-Task {
     $configResult = Ensure-GlobalConfig
     Initialize-AppConfiguration $Task
     Load-Configuration
+    Load-RepositoryVersions
     if ($configResult.Created) {
         Write-Host '统一配置已创建。请先编辑普通配置和敏感配置，再重新执行安装。'
         Write-Host "普通配置：$(if ($script:AppEnv) { $script:AppEnv } else { $script:GlobalEnv })"
@@ -1049,6 +1084,7 @@ function Invoke-Task {
     }
     Prepare-Task $Task $Action
     Load-Configuration
+    Load-RepositoryVersions
     Set-MirrorImages $Task
     Test-TaskOwnership
 
@@ -1092,7 +1128,7 @@ function Invoke-Task {
         }
         'easytier-automation-executor' {
             Invoke-Compose $Task @('pull','easytier-automation-executor')
-            $image = Get-ConfigValue 'DEPLOY_EASYTIER_EXECUTOR_IMAGE' (Get-ConfigValue 'EASYTIER_EXECUTOR_IMAGE' 'ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center')
+            $image = Get-ConfigValue 'DEPLOY_EASYTIER_EXECUTOR_IMAGE'
             $arch = Get-DockerOutput @('image','inspect','--format','{{.Architecture}}',$image)
             if ($arch -and $arch -ne 'amd64') { throw "执行器镜像架构为 $arch，预期 amd64；未替换容器。" }
             Invoke-Compose $Task @('up','-d','--no-deps','--force-recreate','--pull','never','easytier-automation-executor')

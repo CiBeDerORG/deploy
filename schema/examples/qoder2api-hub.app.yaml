@@ -33,12 +33,6 @@ package:
     - source: lib/image-sources.sh
       destination: deploy/lib/image-sources.sh
 config:
-  - key: QODER2API_HUB_IMAGE
-    label: Docker image
-    type: string
-    target: env
-    required: false
-    default: ghcr.io/shuishuipingan/qoder2api-hub:latest
   - key: QODER2API_HUB_BIND_IP
     label: Bind address
     type: ipv4

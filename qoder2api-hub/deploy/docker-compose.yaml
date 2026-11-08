@@ -1,7 +1,7 @@
 name: qoder2api-hub
 services:
   qoder2api-hub:
-    image: "${DEPLOY_QODER2API_HUB_IMAGE:-${QODER2API_HUB_IMAGE:-ghcr.io/shuishuipingan/qoder2api-hub:latest}}"
+    image: "${DEPLOY_QODER2API_HUB_IMAGE:?run deploy.sh to load versions.env}"
     container_name: qoder2api-hub
     restart: unless-stopped
     security_opt:

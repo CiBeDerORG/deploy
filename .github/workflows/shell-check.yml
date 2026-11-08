@@ -4,11 +4,13 @@ on:
   push:
     paths:
       - "**/*.sh"
+      - "lib/versions.env"
       - "mihomo/**/*.mjs"
       - ".github/workflows/shell-check.yml"
   pull_request:
     paths:
       - "**/*.sh"
+      - "lib/versions.env"
       - "mihomo/**/*.mjs"
       - ".github/workflows/shell-check.yml"
 
@@ -27,6 +29,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
+
+      - name: Verify tracked version registry contract
+        run: bash tests/versions.sh
 
       - name: Set up native adapter test runtime
         uses: actions/setup-node@v6

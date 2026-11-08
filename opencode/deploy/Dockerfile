@@ -1,10 +1,11 @@
-ARG OPENCODE_BASE_IMAGE=mcr.microsoft.com/devcontainers/typescript-node:24
+ARG OPENCODE_BASE_IMAGE
 FROM ${OPENCODE_BASE_IMAGE}
 
 USER root
 
 # OpenCode V2 使用官方安装器，固定安装 latest。
 # 代理仅在 Docker build 当前 RUN 中导出，不写入最终运行环境。
+ARG OPENCODE_CLI_VERSION
 ARG OPENCODE_CACHE_BUST=manual
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
@@ -20,7 +21,10 @@ RUN set -eux; \
     else \
         echo "Build proxy: disabled"; \
     fi; \
-    curl -fsSL https://opencode.ai/v2/install | bash -s -- --no-modify-path; \
+    case "${OPENCODE_CLI_VERSION}" in \
+        latest) curl -fsSL https://opencode.ai/v2/install | bash -s -- --no-modify-path ;; \
+        *) curl -fsSL https://opencode.ai/v2/install | bash -s -- --no-modify-path --version "${OPENCODE_CLI_VERSION}" ;; \
+    esac; \
     test -x /root/.opencode/bin/opencode; \
     ln -sf /root/.opencode/bin/opencode /usr/local/bin/opencode; \
     if [ -x /root/.opencode/bin/opencode2 ]; then \

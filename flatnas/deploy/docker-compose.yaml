@@ -2,7 +2,7 @@ name: flatnas
 
 services:
   flatnas:
-    image: "${DEPLOY_FLATNAS_IMAGE:-qdnas/flatnas:latest}"
+    image: "${DEPLOY_FLATNAS_IMAGE:?run deploy.sh to load versions.env}"
     container_name: flatnas
     restart: unless-stopped
     ports:

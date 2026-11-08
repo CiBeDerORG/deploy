@@ -94,6 +94,12 @@ ensure_env() {
     mkdir -p "$ENV_DIR"
     create_env_file "$ROOT_DIR/.env.example" "$ENV_FILE"
     create_env_file "$ROOT_DIR/.secrets.example" "$SECRETS_FILE"
+    # env 命令本身也会同步受控版本；直接调用 macos/agent-install.sh 无需另做拷贝。
+    [[ -f "$ROOT_DIR/lib/versions.env" && ! -L "$ROOT_DIR/lib/versions.env" && ! -L "$ENV_DIR/lib/versions.env" ]] ||
+        die "仓库版本文件缺失或目标不安全"
+    mkdir -p "$ENV_DIR/lib"
+    rsync -a "$ROOT_DIR/lib/" "$ENV_DIR/lib/"
+    rsync -a "$ROOT_DIR/lib/versions.env" "$ENV_DIR/lib/versions.env"
     local configured
     configured="$(awk -F= '$1 == "SOFTWARE_ROOT" {print substr($0, index($0,"=")+1)}' "$ENV_FILE")"
     configured="${configured#\"}"; configured="${configured%\"}"
@@ -137,6 +143,11 @@ sync_task() {
         --exclude '/deploy/.env' --exclude '/deploy/.secrets' \
         "$src/" "$dst/"
     rsync -a "$ROOT_DIR/lib/" "$ENV_DIR/lib/"
+    [[ -f "$ROOT_DIR/lib/versions.env" && ! -L "$ROOT_DIR/lib/versions.env" && ! -L "$ENV_DIR/lib/versions.env" ]] ||
+        die "仓库版本文件缺失或目标不是普通文件"
+    rsync -a "$ROOT_DIR/lib/versions.env" "$ENV_DIR/lib/versions.env"
+    [[ -f "$ENV_DIR/lib/versions.sh" ]] || die "版本读取模块未同步"
+
     echo "已同步应用代码：${dst}（保留运行数据及配置）"
 }
 

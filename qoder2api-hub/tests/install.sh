@@ -12,6 +12,8 @@ trap 'rc=$?; printf "Qoder2API regression failed at line %s (%s, exit %s)\\n" "$
 software="$tmp/software"
 mkdir -p "$software/deploy/lib" "$software/qoder2api-hub/deploy" "$tmp/bin"
 cp "$ROOT/lib/image-sources.sh" "$software/deploy/lib/image-sources.sh"
+cp "$ROOT/lib/versions.sh" "$software/deploy/lib/versions.sh"
+cp "$ROOT/lib/versions.env" "$software/deploy/lib/versions.env"
 cp "$ROOT/lib/platform.sh" "$software/deploy/lib/platform.sh"
 cp "$ROOT/qoder2api-hub/deploy/"*.sh "$ROOT/qoder2api-hub/deploy/docker-compose.yaml" "$software/qoder2api-hub/deploy/"
 cat > "$software/deploy/.env" <<'EOF_ENV'

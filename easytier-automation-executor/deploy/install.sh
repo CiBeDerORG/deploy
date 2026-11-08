@@ -78,7 +78,9 @@ load_config() {
 load_config "$ENV_FILE" env
 load_config "$SECRETS_FILE" secret
 
-EASYTIER_EXECUTOR_IMAGE="${EASYTIER_EXECUTOR_IMAGE:-ghcr.io/cibederorg/easytier-automation-executor:feat-automation-center}"
+source "$SOFTWARE_ROOT/deploy/lib/versions.sh"
+deploy_load_versions "$SOFTWARE_ROOT" || exit 1
+EASYTIER_EXECUTOR_IMAGE="$EASYTIER_EXECUTOR_IMAGE"
 EASYTIER_EXECUTOR_BIND_IP="${EASYTIER_EXECUTOR_BIND_IP:-127.0.0.1}"
 EASYTIER_EXECUTOR_PORT="${EASYTIER_EXECUTOR_PORT:-8766}"
 EASYTIER_EXECUTOR_CALLBACK_URL="${EASYTIER_EXECUTOR_CALLBACK_URL:-}"

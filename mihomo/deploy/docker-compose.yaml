@@ -2,7 +2,7 @@ name: mihomo
 services:
   mihomo:
     # Official bundled Web / Agent / kernel, not the legacy static UI image.
-    image: "${DEPLOY_MIHOMO_IMAGE:-ghcr.io/metacubex/metacubexd-server:latest}"
+    image: "${DEPLOY_MIHOMO_IMAGE:?run deploy.sh to load versions.env}"
     container_name: mihomo
     restart: unless-stopped
     environment:
