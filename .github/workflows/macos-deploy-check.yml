@@ -7,8 +7,10 @@ on:
       - feat/macos-deploy-entry-20261106
       - feat/macos-easyhostagent-phase1-20261106
       - feat/macos-docker-phase2-20261106
+      - feat/central-version-registry-20261108
     paths:
       - deploy.sh
+      - versions.env
       - macos/**
       - easynettopo/deploy/docker-compose.macos.yaml
       - tests/macos-deploy.sh
@@ -28,6 +30,7 @@ on:
   pull_request:
     paths:
       - deploy.sh
+      - versions.env
       - macos/**
       - easynettopo/deploy/docker-compose.macos.yaml
       - tests/macos-deploy.sh
