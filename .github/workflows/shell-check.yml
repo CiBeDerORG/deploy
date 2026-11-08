@@ -4,13 +4,13 @@ on:
   push:
     paths:
       - "**/*.sh"
-      - "versions.env"
+      - "lib/versions.env"
       - "mihomo/**/*.mjs"
       - ".github/workflows/shell-check.yml"
   pull_request:
     paths:
       - "**/*.sh"
-      - "versions.env"
+      - "lib/versions.env"
       - "mihomo/**/*.mjs"
       - ".github/workflows/shell-check.yml"
 
