@@ -1,0 +1,11 @@
+fields:
+  - { key: EASYTIER_ROLE, label: 运行角色（cloud 或 intranet）, type: string, required: true, default: cloud, description: "cloud 运行 Web+Core；intranet 仅 Core，连接外部配置中心", custom_input: true, editable: true, pattern: '^(cloud|intranet)$' }
+  - { key: EASYTIER_HOSTNAME, label: 容器主机名, type: string, required: true, default: easytier, description: 容器中显示的主机名, custom_input: true, editable: true }
+  - { key: EASYTIER_PORT, label: 组网端口, type: port, required: true, default: 7005, description: TCP 与 UDP 组网监听端口, custom_input: true, editable: true }
+  - { key: EASYTIER_RPC_PORT, label: 内部 RPC 端口, type: port, required: true, default: 7006, description: 仅本机访问，不对公网开放, custom_input: true, editable: true }
+  - { key: EASYTIER_WEB_PORT, label: Web 端口（仅 cloud）, type: port, required: true, default: 7007, description: 云端配置管理 Web 服务端口, custom_input: true, editable: true }
+  - { key: EASYTIER_CONFIG_PORT, label: 配置下发端口（仅 cloud）, type: port, required: true, default: 7008, description: 云端 UDP 配置下发端口, custom_input: true, editable: true }
+  - { key: EASYTIER_WEB_API_HOST, label: Web API 地址（cloud 必填）, type: string, required: false, default: '', description: "如 http://203.0.113.10:7007，cloud 运行时必填", custom_input: true, editable: true }
+  - { key: EASYTIER_CONFIG_SERVER, label: 远端配置中心（intranet 必填）, type: string, required: false, default: '', description: "如 udp://203.0.113.10:7008/admin，intranet 运行时必填", custom_input: true, editable: true }
+  - { key: EASYTIER_PRIVILEGED, label: 容器特权模式, type: boolean, required: true, default: false, description: "fnOS 等 TUN 受限主机可能需要启用", custom_input: true, editable: true }
+  - { key: EASYTIER_WEB_ENABLE_REGISTRATION, label: 允许 Web 注册（仅 cloud）, type: boolean, required: true, default: true, description: 是否允许新用户在 Web 注册, custom_input: true, editable: true }

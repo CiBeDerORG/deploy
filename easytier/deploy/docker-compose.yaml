@@ -1,3 +1,4 @@
+name: easytier
 services:
   easytier:
     image: "${DEPLOY_EASYTIER_IMAGE:?run deploy.sh to load versions.env}"

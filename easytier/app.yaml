@@ -1,0 +1,56 @@
+schema_version: 2
+id: easytier
+name: EasyTier
+summary: EasyTier 官方镜像组网节点，可选择云端配置中心或普通节点角色
+category: network
+homepage: https://www.easytier.cn/
+runtime:
+  kind: docker_compose
+  compose_project: easytier
+  compose_file: deploy/docker-compose.yaml
+  requires_root: true
+compatibility:
+  platforms: [linux, fnos]
+  architectures: [amd64, arm64]
+  requires_docker: true
+  requires_compose_v2: true
+package:
+  files:
+  - { source: easytier/deploy/docker-compose.yaml, destination: easytier/deploy/docker-compose.yaml }
+  - { source: easytier/deploy/install.sh, destination: easytier/deploy/install.sh, mode: '0755' }
+  - { source: easytier/deploy/update.sh, destination: easytier/deploy/update.sh, mode: '0755' }
+  - { source: easytier/deploy/uninstall.sh, destination: easytier/deploy/uninstall.sh, mode: '0755' }
+  - { source: easytier/deploy/bash/cloud.sh, destination: easytier/deploy/bash/cloud.sh, mode: '0755' }
+  - { source: easytier/deploy/bash/intranet.sh, destination: easytier/deploy/bash/intranet.sh, mode: '0755' }
+  - { source: lib/versions.env, destination: deploy/lib/versions.env }
+  - { source: lib/versions.sh, destination: deploy/lib/versions.sh }
+  - { source: lib/image-sources.sh, destination: deploy/lib/image-sources.sh }
+  - { source: lib/platform.sh, destination: deploy/lib/platform.sh }
+  - { source: lib/app-config.sh, destination: deploy/lib/app-config.sh }
+  - { source: easytier/config.yaml, destination: easytier/config.yaml }
+  - { source: easytier/secrets.yaml, destination: easytier/secrets.yaml }
+  - { source: easytier/deploy/config.env.example, destination: easytier/deploy/config.env.example }
+  - { source: easytier/deploy/config.secrets.example, destination: easytier/deploy/config.secrets.example }
+  - { source: easytier/assets/icon.svg, destination: easytier/assets/icon.svg }
+ports:
+  - { id: peer_tcp, label: 组网 TCP, protocol: tcp, purpose: other, host_port_key: EASYTIER_PORT, container_port: 7005, service: easytier }
+  - { id: peer_udp, label: 组网 UDP, protocol: udp, purpose: other, host_port_key: EASYTIER_PORT, container_port: 7005, service: easytier }
+  - { id: web, label: 配置中心 Web（仅 cloud）, protocol: tcp, purpose: web, host_port_key: EASYTIER_WEB_PORT, container_port: 7007, service: easytier, path: / }
+  - { id: config_udp, label: 配置下发（仅 cloud）, protocol: udp, purpose: other, host_port_key: EASYTIER_CONFIG_PORT, container_port: 7008, service: easytier }
+actions:
+  install: { strategy: script, path: deploy/install.sh }
+  update: { strategy: script, path: deploy/update.sh }
+  uninstall: { strategy: script, path: deploy/uninstall.sh }
+verification:
+  mode: docker_compose
+  required_services: [easytier]
+  state: running
+  timeout_seconds: 180
+data:
+  paths: [easytier/data/core, easytier/data/cloud-managed-core, easytier/data/web]
+  named_volumes: []
+  default_retain: true
+configuration:
+  config: config.yaml
+  secrets: secrets.yaml
+icon: assets/icon.svg
