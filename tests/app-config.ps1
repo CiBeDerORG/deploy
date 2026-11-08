@@ -3,7 +3,12 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $tokens = $null; $parseErrors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'deploy.ps1'), [ref]$tokens, [ref]$parseErrors)
-if ($parseErrors.Count) { throw 'PowerShell 入口存在语法错误。' }
+if ($parseErrors.Count) {
+    foreach ($parseError in $parseErrors) {
+        Write-Error ("第 {0} 行：{1}" -f $parseError.Extent.StartLineNumber, $parseError.Message) -ErrorAction Continue
+    }
+    throw 'PowerShell 入口存在语法错误。'
+}
 foreach ($definition in $ast.FindAll({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] }, $false)) {
     . ([ScriptBlock]::Create($definition.Extent.Text))
 }
