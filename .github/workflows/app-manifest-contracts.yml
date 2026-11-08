@@ -12,7 +12,7 @@ on:
       - "lib/app-config.sh"
       - "deploy.sh"
       - "deploy.ps1"
-      - "versions.env"
+      - "lib/versions.env"
       - "lib/versions.sh"
       - "tests/app-config.ps1"
       - "tests/contracts/**"
