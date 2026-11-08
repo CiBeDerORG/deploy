@@ -107,8 +107,8 @@ bash deploy.sh easynettopo update
 [[ "$(cat "$MIRROR_STATE")" == ghproxy ]]
 assert_compose_image "$ORIGIN_IMAGE"
 # Legacy override is ignored even if it has a valid local tag.
-[[ -f "$SOFTWARE_ROOT/deploy/versions.env" ]]
-grep -Fxq "EASYNETTOPO_IMAGE=$ORIGIN_IMAGE" "$SOFTWARE_ROOT/deploy/versions.env"
+[[ -f "$SOFTWARE_ROOT/deploy/lib/versions.env" ]]
+grep -Fxq "EASYNETTOPO_IMAGE=$ORIGIN_IMAGE" "$SOFTWARE_ROOT/deploy/lib/versions.env"
 
 # Invalid mirror list fails before Compose pull, preserving the last state.
 sed -i '' 's/^DOCKER_IMAGE_SOURCE=.*/DOCKER_IMAGE_SOURCE=mirror/' "$ENV_FILE"
