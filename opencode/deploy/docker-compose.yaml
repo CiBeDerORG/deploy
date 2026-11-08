@@ -9,7 +9,7 @@ services:
         - "host.docker.internal:host-gateway"
 
       args:
-        OPENCODE_BASE_IMAGE: "${DEPLOY_OPENCODE_BASE_IMAGE:-mcr.microsoft.com/devcontainers/typescript-node:24}"
+        OPENCODE_BASE_IMAGE: "${DEPLOY_OPENCODE_BASE_IMAGE:?run deploy.sh to load versions.env}"
         OPENCODE_CACHE_BUST: "${OPENCODE_CACHE_BUST:-manual}"
 
         # 仅在 build 阶段存在，不传入运行时 environment。
@@ -17,7 +17,7 @@ services:
         HTTPS_PROXY: "${BUILD_HTTPS_PROXY:-}"
         NO_PROXY: "${BUILD_NO_PROXY:-127.0.0.1,localhost}"
 
-    image: "opencode-local:latest"
+    image: "${DEPLOY_OPENCODE_LOCAL_IMAGE:?run deploy.sh to load versions.env}"
 
     container_name: opencode
     restart: unless-stopped
