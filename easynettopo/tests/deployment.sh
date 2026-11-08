@@ -52,7 +52,7 @@ printf 'EASYNETTOPO_ADMIN_USERNAME =operator_01\r\nEASYNETTOPO_ADMIN_PASSWORD="%
 deploy_app() { bash deploy.sh easynettopo "$1" >> "$tmp/output" 2>&1 || { cat "$tmp/output" >&2; return 1; }; }
 deploy_app install
 ! grep -Eq '^[[:space:]]*EASYNETTOPO_IMAGE[[:space:]]*=' "$settings"
-grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' "$SOFTWARE_ROOT/deploy/versions.env"
+grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' "$SOFTWARE_ROOT/deploy/lib/versions.env"
 printf 'operator_01\n%s\n' "$password" | cmp - "$tmp/stdin"
 grep -F 'ghcr.dockerproxy.net/cibederorg/easynettopo:feat-deploy-manifest-lifecycle 0.0.0.0 ' "$tmp/docker-calls" > /dev/null
 if grep -F -- "$password" "$tmp/docker-calls" "$tmp/output" >/dev/null; then exit 1; fi
@@ -99,5 +99,5 @@ done
 printf 'EASYNETTOPO_IMAGE=easynettopo:local\nEASYNETTOPO_IMAGE=other:tag\n' >> "$settings"
 deploy_app install
 ! grep -Eq '^[[:space:]]*EASYNETTOPO_IMAGE[[:space:]]*=' "$settings"
-grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' "$SOFTWARE_ROOT/deploy/versions.env"
+grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' "$SOFTWARE_ROOT/deploy/lib/versions.env"
 printf '%s\n' 'EasyNetTopo 单容器安装、监听 IP、更新、卸载、凭据保留与镜像轮换通过'
