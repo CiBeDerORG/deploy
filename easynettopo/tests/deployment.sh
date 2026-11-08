@@ -44,24 +44,24 @@ bash deploy.sh env >/dev/null
 settings="$SOFTWARE_ROOT/deploy/.env"
 secrets="$SOFTWARE_ROOT/deploy/.secrets"
 sed -i 's/^DOCKER_IMAGE_SOURCE=.*/DOCKER_IMAGE_SOURCE=mirror/' "$settings"
-# 模拟以前版本的统一 .env；新 deploy update 必须安全替换旧默认标签。
-sed -i 's|^EASYNETTOPO_IMAGE=.*|EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle|' "$settings"
+# 模拟遗留镜像值；新的部署入口必须移除并忽略该键。
+printf 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:obsolete\n' >> "$settings"
 grep -qx 'EASYNETTOPO_BIND_IP=0.0.0.0' "$settings"
 password='密 码#= "x" @$()!'\'''
 printf 'EASYNETTOPO_ADMIN_USERNAME =operator_01\r\nEASYNETTOPO_ADMIN_PASSWORD="%s"\r\nOTHER_TEST_KEY=keep\n' "$password" > "$secrets"
 deploy_app() { bash deploy.sh easynettopo "$1" >> "$tmp/output" 2>&1 || { cat "$tmp/output" >&2; return 1; }; }
 deploy_app install
-grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' "$settings"
+! grep -Eq '^[[:space:]]*EASYNETTOPO_IMAGE[[:space:]]*=' "$settings"
+grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' "$SOFTWARE_ROOT/deploy/versions.env"
 printf 'operator_01\n%s\n' "$password" | cmp - "$tmp/stdin"
 grep -F 'ghcr.dockerproxy.net/cibederorg/easynettopo:feat-deploy-manifest-lifecycle 0.0.0.0 ' "$tmp/docker-calls" > /dev/null
 if grep -F -- "$password" "$tmp/docker-calls" "$tmp/output" >/dev/null; then exit 1; fi
 sed -i '/EASYNETTOPO_ADMIN_PASSWORD/c\EASYNETTOPO_ADMIN_PASSWORD=' "$secrets"
 sed -i 's/^EASYNETTOPO_BIND_IP=.*/EASYNETTOPO_BIND_IP=127.0.0.1/' "$settings"
-# 引号、空格格式的旧默认值也要自动迁移，且只能出现一个键。
-sed -i 's|^EASYNETTOPO_IMAGE=.*|EASYNETTOPO_IMAGE = "ghcr.io/cibederorg/easynettopo:feat-docker-app-store"|' "$settings"
+# 即使旧 .env 包含空格格式的自定义版本，也必须继续只读取仓库清单。
+printf 'EASYNETTOPO_IMAGE = "easynettopo:local"\n' >> "$settings"
 deploy_app update
-grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' "$settings"
-test "$(grep -Ec '^EASYNETTOPO_IMAGE=' "$settings")" -eq 1
+! grep -Eq '^[[:space:]]*EASYNETTOPO_IMAGE[[:space:]]*=' "$settings"
 grep -F 'gh-proxy.com/docker/ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle 127.0.0.1 ' "$tmp/docker-calls" >/dev/null
 sed -i 's/^EASYNETTOPO_BIND_IP=.*/EASYNETTOPO_BIND_IP=300.168.1.4/' "$settings"
 if bash deploy.sh easynettopo install > "$tmp/invalid-ip-output" 2>&1; then
@@ -95,25 +95,9 @@ for blank in 'EASYNETTOPO_ADMIN_PASSWORD =' 'EASYNETTOPO_ADMIN_PASSWORD=""' miss
     grep -qx "EASYNETTOPO_ADMIN_PASSWORD=$generated" "$secrets"
 done
 
-# 重复键不得悄悄覆盖用户配置，失败时保持原文件不变。
-source "$SOFTWARE_ROOT/deploy/lib/source-migration.sh"
-cp "$settings" "$tmp/duplicate-source.env"
-printf 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-docker-app-store\n' >> "$tmp/duplicate-source.env"
-before_dup="$(sha256sum "$tmp/duplicate-source.env" | cut -d ' ' -f1)"
-if deploy_migrate_published_default "$tmp/duplicate-source.env" EASYNETTOPO_IMAGE \
-    'ghcr.io/cibederorg/easynettopo:feat-docker-app-store' 'ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' > "$tmp/duplicate-output" 2>&1; then
-    echo '重复镜像配置不应自动迁移' >&2
-    exit 1
-fi
-test "$(sha256sum "$tmp/duplicate-source.env" | cut -d ' ' -f1)" = "$before_dup"
-sed -i 's|^EASYNETTOPO_IMAGE=.*|EASYNETTOPO_IMAGE=easynettopo:local|' "$settings"
-before="$(cat "$SOFTWARE_ROOT/deploy/state/image-mirror.last")"
+# 多个遗留镜像键也应被统一清理，不能覆盖 versions.env 的仓库版本。
+printf 'EASYNETTOPO_IMAGE=easynettopo:local\nEASYNETTOPO_IMAGE=other:tag\n' >> "$settings"
 deploy_app install
-grep -Fxq 'EASYNETTOPO_IMAGE=easynettopo:local' "$settings"
-grep -F 'easynettopo:local 0.0.0.0 ' "$tmp/docker-calls" | grep -F ' up -d --remove-orphans ' >/dev/null
-if grep -F 'easynettopo:local 0.0.0.0 ' "$tmp/docker-calls" | grep -F ' pull' > /dev/null; then
-    echo '本地镜像安装不应拉取旧网关或远端镜像' >&2
-    exit 1
-fi
-test "$before" = "$(cat "$SOFTWARE_ROOT/deploy/state/image-mirror.last")"
+! grep -Eq '^[[:space:]]*EASYNETTOPO_IMAGE[[:space:]]*=' "$settings"
+grep -Fxq 'EASYNETTOPO_IMAGE=ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle' "$SOFTWARE_ROOT/deploy/versions.env"
 printf '%s\n' 'EasyNetTopo 单容器安装、监听 IP、更新、卸载、凭据保留与镜像轮换通过'
