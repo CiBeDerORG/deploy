@@ -153,8 +153,14 @@ prepare_easynettopo_config() {
     [[ -f "$DEPLOY_DIR/docker-compose.macos.yaml" ]] || die "缺少 macOS Compose 覆盖文件"
     EASYNETTOPO_MACOS_UID="$(id -u)"
     EASYNETTOPO_MACOS_GID="$(id -g)"
+    # 与 Linux/fnOS 相同，Hook Token 仅来自受保护的全局 .secrets。
+    EASYNETTOPO_HOOK_TOKEN="$(read_secret EASYNETTOPO_HOOK_TOKEN)"
+    if [[ -n "$EASYNETTOPO_HOOK_TOKEN" && ${#EASYNETTOPO_HOOK_TOKEN} -lt 32 ]]; then
+        die "EASYNETTOPO_HOOK_TOKEN 至少需要 32 个字符，或留空禁用"
+    fi
     export EASYNETTOPO_HTTP_PORT EASYNETTOPO_BIND_IP EASYNETTOPO_GIT_ALLOWED_HOSTS
     export EASYNETTOPO_GIT_ALLOW_HTTP DEPLOY_EASYNETTOPO_IMAGE EASYNETTOPO_MACOS_UID EASYNETTOPO_MACOS_GID
+    export EASYNETTOPO_HOOK_TOKEN
 }
 
 persist_secret_password() {
