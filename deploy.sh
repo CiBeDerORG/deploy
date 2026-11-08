@@ -214,12 +214,12 @@ migrate_legacy_envs() {
 remove_deprecated_env_keys() {
     local key
     for key in "${DEPRECATED_ENV_KEYS[@]}"; do
-        if run_root grep -q "^$key=" "$GLOBAL_ENV"; then
-            run_root sed -i "/^$key=/d" "$GLOBAL_ENV"
+        if run_root grep -Eq "^[[:space:]]*$key[[:space:]]*=" "$GLOBAL_ENV"; then
+            run_root sed -i "/^[[:space:]]*$key[[:space:]]*=/d" "$GLOBAL_ENV"
             GLOBAL_ENV_UPDATED=1
         fi
-        if [ -f "$GLOBAL_SECRETS" ] && run_root grep -q "^$key=" "$GLOBAL_SECRETS"; then
-            run_root sed -i "/^$key=/d" "$GLOBAL_SECRETS"
+        if [ -f "$GLOBAL_SECRETS" ] && run_root grep -Eq "^[[:space:]]*$key[[:space:]]*=" "$GLOBAL_SECRETS"; then
+            run_root sed -i "/^[[:space:]]*$key[[:space:]]*=/d" "$GLOBAL_SECRETS"
             GLOBAL_ENV_UPDATED=1
         fi
     done
@@ -392,6 +392,8 @@ ensure_global_env() {
         GLOBAL_SECRETS_CREATED=1
     fi
 
+    # Remove old IMAGE/RELEASE keys before the duplicate-key scan.
+    remove_deprecated_env_keys
     sync_template_keys "$GLOBAL_ENV_EXAMPLE" "$GLOBAL_ENV" ".env" || return $?
     sync_template_keys "$GLOBAL_SECRETS_EXAMPLE" "$GLOBAL_SECRETS" ".secrets" || return $?
     migrate_easytier_default_ports
