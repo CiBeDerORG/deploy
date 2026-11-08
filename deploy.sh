@@ -441,7 +441,7 @@ resolve_task() {
 sync_shared_libraries() {
     local target_dir="$GLOBAL_ENV_DIR/lib"
     local source_file target_file staged_file module
-    local -a modules=(image-sources.sh release-sources.sh source-migration.sh app-config.sh)
+    local -a modules=(image-sources.sh release-sources.sh source-migration.sh app-config.sh versions.sh)
     run_root mkdir -p "$target_dir" || return $?
 
     for module in "${modules[@]}"; do
@@ -475,6 +475,29 @@ sync_shared_libraries() {
             return 1
         fi
     done
+
+    # versions.env is tracked in Git, not a user-editable .env.example.
+    # Always sync it automatically before installing/updating any application.
+    source_file="$ROOT_DIR/versions.env"
+    target_file="$GLOBAL_ENV_DIR/versions.env"
+    [ -f "$source_file" ] && [ ! -L "$source_file" ] && [ ! -L "$target_file" ] || {
+        echo "仓库版本文件缺失或是符号链接：$source_file / $target_file" >&2
+        return 1
+    }
+    if [ -e "$target_file" ] && [ "$source_file" -ef "$target_file" ]; then
+        run_root chown root:root "$target_file" &&
+            run_root chmod 0644 "$target_file" || return 1
+    else
+        staged_file="$(run_root mktemp "$GLOBAL_ENV_DIR/.versions.XXXXXXXX")" || return $?
+        if ! run_root cp -- "$source_file" "$staged_file" ||
+           ! run_root chown root:root "$staged_file" ||
+           ! run_root chmod 0644 "$staged_file" ||
+           ! run_root mv -f -- "$staged_file" "$target_file"; then
+            run_root rm -f -- "$staged_file"
+            echo "同步仓库版本文件失败" >&2
+            return 1
+        fi
+    fi
 }
 sync_task() {
     local task="$1"
