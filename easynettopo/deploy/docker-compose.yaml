@@ -2,7 +2,7 @@ name: easynettopo
 
 services:
   easynettopo:
-    image: "${DEPLOY_EASYNETTOPO_IMAGE:-ghcr.io/cibederorg/easynettopo:feat-deploy-manifest-lifecycle}"
+    image: "${DEPLOY_EASYNETTOPO_IMAGE:?run deploy.sh to load versions.env}"
     container_name: easynettopo
     restart: unless-stopped
     init: true
