@@ -4,7 +4,7 @@
 # which the deploy entrypoint synchronizes from the tracked repository file.
 deploy_load_versions() {
     [ "$#" -eq 1 ] || { printf '版本配置错误：需要软件根目录\n' >&2; return 1; }
-    local file="$1/deploy/versions.env" line key value seen='|' name
+    local file="$1/deploy/lib/versions.env" line key value seen='|' name
     local required=' EASYHOSTAGENT_RELEASE GITHUB_RUNNER_VERSION EASYNETTOPO_IMAGE EASYTIER_IMAGE EASYTIER_EXECUTOR_IMAGE FRPS_IMAGE PORTAINER_IMAGE FLATNAS_IMAGE WEBTOP_IMAGE OPENHANDS_IMAGE QODER2API_HUB_IMAGE MIHOMO_IMAGE SUB2API_IMAGE SUB2API_POSTGRES_IMAGE SUB2API_REDIS_IMAGE OPENCODE_BASE_IMAGE OPENCODE_LOCAL_IMAGE OPENCODE_CLI_VERSION MIHOMO_METACUBEXD_VERSION MIHOMO_KERNEL_VERSION MIHOMO_NODE_VERSION '
     [ -f "$file" ] && [ ! -L "$file" ] || {
         printf '版本配置错误：仓库版本文件不存在：%s。请先用 deploy.sh/ps1 同步。\n' "$file" >&2
