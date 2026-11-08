@@ -12,6 +12,8 @@ on:
       - "lib/app-config.sh"
       - "deploy.sh"
       - "deploy.ps1"
+      - "versions.env"
+      - "lib/versions.sh"
       - "tests/app-config.ps1"
       - "tests/contracts/**"
       - "tools/validate_app_manifest.py"
