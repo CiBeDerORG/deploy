@@ -248,7 +248,9 @@ stop_service() {
             service_loaded || break
             sleep 0.5
         done
-        service_loaded && fail "等待旧 LaunchAgent 注销超时"
+        if service_loaded; then
+            fail "等待旧 LaunchAgent 注销超时"
+        fi
         log "旧 LaunchAgent 已从 gui/$uid 域注销"
     else
         log "旧 LaunchAgent 当前未注册，跳过 bootout"
