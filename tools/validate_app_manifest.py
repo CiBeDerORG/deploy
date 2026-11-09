@@ -122,6 +122,38 @@ def compose_port_match(entry, declared: dict) -> bool:
         return is_host and is_bind
     return False
 
+def validate_field_presentation(fields: list[dict]) -> None:
+    """Validate generic select and conditional-visibility metadata."""
+    by_key = {field["key"]: field for field in fields}
+    for field in fields:
+        key = field["key"]
+        options = field.get("options")
+        if options is not None:
+            require(field["type"] == "string", f"Select options require a string field: {key}")
+            values = [option["value"] for option in options]
+            require(len(values) == len(set(values)), f"Duplicate select option value: {key}")
+            default = field.get("default")
+            require(default in (None, "") or default in values,
+                    f"Select default is not one of its options: {key}")
+
+        condition = field.get("visible_when")
+        if condition is None:
+            continue
+        dependency_key = condition["field"]
+        dependency = by_key.get(dependency_key)
+        require(dependency is not None and dependency_key != key,
+                f"Conditional field references an unknown or itself field: {key}")
+        require("visible_when" not in dependency,
+                f"Conditional selector cannot itself be conditional: {dependency_key}")
+        require(dependency["type"] == "string" and dependency.get("options"),
+                f"Conditional field must depend on a string selector with options: {key}")
+        require(dependency.get("custom_input") is not False,
+                f"Conditional selector must be available to the form: {dependency_key}")
+        allowed_values = {option["value"] for option in dependency["options"]}
+        require(condition["equals"] in allowed_values,
+                f"Conditional value is not declared by selector options: {key}")
+
+
 def resolve_config(data: dict, root: Path) -> list[dict]:
     """将应用内定义归一化；存储目标由文件决定，避免重复维护。"""
     if data.get("schema_version") != 2:
@@ -142,6 +174,7 @@ def resolve_config(data: dict, root: Path) -> list[dict]:
                     "必填且不可输入的字段必须有默认值或生成机制")
             fields.append({**field, "target": target})
     require(len(fields) <= 120 and len({f["key"] for f in fields}) == len(fields), "配置字段重复或超过数量限制")
+    validate_field_presentation(fields)
     return fields
 
 

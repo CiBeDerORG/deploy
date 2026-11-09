@@ -61,6 +61,38 @@ python3 -m unittest discover -s tests/contracts -p 'test_*.py'
 
 该维护工具使用 PyYAML、jsonschema（与 CI 相同）；目标主机脚本使用生成模板，不新增 Python、YAML 解析器或 yq 运行依赖。CI 检查模板与定义完全一致。
 
+## 清单驱动的单选与条件字段
+
+应用配置定义支持通用的 `options` 和 `visible_when` 元数据，无需 EasyNetTopo 按应用 ID 或配置键编写专用表单：
+
+```yaml
+fields:
+  - key: APP_ROLE
+    label: 运行角色
+    type: string
+    required: true
+    default: cloud
+    custom_input: true
+    editable: true
+    options:
+      - { label: 云端配置中心, value: cloud }
+      - { label: 普通节点, value: intranet }
+  - key: APP_WEB_URL
+    label: Web API 地址
+    type: string
+    required: true
+    default: ''
+    custom_input: true
+    editable: true
+    visible_when: { field: APP_ROLE, equals: cloud }
+```
+
+- `options` 仅用于字符串字段；`label` 是界面显示文案，`value` 是提交值。非空默认值必须匹配其中一个选项。
+- `visible_when` 根据另一个无条件显示的字符串单选字段进行相等匹配；依赖字段必须存在，条件值必须是该字段声明的选项之一。
+- 未声明这两项元数据的旧字段继续按原有输入控件显示。隐藏字段仍保留定义默认值，但页面不展示、不校验、不提交；服务端也会拒绝手工提交隐藏字段。
+- 条件字段可以设置 `required: true`：只在其显示时执行必填校验。角色切换不会把另一角色的旧输入值提交给安装任务。
+
+EasyTier 使用 `EASYTIER_ROLE` 作为单选字段：主机名、组网端口、RPC 端口和特权模式是通用字段；Web、Config Server、Web API 和注册控制字段只在 `cloud` 显示；远端配置中心地址只在 `intranet` 显示。
 ## 主机配置与旧版本迁移
 
 实际值位于 `<SOFTWARE_ROOT>/<应用>/config/.env` 和 `config/.secrets`，数据位于应用的 `data/`。文件按 0600 保存；仓库定义不是运行时配置。OpenCode 原生 `config/opencode.jsonc` 保留，首次补齐、更新不覆盖；维护组可编辑原生配置文件，部署凭据仍为 root 专属。

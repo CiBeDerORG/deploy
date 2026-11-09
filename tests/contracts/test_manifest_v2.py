@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 import yaml
-from tools.validate_app_manifest import ManifestError, resolve_config, validate
+from tools.validate_app_manifest import ManifestError, resolve_config, validate, validate_field_presentation
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -30,6 +30,44 @@ class AppConfigurationTests(unittest.TestCase):
         data = yaml.safe_load(path.read_text())
         change(data["fields"][0])
         path.write_text(yaml.safe_dump(data, allow_unicode=True))
+
+    def test_easytier_manifest_uses_generic_role_selector_and_conditions(self):
+        result = validate(ROOT / "easytier/app.yaml", ROOT)
+        self.assertEqual(result["id"], "easytier")
+
+    def test_select_and_conditional_field_metadata_is_generic(self):
+        fields = [
+            {
+                "key": "ROLE", "type": "string", "default": "cloud",
+                "options": [
+                    {"label": "Cloud", "value": "cloud"},
+                    {"label": "Intranet", "value": "intranet"},
+                ],
+                "custom_input": True,
+            },
+            {
+                "key": "CLOUD_URL", "type": "string",
+                "visible_when": {"field": "ROLE", "equals": "cloud"},
+            },
+            {
+                "key": "INTRANET_URL", "type": "string",
+                "visible_when": {"field": "ROLE", "equals": "intranet"},
+            },
+        ]
+        validate_field_presentation(fields)
+
+        invalid = [
+            ([{**fields[0], "default": "unknown"}, *fields[1:]], "Select default"),
+            ([fields[0], {**fields[1], "visible_when": {"field": "MISSING", "equals": "cloud"}}, fields[2]], "unknown"),
+            ([fields[0], {**fields[1], "visible_when": {"field": "ROLE", "equals": "missing"}}, fields[2]], "not declared"),
+            ([fields[0], {**fields[1], "visible_when": {"field": "ROLE", "equals": "cloud"}}, {
+                **fields[2], "visible_when": {"field": "CLOUD_URL", "equals": "intranet"}
+            }], "cannot itself be conditional"),
+        ]
+        for candidate, message in invalid:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ManifestError, message):
+                    validate_field_presentation(candidate)
 
     def test_unknown_application_uses_same_contract(self):
         self.assertEqual(validate(self.manifest, self.root)["id"], "demo-service")
