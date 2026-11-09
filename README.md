@@ -468,7 +468,7 @@ GITHUB_RELEASE_SOURCE=mirror
 GITHUB_RELEASE_MIRRORS=ghproxy,ghfast,ghproxy-net
 ```
 
-`original`（默认）直连 GitHub；`mirror` 按列表轮换首选来源，支持 `ghproxy`（gh-proxy.org）、`ghfast`（ghfast.top）、`ghproxy-net`（ghproxy.net）。下载或 SHA-256 校验失败自动尝试下一站，全部失败后回退 GitHub 官方。轮换记录为 `deploy/state/github-release-mirror.last`，与 GHCR 镜像轮换互不影响。当前已接入 EasyHostAgent 的在线 Release 二进制安装/更新；使用 `EASYHOSTAGENT_LOCAL_BINARY` 手动上传时不触发下载。第三方加速站的校验文件本身不具备独立的可信度；正式环境应核对官方校验值并优先固定不可变版本。
+`mirror`（默认）按列表轮换首选来源，`original` 可手动切换为直连 GitHub；支持 `ghproxy`（gh-proxy.org）、`ghfast`（ghfast.top）、`ghproxy-net`（ghproxy.net）。下载或 SHA-256 校验失败自动尝试下一站，全部失败后回退 GitHub 官方。轮换记录为 `deploy/state/github-release-mirror.last`，与 GHCR 镜像轮换互不影响。当前已接入 EasyHostAgent 的在线 Release 二进制安装/更新；使用 `EASYHOSTAGENT_LOCAL_BINARY` 手动上传时不触发下载。第三方加速站的校验文件本身不具备独立的可信度；正式环境应核对官方校验值并优先固定不可变版本。
 
 
 ### .secrets

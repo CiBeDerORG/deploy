@@ -58,7 +58,14 @@ deploy_download_github_release_pair "$tmp/software" "$envfile" "$base" "$asset" 
 grep -q 'ghproxy.net/' "$tmp/requests"
 [[ "$(cat "$tmp/software/deploy/state/github-release-mirror.last")" == ghproxy-net ]]
 
-# 官方直连不轮换；拒绝未知代理站并防止下载失败覆盖现有文件。
+# 未显式设置 GITHUB_RELEASE_SOURCE 时默认启用加速站。
+printf 'GITHUB_RELEASE_MIRRORS=ghproxy,ghfast,ghproxy-net\n' > "$envfile"
+: > "$tmp/requests"
+deploy_download_github_release_pair "$tmp/software" "$envfile" "$base" "$asset" "$tmp/dist"
+grep -q 'gh-proxy.org/' "$tmp/requests"
+grep -q 'ghfast.top/' "$tmp/requests"
+
+# 显式设置 original 仍保持官方直连，不轮换。
 printf 'GITHUB_RELEASE_SOURCE=original\n' > "$envfile"
 : > "$tmp/requests"
 deploy_download_github_release_pair "$tmp/software" "$envfile" "$base" "$asset" "$tmp/dist"

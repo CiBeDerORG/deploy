@@ -8,7 +8,7 @@ _deploy_release_error() {
 
 _deploy_release_read_config() {
     local file="$1" source_name="$2" mirrors_name="$3"
-    local line key value selected=original candidates=ghproxy,ghfast,ghproxy-net
+    local line key value selected=mirror candidates=ghproxy,ghfast,ghproxy-net
     local source_seen=0 mirrors_seen=0
     [[ -f "$file" && ! -L "$file" ]] || {
         _deploy_release_error "统一 .env 不存在或不是普通文件：$file"
@@ -45,7 +45,7 @@ _deploy_release_read_config() {
                 ;;
         esac
         case "$key" in
-            GITHUB_RELEASE_SOURCE) selected="${value:-original}" ;;
+            GITHUB_RELEASE_SOURCE) selected="${value:-mirror}" ;;
             GITHUB_RELEASE_MIRRORS) candidates="${value:-ghproxy,ghfast,ghproxy-net}" ;;
         esac
     done < "$file"
