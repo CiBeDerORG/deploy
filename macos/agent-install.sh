@@ -30,18 +30,21 @@ fail() {
 }
 
 run_logged() {
-    local description="$1" output rc
+    local step_name output rc
+    step_name="$1"
+    output=""
+    rc=0
     shift
-    log "命令开始：$description"
+    log "命令开始：$step_name"
     if output="$("$@" 2>&1)"; then
         rc=0
     else
         rc=$?
     fi
     if [[ -n "$output" ]]; then
-        log "命令输出（$description）：$output"
+        log "命令输出（$step_name）：$output"
     fi
-    log "命令结束：$description，exit=$rc"
+    log "命令结束：$step_name，exit=$rc"
     return "$rc"
 }
 
@@ -263,6 +266,8 @@ case "$mode" in
         exit ;;
     status)
         stage="查询服务状态"
+        [[ -f "$marker" && ! -L "$marker" && -f "$plist" && ! -L "$plist" && -x "$binary" && ! -L "$binary" ]] ||
+            fail "Agent 尚未由当前安装器安装（缺少受管标识、plist 或可执行二进制）"
         run_logged "launchctl print $launch_label" launchctl print "$launch_label" ||
             fail "Agent 当前没有在 gui/$uid 登录用户域注册"
         stage="检查 HTTP 健康状态"
