@@ -105,7 +105,15 @@ bash deploy.sh easyhostagent update
 bash deploy.sh easyhostagent uninstall
 ```
 
-`status` 调用 `launchctl print`。可在 Mac 本机执行 `curl -k https://127.0.0.1:7018/v1/health` 做简单可达性检查；`-k` **仅供本机诊断**，生产控制端必须按 Agent 公钥 SPKI 指纹校验证书。用户服务 plist 位于 `~/Library/LaunchAgents/org.cibeder.easyhostagent.plist`，二进制位于 `/opt/software/easyhostagent/native/bin/easyhostagent`，身份、配对信息、日志保存在上述用户私有数据目录。重新安装/更新不主动重置身份、配对或数据；卸载仅删除受管程序及 plist，默认保留数据目录与统一配置；不可逆数据清除需要自行单独确认。
+`status` 会同时验证 `launchctl print gui/UID/org.cibeder.easyhostagent` 和本机 HTTP/HTTPS `/v1/health`，只有服务已注册且返回 `status=ready` 才报告正常。可在 Mac 本机执行 `curl -k https://127.0.0.1:7018/v1/health` 做简单可达性检查；`-k` **仅供本机诊断**，生产控制端必须按 Agent 公钥 SPKI 指纹校验证书。用户服务 plist 位于 `~/Library/LaunchAgents/org.cibeder.easyhostagent.plist`，二进制位于 `/opt/software/easyhostagent/native/bin/easyhostagent`，身份、配对信息、Agent 运行日志保存在 `~/Library/Application Support/EasyHostAgent/`。
+
+**启动故障诊断日志：**
+- `/opt/software/deploy/state/easyhostagent-macos-lifecycle.log`：安装、更新、卸载、LaunchAgent 注册/注销、健康检查的时间戳、PID、阶段、命令输出与退出码。
+- `/opt/software/deploy/state/easyhostagent-update.log`：后台自更新任务的排队、锁等待、执行和结束记录。
+- `/opt/software/deploy/state/easyhostagent-update.stdout.log` 与 `easyhostagent-update.stderr.log`：后台更新任务标准输出/错误。
+- `~/Library/Application Support/EasyHostAgent/agent.stderr.log` 与 `agent.stdout.log`：Agent 进程自身运行日志。
+
+更新失败时，安装器会自动记录 plist、二进制信息、launchd 服务/GUI 域状态、7018 监听端口和 Agent 最近日志；如果新版本启动失败且存在旧二进制，会尝试回滚并再次执行健康检查。重新安装/更新不主动重置身份、配对或数据；卸载仅删除受管程序及 plist，默认保留数据目录与统一配置；不可逆数据清除需要自行单独确认。
 
 当前 `/v1/host/maintenance/update` 不提供远程自更新操作；请在 Mac 的受信任本机终端运行 `bash deploy.sh easyhostagent update`。Docker 管理和应用市场接口由已合并的第二阶段提供，并要求 Docker Desktop 正常运行及控制端完成配对鉴权。
 
