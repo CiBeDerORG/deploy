@@ -66,7 +66,7 @@ if launchctl print "gui/$uid" >/dev/null 2>&1; then
     grep -q '更新锁被占用' "$RUNNER_TEMP/agent-lock-conflict.out"
     grep -q 'stage=获取更新锁' "$lifecycle_log"
 else
-    echo "Runner 没有 gui/$uid，跳过 launchctl 实际注册验证"
+    echo "Runner 没有 gui/${uid}，跳过 launchctl 实际注册验证"
 fi
 env -u SOFTWARE_ROOT bash macos/agent-install.sh update "$SOFTWARE_ROOT" --no-start
 bash deploy.sh easyhostagent identity >"$RUNNER_TEMP/phase1-identity-after"
