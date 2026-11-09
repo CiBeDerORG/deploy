@@ -42,9 +42,9 @@ run_logged() {
         rc=$?
     fi
     if [[ -n "$output" ]]; then
-        log "命令输出（$step_name）：$output"
+        log "命令输出（${step_name}）：$output"
     fi
-    log "命令结束：$step_name，exit=$rc"
+    log "命令结束：${step_name}，exit=${rc}"
     return "$rc"
 }
 
@@ -93,7 +93,7 @@ on_exit() {
         if [[ "$rc" -eq 0 ]]; then
             log "脚本结束：成功"
         else
-            log "脚本结束：失败，exit=$rc，stage=$stage"
+            log "脚本结束：失败，exit=${rc}，stage=${stage}"
             collect_diagnostics || true
         fi
     fi
@@ -143,7 +143,7 @@ if [[ "$mode" == install || "$mode" == update || "$mode" == force-update || "$mo
             exit 0
         else
             rc=$?
-            fail "更新锁获取失败（exit=$rc），另一个 EasyHostAgent 安装/更新/卸载任务正在运行；请稍后重试"
+            fail "更新锁获取失败（exit=${rc}），另一个 EasyHostAgent 安装/更新/卸载任务正在运行；请稍后重试"
         fi
     fi
     log "已持有独占更新锁"
