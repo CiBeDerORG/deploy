@@ -26,7 +26,7 @@ bash deploy.sh list | grep -Fx easyhostagent >/dev/null || bash deploy.sh list |
 bash deploy.sh env >/dev/null
 file="$SOFTWARE_ROOT/deploy/.env"
 test -f "$file"
-grep -qx "GITHUB_RELEASE_SOURCE=original" "$file"
+grep -qx "GITHUB_RELEASE_SOURCE=mirror" "$file"
 grep -qx "GITHUB_RELEASE_MIRRORS=ghproxy,ghfast,ghproxy-net" "$file"
 ! grep -q '^EASYHOSTAGENT_RELEASE=' "$file"
 grep -qx 'EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev' "$SOFTWARE_ROOT/deploy/lib/versions.env"
