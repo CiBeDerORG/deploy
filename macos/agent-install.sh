@@ -232,6 +232,23 @@ wait_for_health() {
     return 1
 }
 
+wait_for_port_release() {
+    local attempt
+    if ! command -v lsof >/dev/null 2>&1; then
+        log "警告：系统没有 lsof，跳过端口释放检查"
+        return 0
+    fi
+    for attempt in {1..30}; do
+        if ! lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+            log "监听端口 $port 已释放"
+            return 0
+        fi
+        sleep 0.5
+    done
+    run_logged "仍占用端口 $port 的进程" lsof -nP -iTCP:"$port" -sTCP:LISTEN || true
+    fail "旧 Agent 停止后端口 $port 仍被占用；为避免启动第二个实例，拒绝替换/启动"
+}
+
 stop_service() {
     stage="停止旧 LaunchAgent"
     if service_loaded; then
@@ -255,6 +272,7 @@ stop_service() {
     else
         log "旧 LaunchAgent 当前未注册，跳过 bootout"
     fi
+    wait_for_port_release
 }
 
 case "$mode" in
