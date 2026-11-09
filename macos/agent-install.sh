@@ -117,9 +117,11 @@ plist_dir="$home/Library/LaunchAgents"
 plist="$plist_dir/$label.plist"
 env_file="$root/deploy/.env"
 state_dir="$root/deploy/state"
+[[ ! -L "$root/deploy" && ! -L "$state_dir" ]] || fail "deploy/state 目录不能是符号链接"
 mkdir -p "$state_dir" || fail "无法创建更新状态目录：$state_dir"
 chmod 0700 "$state_dir" || fail "无法设置更新状态目录权限：$state_dir"
 log_file="$state_dir/easyhostagent-macos-lifecycle.log"
+[[ ! -L "$log_file" ]] || fail "生命周期日志不能是符号链接：$log_file"
 touch "$log_file" || fail "无法创建生命周期日志：$log_file"
 chmod 0600 "$log_file" || fail "无法设置生命周期日志权限：$log_file"
 trap on_exit EXIT
@@ -132,6 +134,7 @@ if [[ "$mode" == install || "$mode" == update || "$mode" == force-update || "$mo
         stage="获取更新锁"
         command -v lockf >/dev/null 2>&1 || fail "系统缺少 lockf"
         lock_path="$state_dir/easyhostagent.macos-update.lock"
+        [[ ! -L "$lock_path" ]] || fail "更新锁不能是符号链接：$lock_path"
         log "尝试获取独占更新锁：$lock_path"
         if lockf -k -t 0 "$lock_path" /usr/bin/env EASYHOSTAGENT_UPDATE_LOCK_HELD=1 /bin/bash "$0" "$@"; then
             exit 0
@@ -194,11 +197,21 @@ run_agent() {
 probe_health() {
     local body
     if [[ "$transport" == https ]]; then
-        body="$(curl -kfsS --connect-timeout 2 --max-time 4 "$health_url" 2>&1)" || return 1
+        if ! body="$(curl -kfsS --connect-timeout 2 --max-time 4 "$health_url" 2>&1)"; then
+            log "健康接口请求失败：$body"
+            return 1
+        fi
     else
-        body="$(curl -fsS --connect-timeout 2 --max-time 4 "$health_url" 2>&1)" || return 1
+        if ! body="$(curl -fsS --connect-timeout 2 --max-time 4 "$health_url" 2>&1)"; then
+            log "健康接口请求失败：$body"
+            return 1
+        fi
     fi
-    printf '%s' "$body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'
+    if printf '%s' "$body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'; then
+        return 0
+    fi
+    log "健康接口返回非 ready 状态：$body"
+    return 1
 }
 
 wait_for_health() {
