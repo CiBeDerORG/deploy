@@ -166,9 +166,37 @@ case "${1:-}" in
         task_exists "$task" || die "未知应用：$task"
         if [[ "$task" == easyhostagent ]]; then
             case "$action" in
-                install|update|force-update|uninstall|status|pairing|identity)
+                install|update|force-update|uninstall)
                     ensure_env
-                    if [[ "$action" == install || "$action" == update || "$action" == force-update ]]; then sync_task "$task"; fi
+                    command -v lockf >/dev/null 2>&1 || die "系统缺少 lockf，无法安全执行 Agent 更新"
+                    [[ ! -L "$ENV_DIR/state" ]] || die "deploy/state 目录不能是符号链接"
+                    mkdir -p "$ENV_DIR/state"
+                    agent_lock="$ENV_DIR/state/easyhostagent.macos-update.lock"
+                    agent_log="$ENV_DIR/state/easyhostagent-macos-lifecycle.log"
+                    [[ ! -L "$agent_lock" && ! -L "$agent_log" ]] || die "Agent 更新锁或生命周期日志不能是符号链接"
+                    touch "$agent_log"
+                    chmod 0600 "$agent_log"
+                    # 锁覆盖代码同步、二进制替换和 launchd 重启，避免多个 deploy 入口交错执行。
+                    if lockf -k -t 0 "$agent_lock" /bin/bash -c '
+                        set -euo pipefail
+                        root="$1"
+                        software_root="$2"
+                        action="$3"
+                        if [[ "$action" != uninstall ]]; then
+                            /bin/bash "$root/deploy.sh" easyhostagent sync
+                        fi
+                        EASYHOSTAGENT_UPDATE_LOCK_HELD=1 /bin/bash "$root/macos/agent-install.sh" "$action" "$software_root"
+                    ' easyhostagent-update "$ROOT_DIR" "$SOFTWARE_ROOT" "$action"; then
+                        :
+                    else
+                        lock_status=$?
+                        printf "[%s] [pid=%s] [stage=获取更新锁] ERROR：Agent 更新锁被占用或 lockf 失败，exit=%s，action=%s\n" \
+                            "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$" "$lock_status" "$action" | tee -a "$agent_log" >&2
+                        die "EasyHostAgent 正在安装/更新/卸载，或更新锁不可用；详细日志：$agent_log"
+                    fi
+                    exit ;;
+                status|pairing|identity)
+                    ensure_env
                     exec /bin/bash "$ROOT_DIR/macos/agent-install.sh" "$action" "$SOFTWARE_ROOT" ;;
                 sync) sync_task "$task"; exit ;;
                 *) die "EasyHostAgent macOS 仅支持 install/update/force-update/uninstall/status/pairing/identity/sync" ;;

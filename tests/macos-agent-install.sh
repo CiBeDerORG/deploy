@@ -48,12 +48,33 @@ if launchctl print "gui/$uid" >/dev/null 2>&1; then
         exit 1
     }
     bash deploy.sh easyhostagent status >/dev/null
+    lifecycle_log="$SOFTWARE_ROOT/deploy/state/easyhostagent-macos-lifecycle.log"
+    [[ -f "$lifecycle_log" ]] || { echo "缺少 Agent 生命周期日志" >&2; exit 1; }
+    grep -q 'launchctl bootstrap' "$lifecycle_log"
+    grep -q '健康检查通过' "$lifecycle_log"
+
+    # 模拟另一个更新进程持有锁，第二个 deploy 入口必须明确拒绝并记录原因。
+    lockf -k "$SOFTWARE_ROOT/deploy/state/easyhostagent.macos-update.lock" /bin/sleep 3 &
+    lock_pid=$!
+    sleep 1
+    if bash deploy.sh easyhostagent update >"$RUNNER_TEMP/agent-lock-conflict.out" 2>&1; then
+        echo "并发 EasyHostAgent 更新没有被锁阻止" >&2
+        kill "$lock_pid" 2>/dev/null || true
+        exit 1
+    fi
+    wait "$lock_pid"
+    grep -q '更新锁被占用' "$RUNNER_TEMP/agent-lock-conflict.out"
+    grep -q 'stage=获取更新锁' "$lifecycle_log"
 else
-    echo "Runner 没有 gui/$uid，跳过 launchctl 实际注册验证"
+    echo "Runner 没有 gui/${uid}，跳过 launchctl 实际注册验证"
 fi
-env -u SOFTWARE_ROOT bash macos/agent-install.sh update "$SOFTWARE_ROOT" --no-start
+# 执行完整更新，验证旧服务 bootout、端口释放、重新 bootstrap 和健康检查。
+env -u SOFTWARE_ROOT bash macos/agent-install.sh update "$SOFTWARE_ROOT"
+bash deploy.sh easyhostagent status >/dev/null
 bash deploy.sh easyhostagent identity >"$RUNNER_TEMP/phase1-identity-after"
 cmp "$RUNNER_TEMP/phase1-identity" "$RUNNER_TEMP/phase1-identity-after"
+grep -q '旧 LaunchAgent 已从' "$lifecycle_log"
+grep -q '健康检查通过' "$lifecycle_log"
 bash deploy.sh easyhostagent uninstall
 [[ ! -e "$binary" && ! -e "$plist" && -f "$state/identity.json" ]]
 echo "EasyHostAgent macOS 原生安装与身份保留验证通过"
