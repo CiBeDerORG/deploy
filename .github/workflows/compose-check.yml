@@ -12,6 +12,8 @@ on:
       - "lib/versions.sh"
       - ".secrets.example"
       - "mihomo/**"
+      - "**/deploy/docker-compose*.yaml"
+      - "tests/compose-container-names.sh"
       - ".github/workflows/compose-check.yml"
   pull_request:
     paths:
@@ -24,6 +26,8 @@ on:
       - "lib/versions.sh"
       - ".secrets.example"
       - "mihomo/**"
+      - "**/deploy/docker-compose*.yaml"
+      - "tests/compose-container-names.sh"
       - ".github/workflows/compose-check.yml"
 
 permissions:
@@ -60,6 +64,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Verify stable application container names
+        shell: bash
+        run: bash tests/compose-container-names.sh
 
       - name: Prepare isolated proxy network
         run: docker network create --driver bridge --internal proxy-net
