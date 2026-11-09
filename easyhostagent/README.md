@@ -4,9 +4,9 @@ EasyHostAgent 是直接运行在宿主机上的 Go systemd 服务，不是 Docke
 
 ## 1. 配置文件
 
-所有普通配置在统一的 `<SOFTWARE_ROOT>/deploy/.env`。Ubuntu 默认 `/software/deploy/.env`，fnOS 默认 `/vol3/1000/software/deploy/.env`。敏感配置文件分别是 `/software/deploy/.secrets` 或 `/vol3/1000/software/deploy/.secrets`，但 **Agent 不需要新增密码、API Key 或 Token 配置项**；配对凭据由上游在本机生成和保存。
+所有普通配置在统一的 `<SOFTWARE_ROOT>/deploy/.env`。Ubuntu / 普通 Linux 默认 `/opt/software/deploy/.env`，fnOS 默认 `/vol3/1000/software/deploy/.env`。已有 Linux 主机若存在旧配置 `/software/deploy/.env`，会继续沿用旧根目录且不会自动迁移。敏感配置文件分别是 `/opt/software/deploy/.secrets` 或 `/vol3/1000/software/deploy/.secrets`，但 **Agent 不需要新增密码、API Key 或 Token 配置项**；配对凭据由上游在本机生成和保存。
 
-运行 `sudo bash deploy.sh env` 后用 `sudoedit /software/deploy/.env`（fnOS 修改相应路径），设置：
+运行 `sudo bash deploy.sh env` 后用 `sudoedit /opt/software/deploy/.env`（fnOS 使用 `/vol3/1000/software/deploy/.env`；已有旧 Linux 配置则继续编辑其实际路径），设置：
 
 ```dotenv
 # 与 DOCKER_IMAGE_SOURCE 相同的 original/mirror 模式，但独立控制 Release 文件。
@@ -26,7 +26,7 @@ EASYHOSTAGENT_SOFTWARE_ROOT=
 EASYHOSTAGENT_PLATFORM=
 ```
 
-若服务器无法连接 GitHub，可把对应架构的两个文件上传到同一目录，例如 `/software/easyhostagent/easyhostagent-linux-amd64` 和 `/software/easyhostagent/easyhostagent-linux-amd64.sha256`，随后设置 `EASYHOSTAGENT_LOCAL_BINARY=/software/easyhostagent/easyhostagent-linux-amd64`。安装脚本在安装前校验 SHA-256；上传的文件保留原样，不需要手工更改可执行权限。留空仍按仓库 `lib/versions.env` 的 `EASYHOSTAGENT_RELEASE` 下载，`GITHUB_RELEASE_SOURCE=mirror` 时自动轮换站点。两种模式统一使用 `sudo bash deploy.sh easyhostagent install` 和 `update`。**本地文件及同名校验文件必须来自可信 GitHub Release。**
+若服务器无法连接 GitHub，可把对应架构的两个文件上传到同一目录，例如 `/opt/software/easyhostagent/easyhostagent-linux-amd64` 和 `/opt/software/easyhostagent/easyhostagent-linux-amd64.sha256`，随后设置 `EASYHOSTAGENT_LOCAL_BINARY=/opt/software/easyhostagent/easyhostagent-linux-amd64`。安装脚本在安装前校验 SHA-256；上传的文件保留原样，不需要手工更改可执行权限。留空仍按仓库 `lib/versions.env` 的 `EASYHOSTAGENT_RELEASE` 下载，`GITHUB_RELEASE_SOURCE=mirror` 时自动轮换站点。两种模式统一使用 `sudo bash deploy.sh easyhostagent install` 和 `update`。**本地文件及同名校验文件必须来自可信 GitHub Release。**
 
 **GitHub Release 文件加速**：在统一 `.env` 中设置 `GITHUB_RELEASE_SOURCE=mirror`，`GITHUB_RELEASE_MIRRORS` 默认顺序为 `ghproxy,ghfast,ghproxy-net`，分别对应 `gh-proxy.org`、`ghfast.top`、`ghproxy.net`。每次在线安装/更新从上一次首选站的下一个站开始；下载失败或 SHA-256 不一致则尝试下一站，最后尝试 GitHub 原站。轮换状态保存在 `<SOFTWARE_ROOT>/deploy/state/github-release-mirror.last`，不影响 Docker 的 `DOCKER_IMAGE_SOURCE`。`original` 仅直连官方，指定 `EASYHOSTAGENT_LOCAL_BINARY` 时不下载文件也不推进轮换。第三方代理不能等同于官方可信发布源；滚动开发版资产还可能存在缓存滞后，重要环境建议使用不可变版本并核对官方校验值。
 
@@ -52,7 +52,7 @@ sudo /usr/local/bin/easyhostagent -pairing-code
 **推荐从 deploy 统一入口生成配对信息：**
 
 ```bash
-cd /vol3/1000/software/deploy   # fnOS；Ubuntu 通常为 /software/deploy
+cd /opt/software/deploy   # Ubuntu / 普通 Linux 默认；fnOS 在实际 deploy 仓库目录执行
 sudo bash deploy.sh easyhostagent pairing
 ```
 
@@ -65,7 +65,7 @@ sudo bash deploy.sh easyhostagent pairing
 ## 4. 安装和检查
 
 ```bash
-cd /software/deploy
+cd /opt/software/deploy
 git switch main
 git pull --ff-only origin main
 sudo bash deploy.sh env
@@ -100,7 +100,7 @@ sudo bash deploy.sh easyhostagent uninstall
 ## 6. 更新
 
 ```bash
-cd /software/deploy
+cd /opt/software/deploy
 git pull --ff-only origin main
 sudo bash deploy.sh easyhostagent update
 # 忽略已配置的 EASYHOSTAGENT_LOCAL_BINARY，强制重新下载并校验当前 Release：

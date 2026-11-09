@@ -5,12 +5,14 @@ on:
     paths:
       - "**/*.sh"
       - "lib/versions.env"
+      - "tests/software-root-default.sh"
       - "mihomo/**/*.mjs"
       - ".github/workflows/shell-check.yml"
   pull_request:
     paths:
       - "**/*.sh"
       - "lib/versions.env"
+      - "tests/software-root-default.sh"
       - "mihomo/**/*.mjs"
       - ".github/workflows/shell-check.yml"
 
@@ -32,6 +34,9 @@ jobs:
 
       - name: Verify tracked version registry contract
         run: bash tests/versions.sh
+
+      - name: Verify default software root and legacy path compatibility
+        run: bash tests/software-root-default.sh
 
       - name: Set up native adapter test runtime
         uses: actions/setup-node@v6

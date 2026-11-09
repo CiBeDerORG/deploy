@@ -53,7 +53,7 @@ EASYTIER_IMAGE=ghcr.io/cibederorg/easytier:feat-node-attributes-main
 5. **卸载命令**：提供真正可执行的卸载方法，区分仅移除服务与永久删除持久化数据，默认不删数据。
 6. **更新命令**：提供更新步骤，明确是否保留数据和密钥。
 
-默认 fnOS 配置目录为 `/vol3/1000/software/deploy/`；其他 Linux 默认 `/software/deploy/`。真实凭据严禁提交 Git，不应在标准日志或回答里明文打印。Windows `deploy.ps1` 与 Linux `deploy.sh` 是不同入口，只有已经实现的功能才能给出对应命令。
+Ubuntu / 普通 Linux 默认配置目录为 `/opt/software/deploy/`；fnOS 首次部署仍默认使用数据卷目录 `/vol3/1000/software/deploy/`。已有 Linux 主机若存在 `/software/deploy/.env`，入口会继续识别并使用旧目录，不会自动搬迁配置或数据。真实凭据严禁提交 Git，不应在标准日志或回答里明文打印。Windows `deploy.ps1` 与 Linux `deploy.sh` 是不同入口，只有已经实现的功能才能给出对应命令。
 
 目前 `uninstall` 仅适用于已提供 `deploy/uninstall.sh` 的业务与专用原生桌面项目，不能假定所有历史服务均支持统一卸载。
 
@@ -94,7 +94,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 list
 注意：
 
 - 需要已启动的 Docker Desktop 和 Docker Compose v2。
-- Windows 配置与数据目录和 Linux 默认的 `/software` 分开，避免误用 Linux 路径或覆盖另一套配置。
+- Windows 配置与数据目录和 Linux 默认的 `/opt/software` 分开，避免误用 Linux 路径或覆盖另一套配置。
 - Linux systemd 服务、OpenWrt 原生安装以及 `mihomo host`、`fnos-desktop` 不由 Windows PowerShell 入口执行。
 - EasyTier / 手机执行器依赖 Linux host networking、TUN 或设备网络能力；Docker Desktop 上的兼容性与 Linux 主机不同，部署前需确认相应功能可用。
 
@@ -160,10 +160,10 @@ sudo bash deploy.sh env
 
 | 系统 | 默认 SOFTWARE_ROOT |
 | --- | --- |
-| Ubuntu / 普通 Linux | `/software` |
+| Ubuntu / 普通 Linux | `/opt/software` |
 | fnOS | `/vol3/1000/software` |
 
-如果首次部署就要使用其他目录，例如 `/srv/software`：
+如果首次部署就要使用其他目录，例如 `/srv/software`。旧版 Linux 默认目录 `/software` 仅在检测到已有 `/software/deploy/.env` 时作为兼容路径继续使用，不会自动迁移：
 
 ```bash
 sudo env SOFTWARE_ROOT=/srv/software bash deploy.sh env
@@ -187,8 +187,8 @@ root:root 0600
 Ubuntu 默认：
 
 ```bash
-sudo nano /software/deploy/.env
-sudo nano /software/deploy/.secrets
+sudo nano /opt/software/deploy/.env
+sudo nano /opt/software/deploy/.secrets
 ```
 
 fnOS 默认：
@@ -366,7 +366,7 @@ backup/
 默认模板：
 
 ```dotenv
-SOFTWARE_ROOT=/software
+SOFTWARE_ROOT=/opt/software
 TZ=Asia/Shanghai
 
 FRPS_BIND_PORT=7000
@@ -629,7 +629,7 @@ cloud Core 自动连接 `udp://127.0.0.1:7008/admin`。云端的**网络名称�
 
 **重要：** 云端 Core 由 Web 接管后，原来静态 `cloud.toml` 所强制的 no-relay 限制不再存在。若不希望云端中继业务流量，必须在 Web **云端实例**的高级配置中设置 `disable_relay_data=true`、`relay_all_peer_rpc=true`、`enable_exit_node=false`；Web 可以再次修改这些设置，部署脚本无法强制锁定。
 
-从旧版静态云端模式升级之前应备份 `/software/easytier/data/`。旧 `data/cloud-core/cloud.toml` 不再自动加载，也不会自动导入 Web；升级后需在 Web 中重新创建原有云端网络，期间云端 Peer 可能短暂不可用。
+从旧版静态云端模式升级之前应备份 `<SOFTWARE_ROOT>/easytier/data/`。旧 `data/cloud-core/cloud.toml` 不再自动加载，也不会自动导入 Web；升级后需在 Web 中重新创建原有云端网络，期间云端 Peer 可能短暂不可用。
 
 内网 `.env`：
 

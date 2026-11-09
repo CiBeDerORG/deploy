@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# macOS 使用独立的非 root Docker Desktop 入口，Linux/fnOS 原安装路径不变。
+# macOS 使用独立的非 root Docker Desktop 入口；Linux 默认软件根目录为 /opt/software。
 if [ "$(uname -s)" = "Darwin" ]; then
     macos_entry="$(cd "$(dirname "$0")" && pwd)/macos/deploy.sh"
     [ -f "$macos_entry" ] || { echo "缺少 macOS 部署入口：$macos_entry" >&2; exit 1; }
@@ -15,7 +15,8 @@ set -Eeuo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REQUESTED_SOFTWARE_ROOT="${SOFTWARE_ROOT:-}"
-DEFAULT_SOFTWARE_ROOT="/software"
+DEFAULT_SOFTWARE_ROOT="/opt/software"
+LEGACY_LINUX_SOFTWARE_ROOT="/software"
 FNOS_SOFTWARE_ROOT="/vol3/1000/software"
 
 SOFTWARE_ROOT=""
@@ -104,10 +105,13 @@ initialize_paths() {
 
     if [ -n "$REQUESTED_SOFTWARE_ROOT" ]; then
         set_software_root "$REQUESTED_SOFTWARE_ROOT"
-    elif [ -f "$FNOS_SOFTWARE_ROOT/deploy/.env" ]; then
-        set_software_root "$FNOS_SOFTWARE_ROOT"
     elif [ -f "$DEFAULT_SOFTWARE_ROOT/deploy/.env" ]; then
         set_software_root "$DEFAULT_SOFTWARE_ROOT"
+    elif [ -d "/vol3/1000" ] && [ -f "$FNOS_SOFTWARE_ROOT/deploy/.env" ]; then
+        set_software_root "$FNOS_SOFTWARE_ROOT"
+    elif [ -f "$LEGACY_LINUX_SOFTWARE_ROOT/deploy/.env" ]; then
+        # 兼容旧版 Linux 默认目录；保留已有配置和数据，不自动迁移。
+        set_software_root "$LEGACY_LINUX_SOFTWARE_ROOT"
     elif [ -d "/vol3/1000" ]; then
         set_software_root "$FNOS_SOFTWARE_ROOT"
     else
@@ -157,7 +161,8 @@ usage() {
 说明：
   deploy 仓库可以 clone/pull 到任意目录。
   实际安装根目录由统一 .env 中的 SOFTWARE_ROOT 指定。
-  Ubuntu 默认 /software；fnOS 首次部署默认 /vol3/1000/software。
+  Ubuntu / 普通 Linux 首次部署默认 /opt/software；fnOS 首次部署默认 /vol3/1000/software。
+  已有 /software/deploy/.env 的 Linux 主机继续使用旧根目录，不自动迁移。
   所有业务统一读取 <SOFTWARE_ROOT>/deploy/.env 和 .secrets；普通配置与敏感配置分离。
   同步时会保留目标目录中的运行数据和 deploy/.secrets。
 EOF_USAGE
