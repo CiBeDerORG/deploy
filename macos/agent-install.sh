@@ -95,8 +95,6 @@ on_exit() {
         fi
     fi
 }
-fail() { log "ERROR：$*"; exit 1; }
-
 [[ "$(uname -s)" == Darwin && "$(uname -m)" == arm64 ]] || fail "目前只支持 macOS Apple Silicon (arm64)"
 [[ "$(id -u)" -ne 0 ]] || fail "请用 Mac 当前登录用户执行，不要 sudo"
 mode="${1:-install}"
