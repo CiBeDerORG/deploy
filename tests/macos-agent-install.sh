@@ -68,9 +68,13 @@ if launchctl print "gui/$uid" >/dev/null 2>&1; then
 else
     echo "Runner 没有 gui/${uid}，跳过 launchctl 实际注册验证"
 fi
-env -u SOFTWARE_ROOT bash macos/agent-install.sh update "$SOFTWARE_ROOT" --no-start
+# 执行完整更新，验证旧服务 bootout、端口释放、重新 bootstrap 和健康检查。
+env -u SOFTWARE_ROOT bash macos/agent-install.sh update "$SOFTWARE_ROOT"
+bash deploy.sh easyhostagent status >/dev/null
 bash deploy.sh easyhostagent identity >"$RUNNER_TEMP/phase1-identity-after"
 cmp "$RUNNER_TEMP/phase1-identity" "$RUNNER_TEMP/phase1-identity-after"
+grep -q '旧 LaunchAgent 已从' "$lifecycle_log"
+grep -q '健康检查通过' "$lifecycle_log"
 bash deploy.sh easyhostagent uninstall
 [[ ! -e "$binary" && ! -e "$plist" && -f "$state/identity.json" ]]
 echo "EasyHostAgent macOS 原生安装与身份保留验证通过"
