@@ -169,9 +169,13 @@ case "${1:-}" in
                 install|update|force-update|uninstall)
                     ensure_env
                     command -v lockf >/dev/null 2>&1 || die "系统缺少 lockf，无法安全执行 Agent 更新"
+                    [[ ! -L "$ENV_DIR/state" ]] || die "deploy/state 目录不能是符号链接"
                     mkdir -p "$ENV_DIR/state"
                     agent_lock="$ENV_DIR/state/easyhostagent.macos-update.lock"
                     agent_log="$ENV_DIR/state/easyhostagent-macos-lifecycle.log"
+                    [[ ! -L "$agent_lock" && ! -L "$agent_log" ]] || die "Agent 更新锁或生命周期日志不能是符号链接"
+                    touch "$agent_log"
+                    chmod 0600 "$agent_log"
                     # 锁覆盖代码同步、二进制替换和 launchd 重启，避免多个 deploy 入口交错执行。
                     if lockf -k -t 0 "$agent_lock" /bin/bash -c '
                         set -euo pipefail
