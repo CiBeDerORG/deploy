@@ -8,6 +8,7 @@ on:
       - feat/macos-easyhostagent-phase1-20261106
       - feat/macos-docker-phase2-20261106
       - feat/central-version-registry-20261108
+      - fix/macos-launchagent-startup-20261109
     paths:
       - deploy.sh
       - lib/versions.env
@@ -34,6 +35,7 @@ on:
       - macos/**
       - easynettopo/deploy/docker-compose.macos.yaml
       - tests/macos-deploy.sh
+      - tests/macos-agent-install.sh
       - tests/macos-app-market.sh
       - tests/contracts/test_manifest_v1.py
       - lib/**
