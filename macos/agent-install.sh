@@ -428,17 +428,20 @@ if ! wait_for_health; then
     collect_diagnostics
     if [[ "$had_previous" == 1 ]]; then
         stage="回滚旧 Agent"
-        stop_service || true
-        cp -p "$tmp/easyhostagent.previous" "$app_dir/bin/.easyhostagent.rollback"
-        chmod 0700 "$app_dir/bin/.easyhostagent.rollback"
-        mv -f "$app_dir/bin/.easyhostagent.rollback" "$binary"
-        log "已恢复更新前二进制，重新注册旧版本"
-        if run_logged "回滚 launchctl bootstrap" launchctl bootstrap "gui/$uid" "$plist" &&
-           run_logged "回滚 launchctl kickstart" launchctl kickstart "$launch_label" &&
-           wait_for_health; then
-            log "旧版本回滚成功并通过健康检查"
+        if stop_service; then
+            cp -p "$tmp/easyhostagent.previous" "$app_dir/bin/.easyhostagent.rollback"
+            chmod 0700 "$app_dir/bin/.easyhostagent.rollback"
+            mv -f "$app_dir/bin/.easyhostagent.rollback" "$binary"
+            log "已恢复更新前二进制，重新注册旧版本"
+            if run_logged "回滚 launchctl bootstrap" launchctl bootstrap "gui/$uid" "$plist" &&
+               run_logged "回滚 launchctl kickstart" launchctl kickstart "$launch_label" &&
+               wait_for_health; then
+                log "旧版本回滚成功并通过健康检查"
+            else
+                log "ERROR：旧版本回滚后仍未就绪，需要人工检查 launchd 和 Agent stderr"
+            fi
         else
-            log "ERROR：旧版本回滚后仍未就绪，需要人工检查 launchd 和 Agent stderr"
+            log "ERROR：无法安全停止新版本服务，跳过二进制回滚以避免覆盖仍在运行的进程"
         fi
     else
         log "首次安装没有旧二进制可回滚"
