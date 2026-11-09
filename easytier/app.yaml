@@ -10,7 +10,7 @@ runtime:
   compose_file: deploy/docker-compose.yaml
   requires_root: true
 compatibility:
-  platforms: [linux, fnos]
+  platforms: [linux, fnos, macos]
   architectures: [amd64, arm64]
   requires_docker: true
   requires_compose_v2: true
