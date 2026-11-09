@@ -16,6 +16,7 @@ readonly MANAGED_MARKER="# Managed by github520-hosts.sh. Do not edit manually."
 HOSTS_FILE="${HOSTS_FILE:-/etc/hosts}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/github520-hosts}"
 TEMP_FILE=""
+DOWNLOADED_BLOCK_FILE=""
 declare -a TEMP_FILES=()
 
 cleanup() {
@@ -209,7 +210,7 @@ strip_existing_block() {
 }
 
 download_block() {
-    local raw_file normalized_file block_file size
+    local raw_file normalized_file size
 
     create_temp "${TMPDIR:-/tmp}/github520-hosts.download.XXXXXX"
     raw_file="$TEMP_FILE"
@@ -218,7 +219,7 @@ download_block() {
     normalized_file="$TEMP_FILE"
 
     create_temp "${TMPDIR:-/tmp}/github520-hosts.block.XXXXXX"
-    block_file="$TEMP_FILE"
+    DOWNLOADED_BLOCK_FILE="$TEMP_FILE"
 
     if command -v curl >/dev/null 2>&1; then
         curl --fail --location --silent --show-error \
@@ -244,10 +245,8 @@ download_block() {
     validate_download "$normalized_file" >/dev/null ||
         die "Hosts 内容校验失败（标记区块、IP 或域名格式异常），已保留旧配置。"
 
-    extract_block "$normalized_file" "$block_file"
-    [ -s "$block_file" ] || die "未能提取 GitHub520 标记区块。"
-
-    printf '%s\n' "$block_file"
+    extract_block "$normalized_file" "$DOWNLOADED_BLOCK_FILE"
+    [ -s "$DOWNLOADED_BLOCK_FILE" ] || die "未能提取 GitHub520 标记区块。"
 }
 
 backup_hosts() {
@@ -311,7 +310,8 @@ update_hosts() {
     validate_existing_block "$HOSTS_FILE" ||
         die "现有 GitHub520 标记区块不完整或重复，已停止修改以保护原文件。"
 
-    block_file="$(download_block)"
+    download_block
+    block_file="$DOWNLOADED_BLOCK_FILE"
 
     create_temp "${TMPDIR:-/tmp}/github520-hosts.current.XXXXXX"
     current_block="$TEMP_FILE"
@@ -337,6 +337,7 @@ remove_hosts_block() {
 
     [ -f "$HOSTS_FILE" ] || die "Hosts 文件不存在：$HOSTS_FILE"
     [ ! -L "$HOSTS_FILE" ] || die "Hosts 文件是符号链接，为避免误改目标文件已停止。"
+    [ -r "$HOSTS_FILE" ] && [ -w "$HOSTS_FILE" ] || die "Hosts 文件不可读写：$HOSTS_FILE"
 
     validate_existing_block "$HOSTS_FILE" ||
         die "现有 GitHub520 标记区块不完整或重复，未修改 Hosts 文件。"
@@ -358,6 +359,7 @@ remove_hosts_block() {
 assert_managed_or_absent() {
     local path="$1"
 
+    [ ! -L "$path" ] || die "目标文件是符号链接，拒绝覆盖：$path"
     if [ -e "$path" ] && ! grep -Fq "$MANAGED_MARKER" "$path"; then
         die "目标文件已存在且不属于本脚本，拒绝覆盖：$path"
     fi
