@@ -96,6 +96,32 @@
           "custom_input": {
             "type": "boolean",
             "description": "是否在安装页面提供输入；关闭时由主机使用已有值或默认值。"
+          },
+          "options": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "description": "字符串字段的单选项；值用于提交，标签仅用于展示。",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["label", "value"],
+              "properties": {
+                "label": { "type": "string", "minLength": 1, "maxLength": 120 },
+                "value": { "type": "string", "minLength": 1, "maxLength": 256 }
+              }
+            }
+          },
+          "visible_when": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "equals"],
+            "description": "仅当另一个单选字段的值等于指定值时展示当前字段。",
+            "properties": {
+              "field": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$", "minLength": 2, "maxLength": 120 },
+              "equals": { "type": "string", "minLength": 1, "maxLength": 256 }
+            }
           }
         },
         "allOf": [
