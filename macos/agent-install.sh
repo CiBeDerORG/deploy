@@ -177,6 +177,12 @@ transport="$(read_config EASYHOSTAGENT_TRANSPORT)"
 [[ -n "$transport" ]] || transport=https
 case "$transport" in http|https) ;; *) fail "EASYHOSTAGENT_TRANSPORT 只能是 http 或 https" ;; esac
 health_url="$transport://127.0.0.1:$port/v1/health"
+reverse_url="$(read_config EASYHOSTAGENT_CONTROLLER_URL)"
+if [[ -n "$reverse_url" ]]; then
+    [[ "$reverse_url" == https://* && "$reverse_url" != *" "* &&
+       "$reverse_url" != *"@"* && "$reverse_url" != *"?"* &&
+       "$reverse_url" != *"#"* ]] || fail "反向接入必须使用安全的 HTTPS 控制端 URL"
+fi
 stage="读取 Release 配置"
 source "$root/deploy/lib/versions.sh"
 deploy_load_versions "$root" || fail "无法读取统一 Release 版本配置"
@@ -326,6 +332,36 @@ fi
 stage="准备安装目录"
 mkdir -p "$app_dir/bin" "$plist_dir" "$data_dir"
 chmod 0700 "$data_dir"
+reverse_token_file=""
+if [[ -n "$reverse_url" ]]; then
+    # LaunchAgent plist 不允许嵌入 Token；复制到 Agent 私有目录供启动时读取。
+    secret_path="$root/deploy/.secrets"
+    [[ -f "$secret_path" && ! -L "$secret_path" ]] ||
+        fail "启用反向接入前请配置 deploy/.secrets"
+    [[ "$(stat -f '%u:%Lp' "$secret_path")" == "$uid:600" ]] ||
+        fail "Mac .secrets 必须由当前用户持有且权限为 0600"
+    reverse_token=""
+    found_secret=0
+    while IFS= read -r secret_line || [[ -n "$secret_line" ]]; do
+        case "$secret_line" in
+            EASYHOSTAGENT_REVERSE_BOOTSTRAP_TOKEN=*)
+                (( found_secret == 0 )) || fail "反向接入密钥不能重复配置"
+                found_secret=1
+                reverse_token="${secret_line#*=}"
+                ;;
+        esac
+    done < "$secret_path"
+    (( ${#reverse_token} >= 32 )) || fail "反向接入密钥至少需要 32 个字符"
+    [[ "$reverse_token" != *" "* && "$reverse_token" != *"\""* && "$reverse_token" != *"'"* ]] ||
+        fail "反向接入密钥必须直接填写无引号的高熵字符串"
+    reverse_token_file="$data_dir/reverse-bootstrap.token"
+    [[ ! -L "$reverse_token_file" ]] || fail "反向接入密钥文件不可为符号链接"
+    token_tmp="$(mktemp "$data_dir/.reverse-bootstrap.XXXXXXXX")"
+    chmod 0600 "$token_tmp"
+    printf '%s' "$reverse_token" > "$token_tmp"
+    mv -f -- "$token_tmp" "$reverse_token_file"
+    unset reverse_token
+fi
 tmp="$(mktemp -d)"
 asset=easyhostagent-darwin-arm64
 stage="下载或读取 Agent 二进制"
@@ -360,6 +396,11 @@ xml_data="$(xml "$data_dir")"
 xml_root="$(xml "$root")"
 xml_listen="$(xml "$listen")"
 xml_transport="$(xml "$transport")"
+xml_reverse_settings=""
+if [[ -n "$reverse_url" ]]; then
+    xml_reverse_settings="    <key>EASYHOSTAGENT_CONTROLLER_URL</key><string>$(xml "$reverse_url")</string>
+    <key>EASYHOSTAGENT_REVERSE_BOOTSTRAP_TOKEN_FILE</key><string>$(xml "$reverse_token_file")</string>"
+fi
 xml_out="$(xml "$data_dir/agent.stdout.log")"
 xml_err="$(xml "$data_dir/agent.stderr.log")"
 cat > "$tmp/agent.plist" <<EOF
@@ -375,6 +416,7 @@ cat > "$tmp/agent.plist" <<EOF
     <key>EASYHOSTAGENT_DATA_DIR</key><string>$xml_data</string>
     <key>EASYHOSTAGENT_LISTEN_ADDRESS</key><string>$xml_listen</string>
     <key>EASYHOSTAGENT_TRANSPORT</key><string>$xml_transport</string>
+$xml_reverse_settings
     <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>RunAtLoad</key><true/>
