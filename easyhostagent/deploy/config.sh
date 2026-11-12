@@ -46,7 +46,7 @@ agent_load_discovery_secret() {
         seen=1
         value="${line#*=}"
         case "$value" in
-            \"*|\\'*) [[ ${#value} -gt 1 && "${value:0:1}" == "${value: -1}" ]] || agent_fail "EASYHOSTAGENT_DISCOVERY_TOKEN 引号错误"
+            \"*|\'*) [[ ${#value} -gt 1 && "${value:0:1}" == "${value: -1}" ]] || agent_fail "EASYHOSTAGENT_DISCOVERY_TOKEN 引号错误"
                 value="${value:1:${#value}-2}" ;;
         esac
         EASYHOSTAGENT_DISCOVERY_TOKEN="$value"
