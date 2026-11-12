@@ -14,8 +14,20 @@ source "$HERE/config.sh"
 
 # 以统一 .env 为来源，不信任外部传入的同名环境变量。
 unset EASYHOSTAGENT_RELEASE EASYHOSTAGENT_LOCAL_BINARY EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS
-unset EASYHOSTAGENT_LOG_LEVEL EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT EASYHOSTAGENT_PLATFORM
+unset EASYHOSTAGENT_LOG_LEVEL EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT EASYHOSTAGENT_PLATFORM EASYHOSTAGENT_CONTROLLER_URL EASYHOSTAGENT_REVERSE_BOOTSTRAP_TOKEN
 agent_load_env "$SOFTWARE_ROOT/deploy/.env"
+# 仅从 root:root 0600 的 .secrets 读取接入密钥，拒绝通过普通 .env 传入。
+secret_file="$SOFTWARE_ROOT/deploy/.secrets"
+if [[ -f "$secret_file" ]]; then
+    [[ ! -L "$secret_file" && "$(stat -c '%u:%g:%a' "$secret_file")" == "0:0:600" ]] ||
+        agent_fail ".secrets 权限必须为 root:root 0600"
+    while IFS= read -r secret_line || [[ -n "$secret_line" ]]; do
+        if [[ "$secret_line" == EASYHOSTAGENT_REVERSE_BOOTSTRAP_TOKEN=* ]]; then
+            EASYHOSTAGENT_REVERSE_BOOTSTRAP_TOKEN="${secret_line#*=}"
+        fi
+    done < "$secret_file"
+fi
+EASYHOSTAGENT_REVERSE_BOOTSTRAP_TOKEN="${EASYHOSTAGENT_REVERSE_BOOTSTRAP_TOKEN:-}"
 agent_validate_env
 command -v flock >/dev/null || agent_fail "缺少 flock"
 mkdir -p "$SOFTWARE_ROOT/deploy/state"
@@ -101,7 +113,8 @@ agent_merge_native_config() {
     local file="$1" tmp line key
     local -A written=()
     local -a keys=(EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT EASYHOSTAGENT_LOG_LEVEL
-                   EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS)
+                   EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS
+                   EASYHOSTAGENT_CONTROLLER_URL EASYHOSTAGENT_REVERSE_BOOTSTRAP_TOKEN)
     # 未显式填写平台时，保留原生配置已有值，由 Agent 自行检测。
     if [[ -n "$EASYHOSTAGENT_PLATFORM" ]]; then
         keys+=(EASYHOSTAGENT_PLATFORM)
@@ -112,7 +125,7 @@ agent_merge_native_config() {
     while IFS= read -r line || [[ -n "$line" ]]; do
         key="${line%%=*}"
         case "$key" in
-            EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_PLATFORM)
+            EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_PLATFORM|EASYHOSTAGENT_CONTROLLER_URL|EASYHOSTAGENT_REVERSE_BOOTSTRAP_TOKEN)
                 if [[ "$key" == EASYHOSTAGENT_PLATFORM && -z "$EASYHOSTAGENT_PLATFORM" ]]; then
                     # 统一配置未覆盖平台，不能擦除用户原有的原生显式设置。
                     printf '%s\n' "$line" >> "$tmp"
