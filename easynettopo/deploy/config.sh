@@ -11,9 +11,9 @@ load_settings() {
         key="${line%%=*}"
         key="${key%"${key##*[![:space:]]}"}"
         case "$key" in
-            EASYNETTOPO_ADMIN_USERNAME|EASYNETTOPO_ADMIN_PASSWORD|EASYNETTOPO_HOOK_TOKEN)
+            EASYNETTOPO_ADMIN_USERNAME|EASYNETTOPO_ADMIN_PASSWORD|EASYNETTOPO_HOOK_TOKEN|EASYNETTOPO_REVERSE_BOOTSTRAP_TOKEN)
                 [[ "$kind" == secrets ]] || fail "$key 只能写在 .secrets" ;;
-            EASYNETTOPO_HTTP_PORT|EASYNETTOPO_BIND_IP|EASYNETTOPO_GIT_ALLOWED_HOSTS|EASYNETTOPO_GIT_ALLOW_HTTP|TZ)
+            EASYNETTOPO_HTTP_PORT|EASYNETTOPO_BIND_IP|EASYNETTOPO_GIT_ALLOWED_HOSTS|EASYNETTOPO_GIT_ALLOW_HTTP|EASYNETTOPO_REVERSE_BEHIND_TLS_PROXY|TZ)
                 [[ "$kind" == env ]] || fail "$key 应写在 .env" ;;
             *) continue ;;
         esac
