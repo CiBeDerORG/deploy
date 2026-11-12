@@ -1,6 +1,6 @@
 # EasyHostAgent · 原生部署（Linux / fnOS）
 
-EasyHostAgent 是直接运行在宿主机上的 Go systemd 服务，不是 Docker 容器。EasyNetTopo 主动通过 HTTP 或 HTTPS 调用应用安装、卸载、状态查询接口，**不需要心跳**。本模块复用 upstream 原生安装器，由 deploy 公共下载模块获取 GitHub Release 对应 CPU 的二进制并验证 SHA-256，不在目标机器本地构建。
+EasyHostAgent 是直接运行在宿主机上的 Go systemd 服务，不是 Docker 容器。默认保留现有直连模式：EasyNetTopo 主动通过 HTTP 或 HTTPS 调用 Agent。可选反向接入模式下，Agent 主动通过 HTTPS 向 EasyNetTopo 报到、轮询并领取预安装任务，不需要内网开放入站管理端口。本模块复用 upstream 原生安装器，由 deploy 公共下载模块获取 GitHub Release 对应 CPU 的二进制并验证 SHA-256，不在目标机器本地构建。
 
 ## 1. 配置文件
 
@@ -22,6 +22,10 @@ EASYHOSTAGENT_LOG_LEVEL=info
 EASYHOSTAGENT_DATA_DIR=/var/lib/easyhostagent
 # 留空时使用统一 SOFTWARE_ROOT。
 EASYHOSTAGENT_SOFTWARE_ROOT=
+# 可选反向接入；在 EasyNetTopo 开启主机发现后复制一次性 Bootstrap Token。
+# Controller URL 必须是公网可达的 HTTPS 控制端根地址；两项必须同时配置。
+EASYHOSTAGENT_CONTROLLER_URL=
+EASYHOSTAGENT_DISCOVERY_TOKEN=
 # 可选；飞牛主机可显式设置 fnos，Ubuntu/Linux 设置 linux；留空表示自动识别。
 EASYHOSTAGENT_PLATFORM=
 ```
@@ -30,7 +34,7 @@ EASYHOSTAGENT_PLATFORM=
 
 **GitHub Release 文件加速**：在统一 `.env` 中设置 `GITHUB_RELEASE_SOURCE=mirror`，`GITHUB_RELEASE_MIRRORS` 默认顺序为 `ghproxy,ghfast,ghproxy-net`，分别对应 `gh-proxy.org`、`ghfast.top`、`ghproxy.net`。每次在线安装/更新从上一次首选站的下一个站开始；下载失败或 SHA-256 不一致则尝试下一站，最后尝试 GitHub 原站。轮换状态保存在 `<SOFTWARE_ROOT>/deploy/state/github-release-mirror.last`，不影响 Docker 的 `DOCKER_IMAGE_SOURCE`。`original` 仅直连官方，指定 `EASYHOSTAGENT_LOCAL_BINARY` 时不下载文件也不推进轮换。第三方代理不能等同于官方可信发布源；滚动开发版资产还可能存在缓存滞后，重要环境建议使用不可变版本并核对官方校验值。
 
-安装后将配置同步到 `/etc/easyhostagent/agent.env`，保留其中其他非托管配置项。飞牛 fnOS 的 `/etc/os-release` 可能标记为 Debian，Agent 会额外识别 `/usr/trim/etc/version`；如仍未识别，在统一 `.env` 中设置 `EASYHOSTAGENT_PLATFORM=fnos` 并运行 `sudo bash deploy.sh easyhostagent update`，脚本将把该值写入原生服务配置。该字段留空时不会覆盖已存在的原生显式设置。安装、更新不会重置 Agent 身份、配对授权或已有应用状态。开发版 `v0.1.0-deploy-manifest-lifecycle.dev` 是**发布资产可更新的滚动标签**；生产机器建议在仓库 `lib/versions.env` 将 `EASYHOSTAGENT_RELEASE` 改为明确、不可变的正式版本号。相应的 AMD64 / ARM64 二进制、同名 `.sha256` 均由 GitHub Actions 生成。
+反向接入配置仅在需要内网主动接入时填写；EasyNetTopo 的「主机发现」开启后会生成 30 分钟有效的 Bootstrap Token，将控制端 HTTPS 地址和 Token 配置到这两项，再安装或更新 Agent。Agent 首次报到后，管理员在发现弹窗中接受主机；Agent 下一次请求会取回独立主机 Token，并以私有权限保存在数据目录的 `reverse-credential.json`。临时主机固定 30 分钟，不因心跳续期。未配置这两项时，Agent 不启动反向轮询，原有直连模式完全不变。安装后将配置同步到 `/etc/easyhostagent/agent.env`，保留其中其他非托管配置项。飞牛 fnOS 的 `/etc/os-release` 可能标记为 Debian，Agent 会额外识别 `/usr/trim/etc/version`；如仍未识别，在统一 `.env` 中设置 `EASYHOSTAGENT_PLATFORM=fnos` 并运行 `sudo bash deploy.sh easyhostagent update`，脚本将把该值写入原生服务配置。该字段留空时不会覆盖已存在的原生显式设置。安装、更新不会重置 Agent 身份、配对授权或已有应用状态。开发版 `v0.1.0-deploy-manifest-lifecycle.dev` 是**发布资产可更新的滚动标签**；生产机器建议在仓库 `lib/versions.env` 将 `EASYHOSTAGENT_RELEASE` 改为明确、不可变的正式版本号。相应的 AMD64 / ARM64 二进制、同名 `.sha256` 均由 GitHub Actions 生成。
 
 ## 2. 运行条件和网络
 
@@ -38,7 +42,7 @@ EASYHOSTAGENT_PLATFORM=
 - 安装依赖：root、Bash、curl、sha256sum、install、mktemp、flock、systemctl；运行 Docker 应用管理功能还需本机可用的 Docker Engine。
 - 监听：默认 `0.0.0.0:7018`，开放范围由防火墙限制。只有在信任隔离网络并配置访问来源限制时才改 `EASYHOSTAGENT_TRANSPORT=http`；HTTP 明文会暴露一次性配对码、Bearer Token 和操作参数，严禁未经保护直接对公网开放。HTTPS 使用 Agent 的自签名证书及 EasyNetTopo 的固定公钥指纹校验。
 - 进程以 root 运行以管理本机 Docker；数据默认在 `/var/lib/easyhostagent`。标准 Deploy 应用安装到 `<SOFTWARE_ROOT>/<应用ID>/deploy/`，升级前已安装的隔离应用仍保留其原目录。
-- Agent 无主动心跳、无定时上报；状态按需查询。未提供强制 CPU/RAM 最小值。
+- 直连模式仍按需查询；反向模式在配置 Controller URL 和 Bootstrap Token 后，Agent 每 10 秒主动轮询，失败采用 2/4/8/15/30 秒退避，并定期重新报到。未提供强制 CPU/RAM 最小值。
 
 ## 3. 配对认证（无需逐应用授权）
 
