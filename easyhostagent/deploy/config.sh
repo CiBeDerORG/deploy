@@ -12,7 +12,7 @@ agent_load_env() {
         key="${line%%=*}"
         key="${key%"${key##*[![:space:]]}"}"
         case "$key" in
-            EASYHOSTAGENT_LOCAL_BINARY|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_PLATFORM|EASYHOSTAGENT_CONTROLLER_URL|EASYHOSTAGENT_DISCOVERY_TOKEN) ;;
+            EASYHOSTAGENT_LOCAL_BINARY|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_PLATFORM|EASYHOSTAGENT_CONTROLLER_URL) ;;
             *) continue ;;
         esac
         [[ ! ${seen[$key]+ok} ]] || agent_fail "重复配置：$key"
@@ -23,6 +23,33 @@ agent_load_env() {
                  value="${value:1:${#value}-2}" ;;
         esac
         printf -v "$key" '%s' "$value"
+    done < "$file"
+}
+
+# Bootstrap Token 属于敏感凭据，只从统一 .secrets 读取，不允许写入普通 .env。
+agent_load_discovery_secret() {
+    local file="$1" line key value mode
+    [[ -e "$file" ]] || { EASYHOSTAGENT_DISCOVERY_TOKEN=""; return 0; }
+    [[ -f "$file" && ! -L "$file" ]] || agent_fail "统一 .secrets 不可用"
+    mode="$(stat -c '%a' "$file" 2>/dev/null || true)"
+    [[ "$mode" == "600" ]] || agent_fail "统一 .secrets 必须为 0600 权限"
+    local seen=0
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\\r'}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        case "$line" in ''|'#'*) continue ;; esac
+        [[ "$line" == *=* ]] || agent_fail ".secrets 配置行缺少等号"
+        key="${line%%=*}"
+        key="${key%"${key##*[![:space:]]}"}"
+        [[ "$key" == "EASYHOSTAGENT_DISCOVERY_TOKEN" ]] || continue
+        (( seen == 0 )) || agent_fail ".secrets 中 EASYHOSTAGENT_DISCOVERY_TOKEN 重复"
+        seen=1
+        value="${line#*=}"
+        case "$value" in
+            \"*|\\'*) [[ ${#value} -gt 1 && "${value:0:1}" == "${value: -1}" ]] || agent_fail "EASYHOSTAGENT_DISCOVERY_TOKEN 引号错误"
+                value="${value:1:${#value}-2}" ;;
+        esac
+        EASYHOSTAGENT_DISCOVERY_TOKEN="$value"
     done < "$file"
 }
 
