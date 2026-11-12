@@ -4,7 +4,7 @@ EasyHostAgent 是直接运行在宿主机上的 Go systemd 服务，不是 Docke
 
 ## 1. 配置文件
 
-所有普通配置在统一的 `<SOFTWARE_ROOT>/deploy/.env`。Ubuntu / 普通 Linux 默认 `/opt/software/deploy/.env`，fnOS 默认 `/vol3/1000/software/deploy/.env`。已有 Linux 主机若存在旧配置 `/software/deploy/.env`，会继续沿用旧根目录且不会自动迁移。敏感配置文件分别是 `/opt/software/deploy/.secrets` 或 `/vol3/1000/software/deploy/.secrets`，但 **Agent 不需要新增密码、API Key 或 Token 配置项**；配对凭据由上游在本机生成和保存。
+所有普通配置在统一的 `<SOFTWARE_ROOT>/deploy/.env`。Ubuntu / 普通 Linux 默认 `/opt/software/deploy/.env`，fnOS 默认 `/vol3/1000/software/deploy/.env`。已有 Linux 主机若存在旧配置 `/software/deploy/.env`，会继续沿用旧根目录且不会自动迁移。敏感配置文件分别是 `/opt/software/deploy/.secrets` 或 `/vol3/1000/software/deploy/.secrets`，反向接入的 Bootstrap Token 作为敏感配置存放在统一 `.secrets`；正式配对凭据由 Agent 在本机生成和保存。
 
 运行 `sudo bash deploy.sh env` 后用 `sudoedit /opt/software/deploy/.env`（fnOS 使用 `/vol3/1000/software/deploy/.env`；已有旧 Linux 配置则继续编辑其实际路径），设置：
 
@@ -22,10 +22,8 @@ EASYHOSTAGENT_LOG_LEVEL=info
 EASYHOSTAGENT_DATA_DIR=/var/lib/easyhostagent
 # 留空时使用统一 SOFTWARE_ROOT。
 EASYHOSTAGENT_SOFTWARE_ROOT=
-# 可选反向接入；在 EasyNetTopo 开启主机发现后复制一次性 Bootstrap Token。
-# Controller URL 必须是公网可达的 HTTPS 控制端根地址；两项必须同时配置。
+# 可选反向接入；Controller URL 必须是公网可达的 HTTPS 控制端根地址。
 EASYHOSTAGENT_CONTROLLER_URL=
-EASYHOSTAGENT_DISCOVERY_TOKEN=
 # 可选；飞牛主机可显式设置 fnos，Ubuntu/Linux 设置 linux；留空表示自动识别。
 EASYHOSTAGENT_PLATFORM=
 ```
@@ -34,7 +32,7 @@ EASYHOSTAGENT_PLATFORM=
 
 **GitHub Release 文件加速**：在统一 `.env` 中设置 `GITHUB_RELEASE_SOURCE=mirror`，`GITHUB_RELEASE_MIRRORS` 默认顺序为 `ghproxy,ghfast,ghproxy-net`，分别对应 `gh-proxy.org`、`ghfast.top`、`ghproxy.net`。每次在线安装/更新从上一次首选站的下一个站开始；下载失败或 SHA-256 不一致则尝试下一站，最后尝试 GitHub 原站。轮换状态保存在 `<SOFTWARE_ROOT>/deploy/state/github-release-mirror.last`，不影响 Docker 的 `DOCKER_IMAGE_SOURCE`。`original` 仅直连官方，指定 `EASYHOSTAGENT_LOCAL_BINARY` 时不下载文件也不推进轮换。第三方代理不能等同于官方可信发布源；滚动开发版资产还可能存在缓存滞后，重要环境建议使用不可变版本并核对官方校验值。
 
-反向接入配置仅在需要内网主动接入时填写；EasyNetTopo 的「主机发现」开启后会生成 30 分钟有效的 Bootstrap Token，将控制端 HTTPS 地址和 Token 配置到这两项，再安装或更新 Agent。Agent 首次报到后，管理员在发现弹窗中接受主机；Agent 下一次请求会取回独立主机 Token，并以私有权限保存在数据目录的 `reverse-credential.json`。临时主机固定 30 分钟，不因心跳续期。未配置这两项时，Agent 不启动反向轮询，原有直连模式完全不变。安装后将配置同步到 `/etc/easyhostagent/agent.env`，保留其中其他非托管配置项。飞牛 fnOS 的 `/etc/os-release` 可能标记为 Debian，Agent 会额外识别 `/usr/trim/etc/version`；如仍未识别，在统一 `.env` 中设置 `EASYHOSTAGENT_PLATFORM=fnos` 并运行 `sudo bash deploy.sh easyhostagent update`，脚本将把该值写入原生服务配置。该字段留空时不会覆盖已存在的原生显式设置。安装、更新不会重置 Agent 身份、配对授权或已有应用状态。开发版 `v0.1.0-deploy-manifest-lifecycle.dev` 是**发布资产可更新的滚动标签**；生产机器建议在仓库 `lib/versions.env` 将 `EASYHOSTAGENT_RELEASE` 改为明确、不可变的正式版本号。相应的 AMD64 / ARM64 二进制、同名 `.sha256` 均由 GitHub Actions 生成。
+反向接入配置仅在需要内网主动接入时填写；EasyNetTopo 的「主机发现」开启后会生成 30 分钟有效的 Bootstrap Token，将控制端 HTTPS 地址和 Token 配置到这两项，再安装或更新 Agent。Agent 首次报到后，管理员在发现弹窗中接受主机；Agent 下一次请求会取回独立主机 Token，并以私有权限保存在数据目录的 `reverse-credential.json`。临时主机固定 30 分钟，不因心跳续期。未配置这两项时，Agent 不启动反向轮询，原有直连模式完全不变。在统一 `.secrets` 中设置 `EASYHOSTAGENT_DISCOVERY_TOKEN=64位十六进制凭据`（由 EasyNetTopo「主机发现」开启时生成），不要放入普通 `.env`。Agent 部署脚本只读取该敏感键，并将它以 0600 权限写入 `/etc/easyhostagent/agent.env`。安装后将配置同步到 `/etc/easyhostagent/agent.env`，保留其中其他非托管配置项。飞牛 fnOS 的 `/etc/os-release` 可能标记为 Debian，Agent 会额外识别 `/usr/trim/etc/version`；如仍未识别，在统一 `.env` 中设置 `EASYHOSTAGENT_PLATFORM=fnos` 并运行 `sudo bash deploy.sh easyhostagent update`，脚本将把该值写入原生服务配置。该字段留空时不会覆盖已存在的原生显式设置。安装、更新不会重置 Agent 身份、配对授权或已有应用状态。开发版 `v0.1.0-deploy-manifest-lifecycle.dev` 是**发布资产可更新的滚动标签**；生产机器建议在仓库 `lib/versions.env` 将 `EASYHOSTAGENT_RELEASE` 改为明确、不可变的正式版本号。相应的 AMD64 / ARM64 二进制、同名 `.sha256` 均由 GitHub Actions 生成。
 
 ## 2. 运行条件和网络
 
