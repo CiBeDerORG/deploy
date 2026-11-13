@@ -108,7 +108,7 @@ secret_file="$SOFTWARE_ROOT/deploy/.secrets"
 if grep -q '^EASYHOSTAGENT_DISCOVERY_TOKEN=' "$secret_file"; then
     sed -i "s/^EASYHOSTAGENT_DISCOVERY_TOKEN=.*/EASYHOSTAGENT_DISCOVERY_TOKEN=$bootstrap_token/" "$secret_file"
 else
-    printf 'EASYHOSTAGENT_DISCOVERY_TOKEN=%s\\n' "$bootstrap_token" >> "$secret_file"
+    printf 'EASYHOSTAGENT_DISCOVERY_TOKEN=%s\n' "$bootstrap_token" >> "$secret_file"
 fi
 chmod 0600 "$secret_file"
 sed -i 's#^EASYHOSTAGENT_CONTROLLER_URL=.*#EASYHOSTAGENT_CONTROLLER_URL=http://192.168.10.2:7017#' "$file"
