@@ -103,7 +103,7 @@ on_exit() {
 mode="${1:-install}"
 root="${2:-/opt/software}"
 no_start="${3:-}"
-case "$mode" in install|update|force-update|uninstall|status|pairing|identity) ;; *) fail "命令只支持 install/update/force-update/uninstall/status/pairing/identity" ;; esac
+case "$mode" in install|update|force-update|uninstall|status|pair|pairing|identity) ;; *) fail "命令只支持 install/update/force-update/uninstall/status/pair/identity" ;; esac
 [[ "$root" == /* && -d "$root" && ! -L "$root" ]] || fail "SOFTWARE_ROOT 必须为真实绝对目录"
 [[ "$no_start" == "" || "$no_start" == --no-start ]] || fail "只允许 --no-start"
 
@@ -175,6 +175,7 @@ listen="$(read_config EASYHOSTAGENT_LISTEN_ADDRESS)"
 port="${listen##*:}"
 transport="$(read_config EASYHOSTAGENT_TRANSPORT)"
 [[ -n "$transport" ]] || transport=https
+controller_url="$(read_config EASYHOSTAGENT_CONTROLLER_URL)"
 case "$transport" in http|https) ;; *) fail "EASYHOSTAGENT_TRANSPORT 只能是 http 或 https" ;; esac
 health_url="$transport://127.0.0.1:$port/v1/health"
 stage="读取 Release 配置"
@@ -194,7 +195,7 @@ fi
 run_agent() {
     EASYHOSTAGENT_PLATFORM=macos EASYHOSTAGENT_SOFTWARE_ROOT="$root" \
     EASYHOSTAGENT_DATA_DIR="$data_dir" EASYHOSTAGENT_LISTEN_ADDRESS="$listen" \
-    EASYHOSTAGENT_TRANSPORT="$transport" "$binary" "$@"
+    EASYHOSTAGENT_TRANSPORT="$transport" EASYHOSTAGENT_CONTROLLER_URL="$controller_url" "$binary" "$@"
 }
 
 probe_health() {
@@ -276,9 +277,27 @@ stop_service() {
 }
 
 case "$mode" in
-    pairing)
+    pair|pairing)
         [[ -f "$binary" ]] || fail "Agent 尚未安装"
-        run_agent -pairing-code
+        [[ -n "$controller_url" ]] || fail "请先在 $env_file 配置 EASYHOSTAGENT_CONTROLLER_URL"
+        pair_status="$(run_agent -pair-status)" || fail "Agent 不支持新配对命令，请先更新 EasyHostAgent"
+        replace_args=()
+        if [[ "$pair_status" == "paired=true" ]]; then
+            printf '当前主机已经配对，是否清除旧配对信息并重新配对？[y/N] ' >&2
+            IFS= read -r answer || answer=""
+            case "$answer" in
+                y|Y|yes|YES) replace_args=(-pair-replace) ;;
+                *) printf '已取消；原配对信息保持不变。\n' >&2; exit 0 ;;
+            esac
+        elif [[ "$pair_status" != "paired=false" ]]; then
+            fail "无法识别 Agent 配对状态：$pair_status"
+        fi
+        printf '请输入 EasyNetTopo 生成的 64 位 Token（有效期 5 分钟）：' >&2
+        IFS= read -r -s token || fail "未读取到 Token"
+        printf '\n' >&2
+        [[ -n "$token" ]] || fail "Token 不能为空"
+        printf '%s\n' "$token" | run_agent -pair "${replace_args[@]}"
+        unset token
         exit ;;
     identity)
         [[ -f "$binary" ]] || fail "Agent 尚未安装"
@@ -458,4 +477,4 @@ log "EasyHostAgent macOS 启动成功：transport=$transport listen=$listen heal
 echo "EasyHostAgent macOS 已安装并通过健康检查：$health_url"
 echo "生命周期日志：$log_file"
 echo "Agent 标准错误日志：$data_dir/agent.stderr.log"
-echo "身份配对命令：bash deploy.sh easyhostagent pairing"
+echo "Token 配对命令：bash deploy.sh easyhostagent pair"

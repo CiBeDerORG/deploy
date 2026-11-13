@@ -738,7 +738,7 @@ interactive() {
     if [ "$task" = mihomo ]; then
         read -r -p '操作 install/update/sync/host/host-update（默认 Docker install）：' action || return 0
     elif [ "$task" = easyhostagent ]; then
-        read -r -p '操作 install/update/force-update/sync/uninstall/pairing（本机授权请用 grant 命令）（默认 install）：' action || return 0
+        read -r -p '操作 install/update/force-update/sync/uninstall/pair（本机授权请用 grant 命令）（默认 install）：' action || return 0
     elif [ "$task" = fnos-desktop ]; then
         read -r -p '操作 install/update/sync/status/start/stop/restart/logs/uninstall（默认原生 install）：' action || return 0
     elif [ -f "$ROOT_DIR/$task/deploy/uninstall.sh" ]; then

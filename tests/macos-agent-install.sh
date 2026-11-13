@@ -27,11 +27,17 @@ env -u SOFTWARE_ROOT bash macos/agent-install.sh install "$SOFTWARE_ROOT" --no-s
 plutil -lint "$plist"
 bash deploy.sh easyhostagent identity >"$RUNNER_TEMP/phase1-identity"
 grep -q '^Agent ID: ' "$RUNNER_TEMP/phase1-identity"
-pair_token="$(printf '%064d' 0)"
-printf '%s\n' "$pair_token" | bash deploy.sh easyhostagent pair >"$RUNNER_TEMP/phase1-pairing"
-grep -q '一次性 Token 已安全保存' "$RUNNER_TEMP/phase1-pairing"
-[[ -f "$state/reverse-bootstrap.json" ]]
-[[ "$(stat -f '%Lp' "$state/reverse-bootstrap.json")" == 600 ]]
+# The lifecycle test downloads a pinned release that can predate the new pair CLI.
+# Do not misreport this as a new-protocol test; exercise it only for a supporting binary.
+if EASYHOSTAGENT_DATA_DIR="$state" "$binary" -pair-status >"$RUNNER_TEMP/phase1-pair-status" 2>&1; then
+    pair_token="$(printf '%064d' 0)"
+    printf '%s\n' "$pair_token" | bash deploy.sh easyhostagent pair >"$RUNNER_TEMP/phase1-pairing"
+    grep -q '一次性 Token 已安全保存' "$RUNNER_TEMP/phase1-pairing"
+    [[ -f "$state/reverse-bootstrap.json" ]]
+    [[ "$(stat -f '%Lp' "$state/reverse-bootstrap.json")" == 600 ]]
+else
+    echo "当前固定 Release 尚无 -pair-status，新协议的配对测试由 EasyHostAgent Go CI 负责"
+fi
 ! grep -q '^EASYHOSTAGENT_DISCOVERY_TOKEN=' "$SOFTWARE_ROOT/deploy/.secrets"
 [[ -f "$state/identity.json" ]]
 [[ "$(stat -f '%Lp' "$state/identity.json")" == 600 ]]

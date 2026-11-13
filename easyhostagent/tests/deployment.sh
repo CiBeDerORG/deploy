@@ -16,7 +16,7 @@ case "${1:-}" in
     -pair-status) echo "paired=false"; exit 0 ;;
     -pair)
         token="$(cat)"
-        [[ "${#token}" -eq 64 ]] || exit 1
+        [ "${#token}" -eq 64 ] || exit 1
         printf 'pair request accepted\nPAIRING_DATA_DIR=%s\nPAIR_TOKEN_LENGTH=%s\n' "${EASYHOSTAGENT_DATA_DIR:-}" "${#token}"
         exit 0 ;;
     *) exit 1 ;;
