@@ -153,3 +153,6 @@ echo "原生配置：$native_config；配对身份与已安装应用记录保留
 if [[ "$EASYHOSTAGENT_TRANSPORT" == http ]]; then
     echo "注意：HTTP 为明文管理接口，必须在防火墙限制可信来源，禁止直接暴露公网。"
 fi
+if [[ "$EASYHOSTAGENT_CONTROLLER_URL" == http://* ]]; then
+    echo "警告：EasyNetTopo 反向接入正在使用 HTTP 明文传输，Bootstrap Token、Agent Token 和应用配置可能被窃听；仅限可信隔离网络。"
+fi
