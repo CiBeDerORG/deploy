@@ -70,8 +70,8 @@ agent_validate_env() {
     EASYHOSTAGENT_CONTROLLER_URL="${EASYHOSTAGENT_CONTROLLER_URL:-}"
     EASYHOSTAGENT_DISCOVERY_TOKEN="${EASYHOSTAGENT_DISCOVERY_TOKEN:-}"
     if [[ -n "$EASYHOSTAGENT_CONTROLLER_URL" || -n "$EASYHOSTAGENT_DISCOVERY_TOKEN" ]]; then
-        [[ "$EASYHOSTAGENT_CONTROLLER_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9/_-]*)?$ ]] ||
-            agent_fail "EASYHOSTAGENT_CONTROLLER_URL 必须是 HTTPS 地址"
+        [[ "$EASYHOSTAGENT_CONTROLLER_URL" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9/_-]*)?$ ]] ||
+            agent_fail "EASYHOSTAGENT_CONTROLLER_URL 必须是 HTTP 或 HTTPS 地址"
         [[ "$EASYHOSTAGENT_DISCOVERY_TOKEN" =~ ^[a-fA-F0-9]{64}$ ]] ||
             agent_fail "EASYHOSTAGENT_DISCOVERY_TOKEN 必须是 64 位十六进制"
     fi
