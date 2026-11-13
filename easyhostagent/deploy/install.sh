@@ -15,9 +15,10 @@ source "$HERE/config.sh"
 # 以统一 .env 为来源，不信任外部传入的同名环境变量。
 unset EASYHOSTAGENT_RELEASE EASYHOSTAGENT_LOCAL_BINARY EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS
 unset EASYHOSTAGENT_LOG_LEVEL EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT EASYHOSTAGENT_PLATFORM
-unset EASYHOSTAGENT_CONTROLLER_URL EASYHOSTAGENT_DISCOVERY_TOKEN
+unset EASYHOSTAGENT_CONTROLLER_URL
 agent_load_env "$SOFTWARE_ROOT/deploy/.env"
-agent_load_discovery_secret "$SOFTWARE_ROOT/deploy/.secrets"
+agent_remove_legacy_discovery_token "$SOFTWARE_ROOT/deploy/.env"
+agent_remove_legacy_discovery_token "$SOFTWARE_ROOT/deploy/.secrets"
 agent_validate_env
 command -v flock >/dev/null || agent_fail "缺少 flock"
 mkdir -p "$SOFTWARE_ROOT/deploy/state"
@@ -103,8 +104,7 @@ agent_merge_native_config() {
     local file="$1" tmp line key
     local -A written=()
     local -a keys=(EASYHOSTAGENT_DATA_DIR EASYHOSTAGENT_SOFTWARE_ROOT EASYHOSTAGENT_LOG_LEVEL
-                   EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS EASYHOSTAGENT_CONTROLLER_URL
-                   EASYHOSTAGENT_DISCOVERY_TOKEN)
+                   EASYHOSTAGENT_TRANSPORT EASYHOSTAGENT_LISTEN_ADDRESS EASYHOSTAGENT_CONTROLLER_URL)
     # 未显式填写平台时，保留原生配置已有值，由 Agent 自行检测。
     if [[ -n "$EASYHOSTAGENT_PLATFORM" ]]; then
         keys+=(EASYHOSTAGENT_PLATFORM)
@@ -115,7 +115,8 @@ agent_merge_native_config() {
     while IFS= read -r line || [[ -n "$line" ]]; do
         key="${line%%=*}"
         case "$key" in
-            EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_PLATFORM|EASYHOSTAGENT_CONTROLLER_URL|EASYHOSTAGENT_DISCOVERY_TOKEN)
+            EASYHOSTAGENT_DISCOVERY_TOKEN) continue ;;
+            EASYHOSTAGENT_DATA_DIR|EASYHOSTAGENT_SOFTWARE_ROOT|EASYHOSTAGENT_LOG_LEVEL|EASYHOSTAGENT_TRANSPORT|EASYHOSTAGENT_LISTEN_ADDRESS|EASYHOSTAGENT_PLATFORM|EASYHOSTAGENT_CONTROLLER_URL)
                 if [[ "$key" == EASYHOSTAGENT_PLATFORM && -z "$EASYHOSTAGENT_PLATFORM" ]]; then
                     # 统一配置未覆盖平台，不能擦除用户原有的原生显式设置。
                     printf '%s\n' "$line" >> "$tmp"

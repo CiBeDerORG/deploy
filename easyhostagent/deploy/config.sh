@@ -26,27 +26,20 @@ agent_load_env() {
     done < "$file"
 }
 
-# Bootstrap Token 属于敏感凭据，只从统一 .secrets 读取，不允许写入普通 .env。
-agent_load_discovery_secret() {
-    local file="$1" line key value mode
-    [[ -e "$file" ]] || { EASYHOSTAGENT_DISCOVERY_TOKEN=""; return 0; }
-    [[ -f "$file" && ! -L "$file" ]] || agent_fail "统一 .secrets 不可用"
-    mode="$(stat -c '%a' "$file" 2>/dev/null || true)"
-    [[ "$mode" == "600" ]] || agent_fail "统一 .secrets 必须为 0600 权限"
-    local seen=0
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        line="${line%$'\\r'}"
-        line="${line#"${line%%[![:space:]]*}"}"
-        case "$line" in ''|'#'*) continue ;; esac
-        [[ "$line" == *=* ]] || agent_fail ".secrets 配置行缺少等号"
-        key="${line%%=*}"
-        key="${key%"${key##*[![:space:]]}"}"
-        [[ "$key" == "EASYHOSTAGENT_DISCOVERY_TOKEN" ]] || continue
-        (( seen == 0 )) || agent_fail ".secrets 中 EASYHOSTAGENT_DISCOVERY_TOKEN 重复"
-        seen=1
-        value="${line#*=}"
-        EASYHOSTAGENT_DISCOVERY_TOKEN="$value"
-    done < "$file"
+# Remove the obsolete environment-stored bootstrap token without touching other secrets.
+agent_remove_legacy_discovery_token() {
+    local file="$1" tmp
+    [[ -e "$file" ]] || return 0
+    [[ -f "$file" && ! -L "$file" ]] || agent_fail "旧版凭据文件不可用：$file"
+    grep -Eq '^[[:space:]]*EASYHOSTAGENT_DISCOVERY_TOKEN[[:space:]]*=' "$file" || return 0
+    tmp="$(mktemp "${file}.XXXXXX")" || agent_fail "无法创建旧凭据清理临时文件"
+    if ! awk '!/^[[:space:]]*EASYHOSTAGENT_DISCOVERY_TOKEN[[:space:]]*=/' "$file" > "$tmp"; then
+        rm -f -- "$tmp"
+        agent_fail "清理旧版 Bootstrap Token 失败"
+    fi
+    chown --reference="$file" "$tmp" 2>/dev/null || true
+    chmod --reference="$file" "$tmp" 2>/dev/null || chmod 0600 "$tmp"
+    mv -f -- "$tmp" "$file" || agent_fail "无法写回清理后的凭据文件"
 }
 
 agent_valid_path() {
@@ -68,12 +61,9 @@ agent_validate_env() {
     EASYHOSTAGENT_SOFTWARE_ROOT="${EASYHOSTAGENT_SOFTWARE_ROOT:-$SOFTWARE_ROOT}"
     EASYHOSTAGENT_PLATFORM="${EASYHOSTAGENT_PLATFORM:-}"
     EASYHOSTAGENT_CONTROLLER_URL="${EASYHOSTAGENT_CONTROLLER_URL:-}"
-    EASYHOSTAGENT_DISCOVERY_TOKEN="${EASYHOSTAGENT_DISCOVERY_TOKEN:-}"
-    if [[ -n "$EASYHOSTAGENT_CONTROLLER_URL" || -n "$EASYHOSTAGENT_DISCOVERY_TOKEN" ]]; then
+    if [[ -n "$EASYHOSTAGENT_CONTROLLER_URL" ]]; then
         [[ "$EASYHOSTAGENT_CONTROLLER_URL" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9/_-]*)?$ ]] ||
             agent_fail "EASYHOSTAGENT_CONTROLLER_URL 必须是 HTTP 或 HTTPS 地址"
-        [[ "$EASYHOSTAGENT_DISCOVERY_TOKEN" =~ ^[a-fA-F0-9]{64}$ ]] ||
-            agent_fail "EASYHOSTAGENT_DISCOVERY_TOKEN 必须是 64 位十六进制"
     fi
     [[ "$EASYHOSTAGENT_RELEASE" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?$ ]] ||
         agent_fail "Release 版本格式不合法"

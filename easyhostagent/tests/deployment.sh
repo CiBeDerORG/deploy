@@ -13,9 +13,11 @@ cat > "$EASYHOSTAGENT_TEST_BINARY" <<'BIN'
 #!/bin/sh
 case "${1:-}" in
     -version) echo "test-agent"; exit 0 ;;
-    -pairing-code)
-        printf 'Agent ID: test-agent-uuid\nTLS SPKI SHA-256: test-fingerprint\nOne-time pairing code: test-single-use-code\nExpires (UTC): 2030-01-01T00:00:00Z\n'
-        printf 'PAIRING_DATA_DIR=%s\n' "${EASYHOSTAGENT_DATA_DIR:-}"
+    -pair-status) echo "paired=false"; exit 0 ;;
+    -pair)
+        token="$(cat)"
+        [[ "${#token}" -eq 64 ]] || exit 1
+        printf 'pair request accepted\nPAIRING_DATA_DIR=%s\nPAIR_TOKEN_LENGTH=%s\n' "${EASYHOSTAGENT_DATA_DIR:-}" "${#token}"
         exit 0 ;;
     *) exit 1 ;;
 esac
@@ -45,21 +47,22 @@ grep -qx "EASYHOSTAGENT_SOFTWARE_ROOT=$SOFTWARE_ROOT" "$native"
 ! grep -q '^EASYHOSTAGENT_PLATFORM=' "$native"
 test "$(stat -c '%a' "$native")" = 600
 
-# pairing 只调用原生 Agent，在没有安装/同步操作时读取原生 EnvironmentFile。
-# 临时覆盖测试环境内的原生数据目录，确认不会错误生成默认目录下的另一份身份。
+# pair 只读取本机原生配置并接收一次性 Token，不安装、不更新，也不将 Token 写入配置。
+sed -i 's#^EASYHOSTAGENT_CONTROLLER_URL=.*#EASYHOSTAGENT_CONTROLLER_URL=https://control.example.com#' "$file"
+bash deploy.sh easyhostagent update > "$tmp/pair-config.log" 2>&1 || { cat "$tmp/pair-config.log"; exit 1; }
 cp -- "$native" "$tmp/native.env.backup"
 sed -i 's#^EASYHOSTAGENT_DATA_DIR=.*#EASYHOSTAGENT_DATA_DIR=/test-only/agent/data#' "$native"
-pairing_output="$(bash deploy.sh easyhostagent pairing)" || { echo "pairing 命令执行失败" >&2; exit 1; }
-grep -Fq 'Agent ID: test-agent-uuid' <<< "$pairing_output"
-grep -Fq 'TLS SPKI SHA-256: test-fingerprint' <<< "$pairing_output"
-grep -Fq 'One-time pairing code: test-single-use-code' <<< "$pairing_output"
-grep -Fq 'Expires (UTC): 2030-01-01T00:00:00Z' <<< "$pairing_output"
+pair_token="$(printf '%064d' 0)"
+pairing_output="$(printf '%s\n' "$pair_token" | bash deploy.sh easyhostagent pair)" || { echo "pair 命令执行失败" >&2; exit 1; }
+grep -Fq 'pair request accepted' <<< "$pairing_output"
 grep -Fq 'PAIRING_DATA_DIR=/test-only/agent/data' <<< "$pairing_output"
+grep -Fq 'PAIR_TOKEN_LENGTH=64' <<< "$pairing_output"
+! grep -Fq "$pair_token" <<< "$pairing_output"
 cp -- "$tmp/native.env.backup" "$native"
-if bash deploy.sh easynettopo pairing > "$tmp/wrong-task.log" 2>&1; then
+if printf '%s\n' "$pair_token" | bash deploy.sh easynettopo pair > "$tmp/wrong-task.log" 2>&1; then
     echo "配对操作不应允许其他业务" >&2; exit 1
 fi
-grep -Fq 'pairing 仅支持 easyhostagent' "$tmp/wrong-task.log"
+grep -Fq 'pair 仅支持 easyhostagent' "$tmp/wrong-task.log"
 
 # 持久化身份、未知本地配置在更新时必须保留。
 # 模拟旧 .env 残留自定义 Release，后续更新必须忽略并清理它。
@@ -102,19 +105,18 @@ grep -Fxq "EASYHOSTAGENT_APP_GRANTS=$legacy_grant" "$native"
 test "$(grep -c '^EASYHOSTAGENT_APP_GRANTS=' "$native")" -eq 1
 test "$(cat "$persisted")" = persisted-identity
 
-# 反向接入控制端的 HTTP 与 HTTPS 使用同一套配置，和 Agent 自身监听传输互不影响。
+# 反向接入只保留控制端地址；旧版 Bootstrap Token 从 .env/.secrets/Agent 配置中清除。
 bootstrap_token="$(printf '%064d' 0)"
 secret_file="$SOFTWARE_ROOT/deploy/.secrets"
-if grep -q '^EASYHOSTAGENT_DISCOVERY_TOKEN=' "$secret_file"; then
-    sed -i "s/^EASYHOSTAGENT_DISCOVERY_TOKEN=.*/EASYHOSTAGENT_DISCOVERY_TOKEN=$bootstrap_token/" "$secret_file"
-else
-    printf 'EASYHOSTAGENT_DISCOVERY_TOKEN=%s\n' "$bootstrap_token" >> "$secret_file"
-fi
+printf 'EASYHOSTAGENT_DISCOVERY_TOKEN=%s\n' "$bootstrap_token" >> "$secret_file"
+printf 'EASYHOSTAGENT_DISCOVERY_TOKEN=%s\n' "$bootstrap_token" >> "$native"
 chmod 0600 "$secret_file"
 sed -i 's#^EASYHOSTAGENT_CONTROLLER_URL=.*#EASYHOSTAGENT_CONTROLLER_URL=http://192.168.10.2:7017#' "$file"
 bash deploy.sh easyhostagent update > "$tmp/http-controller.log" 2>&1 || { cat "$tmp/http-controller.log"; exit 1; }
 grep -qx 'EASYHOSTAGENT_CONTROLLER_URL=http://192.168.10.2:7017' "$native"
-grep -qx "EASYHOSTAGENT_DISCOVERY_TOKEN=$bootstrap_token" "$native"
+! grep -q '^EASYHOSTAGENT_DISCOVERY_TOKEN=' "$native"
+! grep -q '^EASYHOSTAGENT_DISCOVERY_TOKEN=' "$secret_file"
+! grep -q '^EASYHOSTAGENT_DISCOVERY_TOKEN=' "$file"
 grep -Fq '反向接入正在使用 HTTP 明文传输' "$tmp/http-controller.log"
 
 sed -i 's#^EASYHOSTAGENT_CONTROLLER_URL=.*#EASYHOSTAGENT_CONTROLLER_URL=ftp://192.168.10.2:7017#' "$file"

@@ -88,6 +88,21 @@ create_env_file() {
     done < "$source"
 }
 
+
+remove_legacy_bootstrap_token() {
+    local file tmp
+    for file in "$ENV_FILE" "$SECRETS_FILE"; do
+        [[ -f "$file" && ! -L "$file" ]] || continue
+        grep -Eq '^[[:space:]]*EASYHOSTAGENT_DISCOVERY_TOKEN[[:space:]]*=' "$file" || continue
+        tmp="$(mktemp "$file.tmp.XXXXXXXX")" || die "无法创建旧凭据清理临时文件"
+        awk '!/^[[:space:]]*EASYHOSTAGENT_DISCOVERY_TOKEN[[:space:]]*=/' "$file" > "$tmp" ||
+            die "清理旧版 Bootstrap Token 失败"
+        chmod 0600 "$tmp"
+        mv "$tmp" "$file"
+        echo "已清理旧版 Bootstrap Token 配置项：$file"
+    done
+}
+
 ensure_env() {
     ensure_root_writable
     [[ ! -L "$ENV_DIR" ]] || die "统一配置目录不能是符号链接"
@@ -105,6 +120,7 @@ ensure_env() {
     configured="${configured#\"}"; configured="${configured%\"}"
     [[ "$configured" == "$SOFTWARE_ROOT" ]] ||
         die "配置中的 SOFTWARE_ROOT=$configured 与实际 $SOFTWARE_ROOT 不一致，请先人工迁移整个软件目录"
+    remove_legacy_bootstrap_token
 }
 
 task_exists() {

@@ -47,6 +47,7 @@ DEPRECATED_ENV_KEYS=(
     GITHUB_RUNNER_VERSION
     GITHUB_RUNNER_WORKDIR
     EASYHOSTAGENT_RELEASE
+    EASYHOSTAGENT_DISCOVERY_TOKEN
     EASYNETTOPO_IMAGE
     OPENHANDS_IMAGE
     EASYTIER_IMAGE
@@ -72,7 +73,6 @@ SENSITIVE_ENV_KEYS=(
     FRPS_DASHBOARD_PASSWORD
     PORTAINER_ADMIN_PASSWORD
     GITHUB_RUNNER_TOKEN
-    EASYHOSTAGENT_DISCOVERY_TOKEN
 )
 
 set_software_root() {
@@ -140,7 +140,7 @@ usage() {
   bash deploy.sh <业务类型> sync       仅同步文件，不启动/更新容器
   sudo bash deploy.sh <业务类型> uninstall  卸载支持此操作的业务（默认保留数据）
   sudo bash deploy.sh easyhostagent force-update  强制在线重新下载并校验指定 Release，保留配对与凭据
-  sudo bash deploy.sh easyhostagent pairing  本机生成并打印最新一次性配对信息（不安装、不更新）
+  sudo bash deploy.sh easyhostagent pair     输入 EasyNetTopo 5 分钟一次性 Token，发起内网配对
   sudo bash deploy.sh mihomo host       原生 systemd 安装完整 Web/Agent/内核（不使用 Docker）
   sudo bash deploy.sh mihomo host-update 更新原生安装（不影响 Docker）
   sudo bash deploy.sh fnos-desktop      宿主机安装 XFCE4 / TigerVNC / noVNC（不使用 Docker）
@@ -644,8 +644,8 @@ run_task() {
             run_root bash "$script" "$@"
             return $?
             ;;
-        pairing)
-            [ "$task" = easyhostagent ] || { echo "pairing 仅支持 easyhostagent" >&2; return 1; }
+        pair|pairing)
+            [ "$task" = easyhostagent ] || { echo "pair 仅支持 easyhostagent" >&2; return 1; }
             script="$ROOT_DIR/easyhostagent/deploy/pairing.sh"
             [ -f "$script" ] || { echo "本机配对脚本不存在，请更新 deploy 仓库" >&2; return 1; }
             # 一次性配对只调用已安装的原生 Agent，不能触发同步、安装或配置初始化。
@@ -687,7 +687,7 @@ run_task() {
             ;;
         *)
             echo "不支持的操作：$action" >&2
-            echo "支持：install / update / sync；有 uninstall.sh 的业务支持 uninstall；mihomo 另支持 host / host-update；fnos-desktop 另支持 status/start/stop/restart/logs/uninstall；easyhostagent 另支持 pairing" >&2
+            echo "支持：install / update / sync；有 uninstall.sh 的业务支持 uninstall；mihomo 另支持 host / host-update；fnos-desktop 另支持 status/start/stop/restart/logs/uninstall；easyhostagent 另支持 pair" >&2
             return 1
             ;;
     esac

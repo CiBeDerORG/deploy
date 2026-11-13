@@ -20,14 +20,19 @@ cleanup() {
 }
 trap cleanup EXIT
 bash deploy.sh env
+sed -i '' 's#^EASYHOSTAGENT_CONTROLLER_URL=.*#EASYHOSTAGENT_CONTROLLER_URL=https://127.0.0.1:7017#' "$SOFTWARE_ROOT/deploy/.env"
 # 测试调用端未导出 SOFTWARE_ROOT：安装器应使用显式传入的根目录。
 env -u SOFTWARE_ROOT bash macos/agent-install.sh install "$SOFTWARE_ROOT" --no-start
 [[ -x "$binary" && -f "$plist" ]]
 plutil -lint "$plist"
 bash deploy.sh easyhostagent identity >"$RUNNER_TEMP/phase1-identity"
 grep -q '^Agent ID: ' "$RUNNER_TEMP/phase1-identity"
-bash deploy.sh easyhostagent pairing >"$RUNNER_TEMP/phase1-pairing"
-grep -q '^One-time pairing code: ' "$RUNNER_TEMP/phase1-pairing"
+pair_token="$(printf '%064d' 0)"
+printf '%s\n' "$pair_token" | bash deploy.sh easyhostagent pair >"$RUNNER_TEMP/phase1-pairing"
+grep -q '一次性 Token 已安全保存' "$RUNNER_TEMP/phase1-pairing"
+[[ -f "$state/reverse-bootstrap.json" ]]
+[[ "$(stat -f '%Lp' "$state/reverse-bootstrap.json")" == 600 ]]
+! grep -q '^EASYHOSTAGENT_DISCOVERY_TOKEN=' "$SOFTWARE_ROOT/deploy/.secrets"
 [[ -f "$state/identity.json" ]]
 [[ "$(stat -f '%Lp' "$state/identity.json")" == 600 ]]
 # macOS CI 的 GUI 登录域可用时，再执行真实 launchd bootstrap + HTTPS 健康检查。

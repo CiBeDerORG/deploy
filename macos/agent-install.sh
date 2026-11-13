@@ -350,7 +350,7 @@ chmod 0700 "$tmp/$asset"
 stage="Agent 配置自检"
 EASYHOSTAGENT_PLATFORM=macos EASYHOSTAGENT_SOFTWARE_ROOT="$root" \
 EASYHOSTAGENT_DATA_DIR="$data_dir" EASYHOSTAGENT_LISTEN_ADDRESS="$listen" \
-EASYHOSTAGENT_TRANSPORT="$transport" "$tmp/$asset" -check-config ||
+EASYHOSTAGENT_TRANSPORT="$transport" EASYHOSTAGENT_CONTROLLER_URL="$controller_url" "$tmp/$asset" -check-config ||
     fail "Agent 原生配置自检失败"
 
 # plist 字符串 XML 转义，禁止路径含特殊字符时注入新的 plist 键。
@@ -360,6 +360,7 @@ xml_data="$(xml "$data_dir")"
 xml_root="$(xml "$root")"
 xml_listen="$(xml "$listen")"
 xml_transport="$(xml "$transport")"
+xml_controller_url="$(xml "$controller_url")"
 xml_out="$(xml "$data_dir/agent.stdout.log")"
 xml_err="$(xml "$data_dir/agent.stderr.log")"
 cat > "$tmp/agent.plist" <<EOF
@@ -375,6 +376,7 @@ cat > "$tmp/agent.plist" <<EOF
     <key>EASYHOSTAGENT_DATA_DIR</key><string>$xml_data</string>
     <key>EASYHOSTAGENT_LISTEN_ADDRESS</key><string>$xml_listen</string>
     <key>EASYHOSTAGENT_TRANSPORT</key><string>$xml_transport</string>
+    <key>EASYHOSTAGENT_CONTROLLER_URL</key><string>$xml_controller_url</string>
     <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>RunAtLoad</key><true/>

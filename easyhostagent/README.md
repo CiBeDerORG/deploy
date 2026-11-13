@@ -4,7 +4,7 @@ EasyHostAgent 是直接运行在宿主机上的 Go systemd 服务，不是 Docke
 
 ## 1. 配置文件
 
-所有普通配置在统一的 `<SOFTWARE_ROOT>/deploy/.env`。Ubuntu / 普通 Linux 默认 `/opt/software/deploy/.env`，fnOS 默认 `/vol3/1000/software/deploy/.env`。已有 Linux 主机若存在旧配置 `/software/deploy/.env`，会继续沿用旧根目录且不会自动迁移。敏感配置文件分别是 `/opt/software/deploy/.secrets` 或 `/vol3/1000/software/deploy/.secrets`，反向接入的 Bootstrap Token 作为敏感配置存放在统一 `.secrets`；正式配对凭据由 Agent 在本机生成和保存。
+所有普通配置在统一的 `<SOFTWARE_ROOT>/deploy/.env`。Ubuntu / 普通 Linux 默认 `/opt/software/deploy/.env`，fnOS 默认 `/vol3/1000/software/deploy/.env`。已有 Linux 主机若存在旧配置 `/software/deploy/.env`，会继续沿用旧根目录且不会自动迁移。敏感配置文件分别是 `/opt/software/deploy/.secrets` 或 `/vol3/1000/software/deploy/.secrets`。反向接入的 Bootstrap Token 只在配对指令中交互输入，不存入 `.env` 或 `.secrets`；正式配对凭据由 Agent 在本机安全保存。
 
 运行 `sudo bash deploy.sh env` 后用 `sudoedit /opt/software/deploy/.env`（fnOS 使用 `/vol3/1000/software/deploy/.env`；已有旧 Linux 配置则继续编辑其实际路径），设置：
 
@@ -23,7 +23,7 @@ EASYHOSTAGENT_DATA_DIR=/var/lib/easyhostagent
 # 留空时使用统一 SOFTWARE_ROOT。
 EASYHOSTAGENT_SOFTWARE_ROOT=
 # 可选反向接入：Controller URL 支持 HTTP/HTTPS，必须是内网 Agent 可以主动访问的控制端根地址。
-# 推荐 HTTPS；HTTP 会明文传输 Bootstrap Token、Agent Token 和应用安装参数，仅在可信隔离内网/受保护链路中使用。
+# 推荐 HTTPS；HTTP 会明文传输一次性 Bootstrap Token、Agent Token 和应用安装参数，仅在可信隔离内网/受保护链路中使用。
 # 例如：https://your-control-domain.example 或 http://192.168.10.2:7017
 EASYHOSTAGENT_CONTROLLER_URL=
 # 可选；飞牛主机可显式设置 fnos，Ubuntu/Linux 设置 linux；留空表示自动识别。
@@ -34,7 +34,7 @@ EASYHOSTAGENT_PLATFORM=
 
 **GitHub Release 文件加速**：在统一 `.env` 中设置 `GITHUB_RELEASE_SOURCE=mirror`，`GITHUB_RELEASE_MIRRORS` 默认顺序为 `ghproxy,ghfast,ghproxy-net`，分别对应 `gh-proxy.org`、`ghfast.top`、`ghproxy.net`。每次在线安装/更新从上一次首选站的下一个站开始；下载失败或 SHA-256 不一致则尝试下一站，最后尝试 GitHub 原站。轮换状态保存在 `<SOFTWARE_ROOT>/deploy/state/github-release-mirror.last`，不影响 Docker 的 `DOCKER_IMAGE_SOURCE`。`original` 仅直连官方，指定 `EASYHOSTAGENT_LOCAL_BINARY` 时不下载文件也不推进轮换。第三方代理不能等同于官方可信发布源；滚动开发版资产还可能存在缓存滞后，重要环境建议使用不可变版本并核对官方校验值。
 
-反向接入配置仅在需要内网主动接入时填写；EasyNetTopo 的「主机发现」开启后会生成 30 分钟有效的 Bootstrap Token，将可达的控制端 HTTP/HTTPS 地址和 Token 配置到这两项，再安装或更新 Agent。Agent 首次报到后，管理员在发现弹窗中接受主机；Agent 下一次请求会取回独立主机 Token，并以私有权限保存在数据目录的 `reverse-credential.json`。反向接入模式会自动将 Agent HTTP 监听限制为 `127.0.0.1`，不暴露入站管理端口。临时主机固定 30 分钟，不因心跳续期。未配置这两项时，Agent 不启动反向轮询，原有直连模式完全不变。在统一 `.secrets` 中设置 `EASYHOSTAGENT_DISCOVERY_TOKEN=64位十六进制凭据`（由 EasyNetTopo「主机发现」开启时生成），不要放入普通 `.env`。Agent 部署脚本只读取该敏感键，并将它以 0600 权限写入 `/etc/easyhostagent/agent.env`。安装后将配置同步到 `/etc/easyhostagent/agent.env`，保留其中其他非托管配置项。飞牛 fnOS 的 `/etc/os-release` 可能标记为 Debian，Agent 会额外识别 `/usr/trim/etc/version`；如仍未识别，在统一 `.env` 中设置 `EASYHOSTAGENT_PLATFORM=fnos` 并运行 `sudo bash deploy.sh easyhostagent update`，脚本将把该值写入原生服务配置。该字段留空时不会覆盖已存在的原生显式设置。安装、更新不会重置 Agent 身份、配对授权或已有应用状态。开发版 `v0.1.0-deploy-manifest-lifecycle.dev` 是**发布资产可更新的滚动标签**；生产机器建议在仓库 `lib/versions.env` 将 `EASYHOSTAGENT_RELEASE` 改为明确、不可变的正式版本号。相应的 AMD64 / ARM64 二进制、同名 `.sha256` 均由 GitHub Actions 生成。
+反向接入配置仅需在统一 `.env` 中填写 `EASYHOSTAGENT_CONTROLLER_URL`，不再配置 Bootstrap Token。EasyNetTopo「主机发现」开启后会生成一个有效期 5 分钟、仅允许一台新 Agent 领取的一次性 Token。在目标主机执行 `sudo bash deploy.sh easyhostagent pair`（macOS 普通用户执行 `bash deploy.sh easyhostagent pair`），按提示输入 Token 即可主动连接；Token 不会写入 `.env`、`.secrets` 或 systemd EnvironmentFile，而是临时保存在 Agent 私有数据目录，管理员接受主机后自动删除。已配对主机再次执行会提示是否重新配对；确认后清除本地旧授权与反向凭据，再重新接入。管理员接受后，控制端下发该主机专属 Token，Agent 同时将它登记到现有 `pairing.Store`（持久化摘要）并保存在权限为 0600 的反向连接凭据文件中。反向接入模式会自动将 Agent HTTP 监听限制为 `127.0.0.1`，不暴露入站管理端口。临时主机固定 30 分钟，不因心跳续期。旧版 `.secrets` / Agent 原生配置中的 `EASYHOSTAGENT_DISCOVERY_TOKEN` 会在更新或新配对时自动清理。安装后控制端地址仍同步到原生服务配置，并保留其他非托管配置项。飞牛 fnOS 的 `/etc/os-release` 可能标记为 Debian，Agent 会额外识别 `/usr/trim/etc/version`；如仍未识别，在统一 `.env` 中设置 `EASYHOSTAGENT_PLATFORM=fnos` 并运行 `sudo bash deploy.sh easyhostagent update`，脚本将把该值写入原生服务配置。该字段留空时不会覆盖已存在的原生显式设置。安装、更新不会重置 Agent 身份、配对授权或已有应用状态。开发版 `v0.1.0-deploy-manifest-lifecycle.dev` 是**发布资产可更新的滚动标签**；生产机器建议在仓库 `lib/versions.env` 将 `EASYHOSTAGENT_RELEASE` 改为明确、不可变的正式版本号。相应的 AMD64 / ARM64 二进制、同名 `.sha256` 均由 GitHub Actions 生成。
 
 ## 2. 运行条件和网络
 
@@ -42,29 +42,36 @@ EASYHOSTAGENT_PLATFORM=
 - 安装依赖：root、Bash、curl、sha256sum、install、mktemp、flock、systemctl；运行 Docker 应用管理功能还需本机可用的 Docker Engine。
 - 监听：默认 `0.0.0.0:7018`，开放范围由防火墙限制。只有在信任隔离网络并配置访问来源限制时才改 `EASYHOSTAGENT_TRANSPORT=http`；HTTP 明文会暴露一次性配对码、Bearer Token 和操作参数，严禁未经保护直接对公网开放。HTTPS 使用 Agent 的自签名证书及 EasyNetTopo 的固定公钥指纹校验。
 - 进程以 root 运行以管理本机 Docker；数据默认在 `/var/lib/easyhostagent`。标准 Deploy 应用安装到 `<SOFTWARE_ROOT>/<应用ID>/deploy/`，升级前已安装的隔离应用仍保留其原目录。
-- 直连模式仍按需查询；反向模式在配置 Controller URL 和 Bootstrap Token 后，Agent 每 10 秒主动轮询，失败采用 2/4/8/15/30 秒退避，并定期重新报到。未提供强制 CPU/RAM 最小值。
+- 直连模式仍按需查询；反向模式在配置 Controller URL 并执行一次性配对后，Agent 每 10 秒主动轮询，失败采用 2/4/8/15/30 秒退避，并定期重新报到。未提供强制 CPU/RAM 最小值。
 
-## 3. 配对认证（无需逐应用授权）
+## 3. 内网主动配对
 
-无需输入管理员密码。Agent 首次启动在数据目录生成自身 UUID 和 TLS 身份；在 Agent 所在机器可信终端查看：
+反向接入采用控制端签发的一次性 Bootstrap Token，不再要求用户在 Agent 配置文件中维护长期 Bootstrap Token。
 
-```bash
-sudo /usr/local/bin/easyhostagent -identity
-sudo /usr/local/bin/easyhostagent -pairing-code
-```
+1. 在 EasyNetTopo「主机商店 → 主机发现」开启发现并生成 Token。Token 有效期为 **5 分钟**，只允许一台新 Agent 首次领取。
+2. 确认目标主机的原生配置已设置 `EASYHOSTAGENT_CONTROLLER_URL`，且该地址可由目标主机主动访问。
+3. 在目标主机执行：
 
-**推荐从 deploy 统一入口生成配对信息：**
+   Linux / fnOS：
 
-```bash
-cd /opt/software/deploy   # Ubuntu / 普通 Linux 默认；fnOS 在实际 deploy 仓库目录执行
-sudo bash deploy.sh easyhostagent pairing
-```
+   ```bash
+   sudo bash deploy.sh easyhostagent pair
+   ```
 
-该命令不安装、不更新、不下载、不重启 Agent；检查本机 `easyhostagent.service` 正在运行，再从 `/etc/easyhostagent/agent.env` 安全读取实际数据目录，调用原生 `-pairing-code`，打印 Agent ID、TLS 公钥指纹、一次性配对码与 UTC 到期时间。**每次运行都会签发新的 10 分钟一次性码，使上一枚尚未使用的配对码失效**；现有 Agent 身份和已配对控制端授权不会因此被清除。只在可信本机终端运行，不要把输出粘贴到日志、CI 或公开聊天中。
+   macOS：
 
-配对码是**本机按需自动生成**的临时凭据。配对成功后，控制端 Token 由 Agent 签发并分别安全保存；它们不写入统一 `.secrets`，也不应放进公开日志或聊天。
+   ```bash
+   bash deploy.sh easyhostagent pair
+   ```
 
-**无需执行 `deploy.sh easyhostagent grant`，也无需配置 `EASYHOSTAGENT_APP_GRANTS`。** 已配对且通过令牌校验的 EasyNetTopo 可以管理可信 Git 应用源中的应用。升级前配置文件中已有的 `EASYHOSTAGENT_APP_GRANTS` 会保留但被新版 Agent 忽略；更新不会重置原配对身份。应用操作依然执行固定 Git 包校验、Compose 身份检查、路径隔离和卸载二次确认。
+4. 在终端隐藏输入 EasyNetTopo 生成的 64 位 Token。Agent 主动报到后，管理员在发现弹窗中点击「加入临时主机」。
+5. 接受后，Agent 自动取得该主机专属 Token，并登记到原有配对授权存储。Bootstrap Token 从 Agent 私有状态目录删除；长期 Token 不写入 `.env` 或 `.secrets`。
+
+Token 只允许一台新 Agent 领取；同一 Agent 在有效期内完成首次报到后，可以继续轮询等待管理员确认。管理员关闭发现窗口不会中断已经报到的 Agent。临时主机从加入时开始固定计时 30 分钟，不因心跳续期。
+
+如果 Agent 已经配对，执行 `pair` 会先提示是否重新配对。选择确认后才清除本机原有配对授权和反向凭据；取消则完全不修改原状态。重新配对时 EasyNetTopo 会复用相同 Agent 身份对应的主机记录，不重复创建主机。
+
+旧式本机 `-pairing-code` 入口暂保留作兼容，不再用于新内网主动接入；新接入统一使用 `deploy.sh easyhostagent pair`。
 
 ## 4. 安装和检查
 
