@@ -281,12 +281,12 @@ case "$mode" in
         [[ -f "$binary" ]] || fail "Agent 尚未安装"
         [[ -n "$controller_url" ]] || fail "请先在 $env_file 配置 EASYHOSTAGENT_CONTROLLER_URL"
         pair_status="$(run_agent -pair-status)" || fail "Agent 不支持新配对命令，请先更新 EasyHostAgent"
-        replace_args=()
+        replace_confirmed=0
         if [[ "$pair_status" == "paired=true" ]]; then
             printf '当前主机已经配对，是否清除旧配对信息并重新配对？[y/N] ' >&2
             IFS= read -r answer || answer=""
             case "$answer" in
-                y|Y|yes|YES) replace_args=(-pair-replace) ;;
+                y|Y|yes|YES) replace_confirmed=1 ;;
                 *) printf '已取消；原配对信息保持不变。\n' >&2; exit 0 ;;
             esac
         elif [[ "$pair_status" != "paired=false" ]]; then
@@ -296,7 +296,13 @@ case "$mode" in
         IFS= read -r -s token || fail "未读取到 Token"
         printf '\n' >&2
         [[ -n "$token" ]] || fail "Token 不能为空"
-        printf '%s\n' "$token" | run_agent -pair "${replace_args[@]}"
+        # Bash 3.2 with set -u treats an empty array expansion as unbound.
+        # Keep the first-pair and confirmed re-pair commands explicit.
+        if [[ "$replace_confirmed" -eq 1 ]]; then
+            printf '%s\n' "$token" | run_agent -pair -pair-replace
+        else
+            printf '%s\n' "$token" | run_agent -pair
+        fi
         unset token
         exit ;;
     identity)

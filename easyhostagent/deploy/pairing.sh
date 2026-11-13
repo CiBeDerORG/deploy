@@ -55,12 +55,12 @@ agent_remove_legacy_discovery_token "$SOFTWARE_ROOT/deploy/.secrets"
 agent_remove_legacy_discovery_token "$native_config"
 
 status="$("$binary" -pair-status)"
-replace_args=()
+replace_confirmed=0
 if [[ "$status" == "paired=true" ]]; then
     printf '当前主机已经配对，是否清除旧配对信息并重新配对？[y/N] ' >&2
     IFS= read -r answer || answer=""
     case "$answer" in
-        y|Y|yes|YES) replace_args=(-pair-replace) ;;
+        y|Y|yes|YES) replace_confirmed=1 ;;
         *) printf '已取消；原配对信息保持不变。\n' >&2; exit 0 ;;
     esac
 elif [[ "$status" != "paired=false" ]]; then
@@ -71,5 +71,10 @@ printf '请输入 EasyNetTopo 生成的 64 位 Token（有效期 5 分钟）：'
 IFS= read -r -s token || agent_fail "未读取到 Token"
 printf '\n' >&2
 [[ -n "$token" ]] || agent_fail "Token 不能为空"
-printf '%s\n' "$token" | "$binary" -pair "${replace_args[@]}"
+# Avoid expanding an empty array under nounset on older Bash versions.
+if [[ "$replace_confirmed" -eq 1 ]]; then
+    printf '%s\n' "$token" | "$binary" -pair -pair-replace
+else
+    printf '%s\n' "$token" | "$binary" -pair
+fi
 unset token

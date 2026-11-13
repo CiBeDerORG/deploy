@@ -13,11 +13,11 @@ cat > "$EASYHOSTAGENT_TEST_BINARY" <<'BIN'
 #!/bin/sh
 case "${1:-}" in
     -version) echo "test-agent"; exit 0 ;;
-    -pair-status) echo "paired=false"; exit 0 ;;
+    -pair-status) echo "${EASYHOSTAGENT_TEST_PAIR_STATUS:-paired=false}"; exit 0 ;;
     -pair)
         token="$(cat)"
         [ "${#token}" -eq 64 ] || exit 1
-        printf 'pair request accepted\nPAIRING_DATA_DIR=%s\nPAIR_TOKEN_LENGTH=%s\n' "${EASYHOSTAGENT_DATA_DIR:-}" "${#token}"
+        printf 'pair request accepted\nPAIRING_DATA_DIR=%s\nPAIR_TOKEN_LENGTH=%s\nPAIR_REPLACED=%s\n' "${EASYHOSTAGENT_DATA_DIR:-}" "${#token}" "${2:-none}"
         exit 0 ;;
     *) exit 1 ;;
 esac
@@ -57,6 +57,17 @@ pairing_output="$(printf '%s\n' "$pair_token" | bash deploy.sh easyhostagent pai
 grep -Fq 'pair request accepted' <<< "$pairing_output"
 grep -Fq 'PAIRING_DATA_DIR=/test-only/agent/data' <<< "$pairing_output"
 grep -Fq 'PAIR_TOKEN_LENGTH=64' <<< "$pairing_output"
+grep -Fq 'PAIR_REPLACED=none' <<< "$pairing_output"
+# Exercise explicit confirmation and cancellation without ever printing the Token.
+repaired_output="$(printf 'y\n%s\n' "$pair_token" | EASYHOSTAGENT_TEST_PAIR_STATUS=paired=true bash deploy.sh easyhostagent pair)" || {
+    echo "重新配对确认场景执行失败" >&2; exit 1
+}
+grep -Fq 'PAIR_REPLACED=-pair-replace' <<< "$repaired_output"
+cancelled_output="$(printf 'n\n' | EASYHOSTAGENT_TEST_PAIR_STATUS=paired=true bash deploy.sh easyhostagent pair 2>&1)" || {
+    echo "取消重新配对场景不应失败" >&2; exit 1
+}
+grep -Fq '已取消；原配对信息保持不变' <<< "$cancelled_output"
+! grep -Fq "$pair_token" <<< "$repaired_output"
 ! grep -Fq "$pair_token" <<< "$pairing_output"
 cp -- "$tmp/native.env.backup" "$native"
 if printf '%s\n' "$pair_token" | bash deploy.sh easynettopo pair > "$tmp/wrong-task.log" 2>&1; then
