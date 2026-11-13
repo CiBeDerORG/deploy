@@ -102,6 +102,31 @@ grep -Fxq "EASYHOSTAGENT_APP_GRANTS=$legacy_grant" "$native"
 test "$(grep -c '^EASYHOSTAGENT_APP_GRANTS=' "$native")" -eq 1
 test "$(cat "$persisted")" = persisted-identity
 
+# 反向接入控制端的 HTTP 与 HTTPS 使用同一套配置，和 Agent 自身监听传输互不影响。
+bootstrap_token="$(printf '%064d' 0)"
+secret_file="$SOFTWARE_ROOT/deploy/.secrets"
+if grep -q '^EASYHOSTAGENT_DISCOVERY_TOKEN=' "$secret_file"; then
+    sed -i "s/^EASYHOSTAGENT_DISCOVERY_TOKEN=.*/EASYHOSTAGENT_DISCOVERY_TOKEN=$bootstrap_token/" "$secret_file"
+else
+    printf 'EASYHOSTAGENT_DISCOVERY_TOKEN=%s\\n' "$bootstrap_token" >> "$secret_file"
+fi
+chmod 0600 "$secret_file"
+sed -i 's#^EASYHOSTAGENT_CONTROLLER_URL=.*#EASYHOSTAGENT_CONTROLLER_URL=http://192.168.10.2:7017#' "$file"
+bash deploy.sh easyhostagent update > "$tmp/http-controller.log" 2>&1 || { cat "$tmp/http-controller.log"; exit 1; }
+grep -qx 'EASYHOSTAGENT_CONTROLLER_URL=http://192.168.10.2:7017' "$native"
+grep -qx "EASYHOSTAGENT_DISCOVERY_TOKEN=$bootstrap_token" "$native"
+grep -Fq '反向接入正在使用 HTTP 明文传输' "$tmp/http-controller.log"
+
+sed -i 's#^EASYHOSTAGENT_CONTROLLER_URL=.*#EASYHOSTAGENT_CONTROLLER_URL=ftp://192.168.10.2:7017#' "$file"
+if bash deploy.sh easyhostagent update > "$tmp/bad-controller.log" 2>&1; then
+    echo "Agent 接受了非法反向控制端协议" >&2; exit 1
+fi
+grep -Fq '必须是 HTTP 或 HTTPS 地址' "$tmp/bad-controller.log"
+grep -qx 'EASYHOSTAGENT_CONTROLLER_URL=http://192.168.10.2:7017' "$native"
+sed -i 's#^EASYHOSTAGENT_CONTROLLER_URL=.*#EASYHOSTAGENT_CONTROLLER_URL=https://control.example.com#' "$file"
+bash deploy.sh easyhostagent update > "$tmp/https-controller.log" 2>&1 || { cat "$tmp/https-controller.log"; exit 1; }
+grep -qx 'EASYHOSTAGENT_CONTROLLER_URL=https://control.example.com' "$native"
+
 # 不接受无效平台，已有原生平台与配对数据不得修改。
 sed -i 's/^EASYHOSTAGENT_PLATFORM=.*/EASYHOSTAGENT_PLATFORM=unknown/' "$file"
 if bash deploy.sh easyhostagent update > "$tmp/invalid-platform.log" 2>&1; then
