@@ -52,15 +52,42 @@ agent_validate_env() {
     case "$EASYHOSTAGENT_TRANSPORT" in http|https) ;; *) agent_fail "传输模式应为 http 或 https" ;; esac
     case "$EASYHOSTAGENT_PLATFORM" in ''|fnos|linux) ;; *) agent_fail "Agent 平台只能为 fnos、linux 或留空自动识别" ;; esac
     case "$EASYHOSTAGENT_LOG_LEVEL" in debug|info|warn|error) ;; *) agent_fail "日志等级无效" ;; esac
-    [[ "$EASYHOSTAGENT_LISTEN_ADDRESS" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}$ ]] ||
-        agent_fail "监听地址应为 IPv4:端口"
-    local host="${EASYHOSTAGENT_LISTEN_ADDRESS%:*}" port="${EASYHOSTAGENT_LISTEN_ADDRESS##*:}" octet
-    local -a octets=()
-    IFS='.' read -r -a octets <<< "$host"
-    for octet in "${octets[@]}"; do
-        (( 10#$octet <= 255 )) || agent_fail "IPv4 地址段非法"
+    # Comma-separated IPv4:port listeners. CIDR is not a local bind address.
+    local entry host port octet normalized
+    local -a entries=() octets=()
+    local -A seen=() wildcard_ports=() concrete_ports=()
+    [[ -n "$EASYHOSTAGENT_LISTEN_ADDRESS" &&
+       "$EASYHOSTAGENT_LISTEN_ADDRESS" != ,* &&
+       "$EASYHOSTAGENT_LISTEN_ADDRESS" != *, &&
+       "$EASYHOSTAGENT_LISTEN_ADDRESS" != *,,* ]] ||
+        agent_fail "监听地址列表不能含空项"
+    IFS=',' read -r -a entries <<< "$EASYHOSTAGENT_LISTEN_ADDRESS"
+    (( ${#entries[@]} <= 32 )) || agent_fail "最多允许 32 个监听地址"
+    for entry in "${entries[@]}"; do
+        entry="${entry#"${entry%%[![:space:]]*}"}"
+        entry="${entry%"${entry##*[![:space:]]}"}"
+        [[ "$entry" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}$ ]] ||
+            agent_fail "监听地址应为 IPv4:端口，以逗号分隔：$entry"
+        host="${entry%:*}"
+        port="${entry##*:}"
+        octets=()
+        IFS='.' read -r -a octets <<< "$host"
+        for octet in "${octets[@]}"; do
+            (( 10#$octet <= 255 )) || agent_fail "IPv4 地址段非法：$entry"
+        done
+        (( 10#$port > 0 && 10#$port <= 65535 )) || agent_fail "端口应为 1–65535：$entry"
+        port="$((10#$port))"
+        normalized="$host:$port"
+        [[ ! ${seen[$normalized]+exists} ]] || agent_fail "监听地址重复：$normalized"
+        seen[$normalized]=1
+        if [[ "$host" == 0.0.0.0 ]]; then
+            [[ ! ${concrete_ports[$port]+exists} ]] || agent_fail "通配监听与指定 IP 端口冲突：$port"
+            wildcard_ports[$port]=1
+        else
+            [[ ! ${wildcard_ports[$port]+exists} ]] || agent_fail "通配监听与指定 IP 端口冲突：$port"
+            concrete_ports[$port]=1
+        fi
     done
-    (( 10#$port > 0 && 10#$port <= 65535 )) || agent_fail "端口应为 1–65535"
     agent_valid_path EASYHOSTAGENT_SOFTWARE_ROOT "$EASYHOSTAGENT_SOFTWARE_ROOT"
     agent_valid_path EASYHOSTAGENT_DATA_DIR "$EASYHOSTAGENT_DATA_DIR"
     [[ "$EASYHOSTAGENT_DATA_DIR" != "$EASYHOSTAGENT_SOFTWARE_ROOT" ]] ||
