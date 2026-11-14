@@ -93,6 +93,22 @@ else
     chmod 0755 "$tmp_release/$asset"
     installer_args+=(--binary "$tmp_release/$asset")
 fi
+# Back up the managed binary and config before a remote update: a newly
+# configured IP may not exist yet, and restart must not strand the controller.
+backup_dir=""
+if [[ -z "$staging" && -f "$marker" && -f "$native_config" ]]; then
+    [[ -f /usr/local/bin/easyhostagent && ! -L /usr/local/bin/easyhostagent ]] ||
+        agent_fail "原有 Agent 二进制不存在，无法建立安全回滚点"
+    backup_dir="$(mktemp -d /tmp/easyhostagent-rollback.XXXXXXXX)"
+    cp -p -- /usr/local/bin/easyhostagent "$backup_dir/binary"
+    cp -p -- "$native_config" "$backup_dir/agent.env"
+fi
+agent_cleanup_install() {
+    [[ -z "${tmp_binary:-}" ]] || rm -f -- "$tmp_binary"
+    [[ -z "${tmp_release:-}" ]] || rm -rf -- "$tmp_release"
+    [[ -z "$backup_dir" ]] || rm -rf -- "$backup_dir"
+}
+trap agent_cleanup_install EXIT
 # 本地上传和在线下载都先通过 SHA-256 校验，再由上游原生安装器安装。
 bash "$MODULE/native/scripts/install.sh" "${installer_args[@]}"
 
@@ -140,10 +156,23 @@ agent_merge_native_config "$native_config"
 
 if [[ -z "$staging" ]]; then
     systemctl enable easyhostagent.service
-    systemctl restart easyhostagent.service ||
+    if ! systemctl restart easyhostagent.service ||
+       ! systemctl is-active --quiet easyhostagent.service; then
+        if [[ -n "$backup_dir" ]]; then
+            # Restore both files atomically to avoid rolling back only the
+            # binary while leaving it with an incompatible listener list.
+            install -m 0755 -- "$backup_dir/binary" /usr/local/bin/.easyhostagent.rollback
+            mv -f -- /usr/local/bin/.easyhostagent.rollback /usr/local/bin/easyhostagent
+            install -m 0600 -- "$backup_dir/agent.env" /etc/easyhostagent/.agent.env.rollback
+            mv -f -- /etc/easyhostagent/.agent.env.rollback "$native_config"
+            if systemctl restart easyhostagent.service &&
+               systemctl is-active --quiet easyhostagent.service; then
+                agent_fail "新配置启动失败，旧 Agent 二进制和配置已恢复并重新启动；检查新增监听 IP 是否属于本机"
+            fi
+            agent_fail "新配置启动失败，已恢复旧二进制和配置但旧服务仍未启动；请查看 journalctl -u easyhostagent"
+        fi
         agent_fail "Agent 服务启动失败；运行 journalctl -u easyhostagent -n 100 查看原因"
-    systemctl is-active --quiet easyhostagent.service ||
-        agent_fail "Agent 未进入 active 状态"
+    fi
 fi
 echo "EasyHostAgent 已部署，传输：$EASYHOSTAGENT_TRANSPORT，监听：$EASYHOSTAGENT_LISTEN_ADDRESS"
 echo "原生配置：$native_config；配对身份与已安装应用记录保留（无需逐应用授权）"
