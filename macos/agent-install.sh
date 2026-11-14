@@ -13,6 +13,8 @@ binary=""
 data_dir=""
 port=""
 health_url=""
+health_urls=()
+old_agent_pid=""
 
 log() {
     local line
@@ -171,12 +173,48 @@ read_config() {
 stage="读取配置"
 listen="$(read_config EASYHOSTAGENT_LISTEN_ADDRESS)"
 [[ -n "$listen" ]] || listen=0.0.0.0:7018
-[[ "$listen" =~ ^[0-9.]+:[0-9]+$ ]] || fail "EASYHOSTAGENT_LISTEN_ADDRESS 必须是 IPv4:端口"
-port="${listen##*:}"
+# Validate every IPv4 listener rather than interpreting only the last port.
+[[ "$listen" != ,* && "$listen" != *, && "$listen" != *,,* ]] ||
+    fail "EASYHOSTAGENT_LISTEN_ADDRESS 不能包含空地址"
+IFS=',' read -r -a listen_entries <<< "$listen"
+(( ${#listen_entries[@]} <= 32 )) || fail "最多允许 32 个监听地址"
+declare -A seen_listeners=() wildcard_ports=() concrete_ports=()
+for entry in "${listen_entries[@]}"; do
+    entry="${entry#"${entry%%[![:space:]]*}"}"
+    entry="${entry%"${entry##*[![:space:]]}"}"
+    [[ "$entry" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}$ ]] ||
+        fail "EASYHOSTAGENT_LISTEN_ADDRESS 必须是以逗号分隔的 IPv4:端口：$entry"
+    host="${entry%:*}"
+    port="${entry##*:}"
+    IFS='.' read -r -a octets <<< "$host"
+    for octet in "${octets[@]}"; do
+        (( 10#$octet <= 255 )) || fail "无效 IPv4 地址：$entry"
+    done
+    (( 10#$port >= 1 && 10#$port <= 65535 )) || fail "无效监听端口：$entry"
+    port="$((10#$port))"
+    [[ ! ${seen_listeners[$host:$port]+yes} ]] || fail "重复监听地址：$entry"
+    seen_listeners[$host:$port]=1
+    if [[ "$host" == 0.0.0.0 ]]; then
+        [[ ! ${concrete_ports[$port]+yes} ]] || fail "通配监听和指定 IP 端口冲突：$port"
+        wildcard_ports[$port]=1
+    else
+        [[ ! ${wildcard_ports[$port]+yes} ]] || fail "通配监听和指定 IP 端口冲突：$port"
+        concrete_ports[$port]=1
+    fi
+done
 transport="$(read_config EASYHOSTAGENT_TRANSPORT)"
 [[ -n "$transport" ]] || transport=https
 case "$transport" in http|https) ;; *) fail "EASYHOSTAGENT_TRANSPORT 只能是 http 或 https" ;; esac
-health_url="$transport://127.0.0.1:$port/v1/health"
+health_urls=()
+for entry in "${listen_entries[@]}"; do
+    entry="${entry#"${entry%%[![:space:]]*}"}"
+    entry="${entry%"${entry##*[![:space:]]}"}"
+    host="${entry%:*}"
+    port="${entry##*:}"
+    [[ "$host" == 0.0.0.0 ]] && host=127.0.0.1
+    health_urls+=("$transport://$host:$port/v1/health")
+done
+health_url="${health_urls[0]}"
 stage="读取 Release 配置"
 source "$root/deploy/lib/versions.sh"
 deploy_load_versions "$root" || fail "无法读取统一 Release 版本配置"
@@ -198,23 +236,25 @@ run_agent() {
 }
 
 probe_health() {
-    local body
-    if [[ "$transport" == https ]]; then
-        if ! body="$(curl -kfsS --connect-timeout 2 --max-time 4 "$health_url" 2>&1)"; then
-            log "健康接口请求失败：$body"
+    local body url
+    for url in "${health_urls[@]}"; do
+        if [[ "$transport" == https ]]; then
+            if ! body="$(curl -kfsS --noproxy '*' --connect-timeout 2 --max-time 4 "$url" 2>&1)"; then
+                log "健康接口请求失败：$url $body"
+                return 1
+            fi
+        else
+            if ! body="$(curl -fsS --noproxy '*' --connect-timeout 2 --max-time 4 "$url" 2>&1)"; then
+                log "健康接口请求失败：$url $body"
+                return 1
+            fi
+        fi
+        if ! printf '%s' "$body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'; then
+            log "健康接口返回非 ready 状态：$url $body"
             return 1
         fi
-    else
-        if ! body="$(curl -fsS --connect-timeout 2 --max-time 4 "$health_url" 2>&1)"; then
-            log "健康接口请求失败：$body"
-            return 1
-        fi
-    fi
-    if printf '%s' "$body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'; then
-        return 0
-    fi
-    log "健康接口返回非 ready 状态：$body"
-    return 1
+    done
+    return 0
 }
 
 wait_for_health() {
@@ -232,27 +272,26 @@ wait_for_health() {
     return 1
 }
 
-wait_for_port_release() {
+# Check the old Agent process, not every process using the same TCP port.
+# Otherwise an unrelated service on another IP could block an update.
+wait_for_old_agent_exit() {
     local attempt
-    if ! command -v lsof >/dev/null 2>&1; then
-        log "警告：系统没有 lsof，跳过端口释放检查"
-        return 0
-    fi
+    [[ -n "$old_agent_pid" ]] || return 0
     for attempt in {1..30}; do
-        if ! lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
-            log "监听端口 $port 已释放"
+        if ! kill -0 "$old_agent_pid" 2>/dev/null; then
+            log "旧 Agent 进程已退出：pid=$old_agent_pid"
             return 0
         fi
         sleep 0.5
     done
-    run_logged "仍占用端口 $port 的进程" lsof -nP -iTCP:"$port" -sTCP:LISTEN || true
-    fail "旧 Agent 停止后端口 $port 仍被占用；为避免启动第二个实例，拒绝替换/启动"
+    fail "旧 Agent 进程仍在运行：pid=$old_agent_pid，拒绝替换"
 }
 
 stop_service() {
     stage="停止旧 LaunchAgent"
     if service_loaded; then
         log "发现旧服务，准备 bootout：$launch_label"
+        old_agent_pid="$(launchctl print "$launch_label" 2>/dev/null | sed -n 's/^[[:space:]]*pid = \([0-9][0-9]*\).*/\1/p' | head -n 1)"
         if run_logged "launchctl bootout $launch_label" launchctl bootout "$launch_label"; then
             :
         elif service_loaded; then
@@ -272,7 +311,7 @@ stop_service() {
     else
         log "旧 LaunchAgent 当前未注册，跳过 bootout"
     fi
-    wait_for_port_release
+    wait_for_old_agent_exit
 }
 
 case "$mode" in
@@ -392,6 +431,9 @@ if [[ -f "$binary" ]]; then
     cp -p "$binary" "$tmp/easyhostagent.previous"
     had_previous=1
     log "已保存旧二进制用于启动失败回滚"
+    if [[ -f "$plist" ]]; then
+        cp -p "$plist" "$tmp/agent.previous.plist"
+    fi
 fi
 
 if [[ "$no_start" != --no-start ]]; then
@@ -432,6 +474,26 @@ if ! wait_for_health; then
             cp -p "$tmp/easyhostagent.previous" "$app_dir/bin/.easyhostagent.rollback"
             chmod 0700 "$app_dir/bin/.easyhostagent.rollback"
             mv -f "$app_dir/bin/.easyhostagent.rollback" "$binary"
+            if [[ -f "$tmp/agent.previous.plist" ]]; then
+                cp -p "$tmp/agent.previous.plist" "$plist.tmp"
+                chmod 0600 "$plist.tmp"
+                mv -f "$plist.tmp" "$plist"
+                old_listen="$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:EASYHOSTAGENT_LISTEN_ADDRESS' "$plist" 2>/dev/null || true)"
+                old_transport="$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:EASYHOSTAGENT_TRANSPORT' "$plist" 2>/dev/null || true)"
+                if [[ -n "$old_listen" ]]; then
+                    health_urls=()
+                    IFS=',' read -r -a old_entries <<< "$old_listen"
+                    for old_entry in "${old_entries[@]}"; do
+                        old_host="${old_entry%:*}"
+                        old_port="${old_entry##*:}"
+                        [[ "$old_host" == 0.0.0.0 ]] && old_host=127.0.0.1
+                        health_urls+=("${old_transport:-https}://$old_host:$old_port/v1/health")
+                    done
+                    health_url="${health_urls[0]}"
+                    transport="${old_transport:-https}"
+                fi
+                log "已恢复旧版 plist 与监听配置"
+            fi
             log "已恢复更新前二进制，重新注册旧版本"
             if run_logged "回滚 launchctl bootstrap" launchctl bootstrap "gui/$uid" "$plist" &&
                run_logged "回滚 launchctl kickstart" launchctl kickstart "$launch_label" &&
