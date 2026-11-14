@@ -80,6 +80,8 @@ CI 在 GitHub 的 macOS Runner 上验证 Bash 3.2 语法、`list/env/sync`、目
 SOFTWARE_ROOT=/opt/software
 EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev
 EASYHOSTAGENT_MACOS_LOCAL_BINARY=
+# 支持逗号分隔多个本机 IPv4:端口，例如 192.168.1.10:7018,10.10.10.5:7019。
+# Agent 安装器分别健康检查每个监听地址；此处不支持 CIDR。
 EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018
 EASYHOSTAGENT_TRANSPORT=https
 ```
@@ -134,6 +136,8 @@ macOS Docker Desktop 第二阶段已合并至 EasyHostAgent 的 `feat/deploy-man
 ```dotenv
 EASYHOSTAGENT_RELEASE=v0.1.0-deploy-manifest-lifecycle.dev
 EASYHOSTAGENT_MACOS_LOCAL_BINARY=
+# 支持逗号分隔多个本机 IPv4:端口，例如 192.168.1.10:7018,10.10.10.5:7019。
+# Agent 安装器分别健康检查每个监听地址；此处不支持 CIDR。
 EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018
 EASYHOSTAGENT_TRANSPORT=https
 ```
