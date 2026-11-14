@@ -15,6 +15,7 @@ port=""
 health_url=""
 health_urls=()
 old_agent_pid=""
+listen_entries=()
 
 log() {
     local line
@@ -73,8 +74,11 @@ collect_diagnostics() {
         run_logged "launchctl 服务状态" launchctl print "$launch_label" || true
         run_logged "launchctl 用户 GUI 域" launchctl print "gui/$uid" || true
     fi
-    if [[ -n "$port" ]] && command -v lsof >/dev/null 2>&1; then
-        run_logged "监听端口 $port" lsof -nP -iTCP:"$port" -sTCP:LISTEN || true
+    if command -v lsof >/dev/null 2>&1; then
+        for diagnostic_entry in "${listen_entries[@]}"; do
+            diagnostic_port="${diagnostic_entry##*:}"
+            run_logged "监听端口 $diagnostic_port" lsof -nP -iTCP:"$diagnostic_port" -sTCP:LISTEN || true
+        done
     fi
     if [[ -f "$data_dir/agent.stderr.log" ]]; then
         log "最近 80 行 Agent stderr：$(tail -n 80 "$data_dir/agent.stderr.log" 2>&1)"
@@ -178,7 +182,9 @@ listen="$(read_config EASYHOSTAGENT_LISTEN_ADDRESS)"
     fail "EASYHOSTAGENT_LISTEN_ADDRESS 不能包含空地址"
 IFS=',' read -r -a listen_entries <<< "$listen"
 (( ${#listen_entries[@]} <= 32 )) || fail "最多允许 32 个监听地址"
-declare -A seen_listeners=() wildcard_ports=() concrete_ports=()
+seen_listeners=()
+wildcard_ports=()
+concrete_ports=()
 for entry in "${listen_entries[@]}"; do
     entry="${entry#"${entry%%[![:space:]]*}"}"
     entry="${entry%"${entry##*[![:space:]]}"}"
@@ -192,14 +198,20 @@ for entry in "${listen_entries[@]}"; do
     done
     (( 10#$port >= 1 && 10#$port <= 65535 )) || fail "无效监听端口：$entry"
     port="$((10#$port))"
-    [[ ! ${seen_listeners[$host:$port]+yes} ]] || fail "重复监听地址：$entry"
-    seen_listeners[$host:$port]=1
+    for previous in "${seen_listeners[@]}"; do
+        [[ "$previous" != "$host:$port" ]] || fail "重复监听地址：$entry"
+    done
+    seen_listeners+=("$host:$port")
     if [[ "$host" == 0.0.0.0 ]]; then
-        [[ ! ${concrete_ports[$port]+yes} ]] || fail "通配监听和指定 IP 端口冲突：$port"
-        wildcard_ports[$port]=1
+        for previous in "${concrete_ports[@]}"; do
+            [[ "$previous" != "$port" ]] || fail "通配监听和指定 IP 端口冲突：$port"
+        done
+        wildcard_ports+=("$port")
     else
-        [[ ! ${wildcard_ports[$port]+yes} ]] || fail "通配监听和指定 IP 端口冲突：$port"
-        concrete_ports[$port]=1
+        for previous in "${wildcard_ports[@]}"; do
+            [[ "$previous" != "$port" ]] || fail "通配监听和指定 IP 端口冲突：$port"
+        done
+        concrete_ports+=("$port")
     fi
 done
 transport="$(read_config EASYHOSTAGENT_TRANSPORT)"
