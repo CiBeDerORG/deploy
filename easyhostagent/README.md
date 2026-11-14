@@ -17,6 +17,7 @@ GITHUB_RELEASE_MIRRORS=ghproxy,ghfast,ghproxy-net
 EASYHOSTAGENT_LOCAL_BINARY=
 # 可改为 http；HTTP 明文不适合公网。
 EASYHOSTAGENT_TRANSPORT=https
+# 可使用逗号分隔的多个本机 IPv4:端口，例如：192.168.1.10:7018,10.10.10.5:7019
 EASYHOSTAGENT_LISTEN_ADDRESS=0.0.0.0:7018
 EASYHOSTAGENT_LOG_LEVEL=info
 EASYHOSTAGENT_DATA_DIR=/var/lib/easyhostagent
@@ -31,6 +32,16 @@ EASYHOSTAGENT_PLATFORM=
 **GitHub Release 文件加速**：在统一 `.env` 中设置 `GITHUB_RELEASE_SOURCE=mirror`，`GITHUB_RELEASE_MIRRORS` 默认顺序为 `ghproxy,ghfast,ghproxy-net`，分别对应 `gh-proxy.org`、`ghfast.top`、`ghproxy.net`。每次在线安装/更新从上一次首选站的下一个站开始；下载失败或 SHA-256 不一致则尝试下一站，最后尝试 GitHub 原站。轮换状态保存在 `<SOFTWARE_ROOT>/deploy/state/github-release-mirror.last`，不影响 Docker 的 `DOCKER_IMAGE_SOURCE`。`original` 仅直连官方，指定 `EASYHOSTAGENT_LOCAL_BINARY` 时不下载文件也不推进轮换。第三方代理不能等同于官方可信发布源；滚动开发版资产还可能存在缓存滞后，重要环境建议使用不可变版本并核对官方校验值。
 
 安装后将配置同步到 `/etc/easyhostagent/agent.env`，保留其中其他非托管配置项。飞牛 fnOS 的 `/etc/os-release` 可能标记为 Debian，Agent 会额外识别 `/usr/trim/etc/version`；如仍未识别，在统一 `.env` 中设置 `EASYHOSTAGENT_PLATFORM=fnos` 并运行 `sudo bash deploy.sh easyhostagent update`，脚本将把该值写入原生服务配置。该字段留空时不会覆盖已存在的原生显式设置。安装、更新不会重置 Agent 身份、配对授权或已有应用状态。开发版 `v0.1.0-deploy-manifest-lifecycle.dev` 是**发布资产可更新的滚动标签**；生产机器建议在仓库 `lib/versions.env` 将 `EASYHOSTAGENT_RELEASE` 改为明确、不可变的正式版本号。相应的 AMD64 / ARM64 二进制、同名 `.sha256` 均由 GitHub Actions 生成。
+
+### 多个监听地址
+
+同一 Agent 可以通过一个配置变量监听多个本机 IP/端口：
+
+```dotenv
+EASYHOSTAGENT_LISTEN_ADDRESS=192.168.1.10:7018,10.10.10.5:7019
+```
+
+最多 32 个地址，所有入口共享同一 Agent 身份、HTTP/HTTPS 模式、证书和配对授权。Linux/fnOS 部署入口校验 IPv4:端口；不接受 CIDR 网段，也不能将 EasyTier 的远端映射 IP 当作本机绑定 IP。重复地址、通配 IPv4 与相同端口的具体 IPv4 混用均会拒绝。任何一个本机地址无法绑定时，Agent 整体启动失败，以避免悄悄扩大监听范围或部分运行。请先确保所配置的 IP 已分配给本机。
 
 ## 2. 运行条件和网络
 
