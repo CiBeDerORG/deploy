@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Validate Deploy app.yaml v1 before publishing to EasyTier's trusted catalog.
-
-Only validates metadata and repository files; never executes shell, docker or git.
-The exact validated manifest and file digests are inputs for T03-07's immutable
-package builder. Schema success alone must NEVER imply execution permission.
-"""
+"""校验 Deploy 商店展示配置与部署包；--all 从 Git 索引读取发布文件列表。"""
 from __future__ import annotations
 
 import argparse
@@ -14,6 +9,7 @@ import os
 import posixpath
 import re
 import stat
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -190,13 +186,50 @@ def defaults_text(fields: list[dict], target: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None = None) -> dict:
-    root = root.resolve(strict=True)
+def validate_icon(directory: Path, source: str) -> None:
+    icon = verified_file(directory, source)
+    require(0 < icon.stat().st_size <= 128 * 1024, "图标必须为非空文件且不能超过 128 KiB")
+    content = icon.read_bytes()
+    if icon.suffix == ".svg":
+        require(b"<!" not in content.replace(b"<!--", b""), "SVG 不允许文档声明")
+        try:
+            svg = ET.fromstring(content)
+        except ET.ParseError as exc:
+            raise ManifestError("SVG 图标内容无效") from exc
+        require(svg.tag.split("}")[-1] == "svg", "图标根元素必须是 SVG")
+        for element in svg.iter():
+            require(element.tag.split("}")[-1] not in ("script", "foreignObject"), "SVG 不允许脚本或内嵌页面")
+            for attr, value in element.attrib.items():
+                attr = attr.split("}")[-1]
+                require(not attr.lower().startswith("on") and (attr != "href" or value.startswith("#")), "SVG 不允许事件或外部资源")
+    elif icon.suffix == ".png":
+        require(content.startswith(bytes([137, 80, 78, 71, 13, 10, 26, 10])), "PNG 图标内容无效")
+    else:
+        require(content[:4] == b"RIFF" and content[8:12] == b"WEBP", "WebP 图标内容无效")
+
+
+def read_manifest(manifest: Path, root: Path) -> dict:
+    # 清单可以位于任意子目录，读取前先确认它属于此次检出的仓库。
+    try:
+        manifest.parent.resolve(strict=True).relative_to(root)
+    except (OSError, ValueError) as exc:
+        raise ManifestError("清单路径超出仓库或不存在") from exc
+    require(not manifest.is_symlink() and manifest.is_file(), "清单必须是常规文件")
     data = yaml_load(manifest)
     require(isinstance(data, dict), "Manifest must be a mapping")
+    return data
+
+
+def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None = None) -> dict:
+    root = root.resolve(strict=True)
+    data = read_manifest(manifest, root)
     version = data.get("schema_version")
-    require(version in (1, 2), "不支持的应用清单版本")
-    schema_path = schema_path or root / f"schema/app-manifest-v{version}.schema.json"
+    catalog_only = data.get("catalog_only") is True
+    if catalog_only:
+        schema_path = schema_path or root / "schema/app-catalog-entry.schema.json"
+    else:
+        require(version in (1, 2), "不支持的应用清单版本")
+        schema_path = schema_path or root / f"schema/app-manifest-v{version}.schema.json"
     try:
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         Draft202012Validator.check_schema(schema)
@@ -212,6 +245,11 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
         # Avoid echoing secret default values from validator diagnostics.
         raise ManifestError(f"Schema validation failed at {location}: {err.validator}")
     app = data["id"]
+    if catalog_only:
+        require(manifest.name in ("app.yaml", "app.yml"), "展示配置文件名应为 app.yaml 或 app.yml")
+        if data.get("icon"):
+            validate_icon(manifest.parent, data["icon"])
+        return {"id": app, "catalog_only": True, "enabled": data.get("enabled", True)}
     data["config"] = resolve_config(data, root)
     # Contract fixtures live under schema/examples; production must be <id>/app.yaml.
     is_fixture = (manifest.parent.resolve() == (root / "schema/examples").resolve()
@@ -253,25 +291,7 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
             require(files[template].read_text() == defaults_text(data["config"], target),
                     "默认值模板已过期，请运行 --write-defaults --all")
         if data.get("icon"):
-            icon = verified_file(root, app + "/" + data["icon"])
-            require(0 < icon.stat().st_size <= 128 * 1024, "图标必须为非空文件且不能超过 128 KiB")
-            content = icon.read_bytes()
-            if icon.suffix == ".svg":
-                require(b"<!" not in content.replace(b"<!--", b""), "SVG 不允许文档声明")
-                try:
-                    svg = ET.fromstring(content)
-                except ET.ParseError as exc:
-                    raise ManifestError("SVG 图标内容无效") from exc
-                require(svg.tag.split("}")[-1] == "svg", "图标根元素必须是 SVG")
-                for element in svg.iter():
-                    require(element.tag.split("}")[-1] not in ("script", "foreignObject"), "SVG 不允许脚本或内嵌页面")
-                    for attr, value in element.attrib.items():
-                        attr = attr.split("}")[-1]
-                        require(not attr.lower().startswith("on") and (attr != "href" or value.startswith("#")), "SVG 不允许事件或外部资源")
-            elif icon.suffix == ".png":
-                require(content.startswith(bytes([137, 80, 78, 71, 13, 10, 26, 10])), "PNG 图标内容无效")
-            else:
-                require(content[:4] == b"RIFF" and content[8:12] == b"WEBP", "WebP 图标内容无效")
+            validate_icon(root, app + "/" + data["icon"])
 
     compose_rel = app + "/" + data["runtime"]["compose_file"]
     require(compose_rel in files, f"Compose file absent from package: {compose_rel}")
@@ -431,34 +451,56 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
     }
 
 
+def published_manifests(root: Path) -> list[Path]:
+    if not (root / ".git").exists():
+        # 解压的旧版发布包仍可按原有命令校验一级应用目录。
+        return sorted(p for p in root.glob("*/app.yaml") if p.is_file())
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z", "--", ":(glob)**/app.yaml", ":(glob)**/app.yml"],
+        capture_output=True,
+    )
+    require(result.returncode == 0, "无法读取 Git 索引中的应用清单")
+    return [root / os.fsdecode(raw) for raw in result.stdout.split(b"\0") if raw]
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifests", nargs="*", type=Path,
-                        help="One or more <id>/app.yaml or schema/examples/<id>.app.yaml")
+                        help="应用清单、展示配置或契约示例的文件路径")
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     parser.add_argument("--examples", action="store_true",
                         help="Validate both contract examples in this checkout")
     parser.add_argument("--all", action="store_true",
-                        help="Validate every published <id>/app.yaml (does not load examples)")
+                        help="校验 Git 跟踪的所有 app.yaml 和 app.yml")
     parser.add_argument("--write-defaults", action="store_true", help="从应用定义生成脚本默认值模板")
     args = parser.parse_args(argv)
     paths = list(args.manifests)
     if args.examples:
         paths += sorted((args.root / "schema/examples").glob("*.app.yaml"))
     if args.all:
-        paths += sorted(p for p in args.root.glob("*/app.yaml") if p.is_file())
+        try:
+            paths += published_manifests(args.root)
+        except (OSError, ManifestError):
+            parser.error("无法枚举仓库中的应用清单")
+    published_ids = set()
     if not paths:
         parser.error("Supply manifests or use --examples / --all")
     failed = False
-    for path in paths:
+    for path in dict.fromkeys(p.parent.resolve() / p.name for p in paths):
         try:
             if args.write_defaults:
-                data = yaml_load(path)
-                if data.get("schema_version") == 2:
+                data = read_manifest(path, args.root.resolve(strict=True))
+                if data.get("schema_version") == 2 and "catalog_only" not in data:
+                    require(path.name == "app.yaml" and path.parent.name == data.get("id")
+                            and path.parent.parent == args.root.resolve(),
+                            "仅支持为 <应用ID>/app.yaml 的部署清单写入配置模板")
                     fields = resolve_config(data, args.root)
                     for target in ("env", "secrets"):
                         (path.parent / "deploy" / f"config.{target}.example").write_text(defaults_text(fields, target), encoding="utf-8")
             result = validate(path, args.root)
+            if path.name in ("app.yaml", "app.yml"):
+                require(result["id"] not in published_ids, f"应用 ID 重复：{result['id']}")
+                published_ids.add(result["id"])
             print(json.dumps({"manifest": str(path), "valid": True, **result},
                              ensure_ascii=False, sort_keys=True))
         except ManifestError as exc:

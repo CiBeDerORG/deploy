@@ -4,10 +4,11 @@ on:
   push:
     paths:
       - "schema/**"
-      - "*/app.yaml"
+      - "**/app.yaml"
+      - "**/app.yml"
       - "*/config.yaml"
       - "*/secrets.yaml"
-      - "*/assets/**"
+      - "**/assets/**"
       - "*/deploy/config.*.example"
       - "lib/app-config.sh"
       - "deploy.sh"

@@ -4,6 +4,21 @@
 
 ## 仓库中的文件
 
+EasyNetTopo 同步固定的 Git 提交，在仓库内读取名为 `app.yaml` 或 `app.yml` 的文件。商店使用配置中的 `id` 标识应用，同一个源内的 ID 必须唯一。顶层 `enabled` 默认为 `true`。设为 `false` 后，下次成功同步时该应用会从可选应用列表隐藏，主机上已有的文件和数据会保留。
+
+原生 CLI 等通过本机命令安装的工具可用 `catalog_only: true` 发布展示卡片。文件可位于任意目录，卡片读取 `id`、`name`、`summary`、`category` 以及可选的 `icon`。图标路径相对于该配置文件所在目录。此模式仅展示说明，安装命令由用户在目标主机执行。Maestro 的完整展示配置如下。
+
+```yaml
+catalog_only: true
+enabled: true
+id: maestro
+name: Maestro
+summary: Android 界面自动化工具。在 Mac 上进入 deploy 仓库目录，运行 bash deploy.sh maestro install 即可通过 Homebrew 原生安装。
+category: developer
+```
+
+需要通过主机代理执行生命周期操作的应用沿用完整部署清单。包文件、脚本、配置与权限按原有契约校验。v2 应用的布局如下。
+
 ```text
 <应用>/
   app.yaml                     # schema_version: 2；元数据、运行方式、端口、生命周期、包文件
@@ -43,7 +58,6 @@ fields:
     editable: true
 ```
 
-- `enabled` 可选，默认 `true`：控制应用是否在应用商店展示并允许安装；设为 `false` 表示停用该应用，不删除应用文件、配置或数据。
 - `custom_input` 必填：关闭时不提供页面输入；后端保留已有值，缺失时使用默认值。
 - `editable` 默认 `true`：开启页面输入但设为 `false` 时显示只读字段。隐藏或只读字段不得由请求覆盖。
 - `type` 支持 `string`、`number`（整数）、`boolean`、`port`、`ipv4`、`secret`。默认值必须符合对应类型；密钥类型只允许出现在 `secrets.yaml`。
@@ -59,7 +73,7 @@ python3 tools/validate_app_manifest.py --examples --all
 python3 -m unittest discover -s tests/contracts -p 'test_*.py'
 ```
 
-该维护工具使用 PyYAML、jsonschema（与 CI 相同）；目标主机脚本使用生成模板，不新增 Python、YAML 解析器或 yq 运行依赖。CI 检查模板与定义完全一致。
+在 Git 检出目录中，`--all` 校验 Git 已跟踪的清单。检查尚未加入 Git 的文件时，可以直接传入文件路径，例如 `python3 tools/validate_app_manifest.py maestro/app.yaml`。该维护工具使用 PyYAML、jsonschema（与 CI 相同）；目标主机脚本使用生成模板，不新增 Python、YAML 解析器或 yq 运行依赖。CI 检查模板与定义完全一致。
 
 ## 清单驱动的单选与条件字段
 

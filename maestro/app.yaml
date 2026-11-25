@@ -1,0 +1,6 @@
+catalog_only: true
+enabled: true
+id: maestro
+name: Maestro
+summary: Android 界面自动化工具。在 Mac 上进入 deploy 仓库目录，运行 bash deploy.sh maestro install 即可通过 Homebrew 原生安装。
+category: developer

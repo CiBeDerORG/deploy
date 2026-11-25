@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Deploy 应用商店展示条目",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["catalog_only", "id", "name", "summary", "category"],
+  "properties": {
+    "catalog_only": { "const": true },
+    "enabled": { "type": "boolean", "default": true },
+    "id": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "category": {
+      "enum": ["infrastructure", "network", "developer", "media", "productivity", "other"]
+    },
+    "icon": {
+      "type": "string",
+      "pattern": "^assets/[A-Za-z0-9_-]+\\.(svg|png|webp)$",
+      "maxLength": 256
+    }
+  }
+}
