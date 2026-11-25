@@ -33,10 +33,10 @@ grep -Fxq 'KEEP-ME' "$SOFTWARE_ROOT/easynettopo/data/sentinel"
 
 # 尚未安装的 Agent 查询应失败，但必须进入 macOS 专用路径，不能调用 Linux systemd。
 if bash deploy.sh easyhostagent status >"$RUNNER_TEMP/unsupported.out" 2>&1; then
-    echo "Uninstalled native Agent must not claim to be running" >&2
+    echo "未安装 Agent 时，状态查询应返回失败" >&2
     exit 1
 fi
-grep -Eq 'macOS|LaunchAgent|目前只支持' "$RUNNER_TEMP/unsupported.out"
+grep -Fq 'Agent 尚未由当前安装器安装' "$RUNNER_TEMP/unsupported.out"
 
 # Docker stub exercises the same installation path without publishing or running containers.
 # Real Docker Desktop integration and actual volume-write permissions remain separate acceptance criteria.

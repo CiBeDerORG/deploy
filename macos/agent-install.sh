@@ -75,7 +75,7 @@ collect_diagnostics() {
         run_logged "launchctl 用户 GUI 域" launchctl print "gui/$uid" || true
     fi
     if command -v lsof >/dev/null 2>&1; then
-        for diagnostic_entry in "${listen_entries[@]}"; do
+        for diagnostic_entry in ${listen_entries[@]+"${listen_entries[@]}"}; do
             diagnostic_port="${diagnostic_entry##*:}"
             run_logged "监听端口 $diagnostic_port" lsof -nP -iTCP:"$diagnostic_port" -sTCP:LISTEN || true
         done
@@ -198,17 +198,18 @@ for entry in "${listen_entries[@]}"; do
     done
     (( 10#$port >= 1 && 10#$port <= 65535 )) || fail "无效监听端口：$entry"
     port="$((10#$port))"
-    for previous in "${seen_listeners[@]}"; do
+    # 系统 Bash 3.2 在 nounset 下会将空数组视为未定义。
+    for previous in ${seen_listeners[@]+"${seen_listeners[@]}"}; do
         [[ "$previous" != "$host:$port" ]] || fail "重复监听地址：$entry"
     done
     seen_listeners+=("$host:$port")
     if [[ "$host" == 0.0.0.0 ]]; then
-        for previous in "${concrete_ports[@]}"; do
+        for previous in ${concrete_ports[@]+"${concrete_ports[@]}"}; do
             [[ "$previous" != "$port" ]] || fail "通配监听和指定 IP 端口冲突：$port"
         done
         wildcard_ports+=("$port")
     else
-        for previous in "${wildcard_ports[@]}"; do
+        for previous in ${wildcard_ports[@]+"${wildcard_ports[@]}"}; do
             [[ "$previous" != "$port" ]] || fail "通配监听和指定 IP 端口冲突：$port"
         done
         concrete_ports+=("$port")
