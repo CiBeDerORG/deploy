@@ -1,11 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Deploy 应用商店展示条目",
+  "title": "Deploy 应用商店条目",
   "type": "object",
   "additionalProperties": false,
-  "required": ["catalog_only", "id", "name", "summary", "category"],
+  "required": ["id", "name", "summary", "category"],
+  "oneOf": [
+    { "required": ["catalog_only"] },
+    { "required": ["native_install"] }
+  ],
+  "dependentSchemas": {
+    "native_install": { "properties": { "id": { "const": "maestro" } } }
+  },
   "properties": {
     "catalog_only": { "const": true },
+    "native_install": { "const": "macos_homebrew" },
     "enabled": { "type": "boolean", "default": true },
     "id": {
       "type": "string",

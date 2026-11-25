@@ -1,6 +1,6 @@
-catalog_only: true
+native_install: macos_homebrew
 enabled: true
 id: maestro
 name: Maestro
-summary: Android 界面自动化工具。在 Mac 上进入 deploy 仓库目录，运行 bash deploy.sh maestro install 即可通过 Homebrew 原生安装。
+summary: Android 界面自动化工具，通过 Homebrew 安装在所选 Mac 上，可使用 ADB 连接安卓设备并执行 YAML 流程。
 category: developer

@@ -6,14 +6,19 @@
 
 EasyNetTopo 同步固定的 Git 提交，在仓库内读取名为 `app.yaml` 或 `app.yml` 的文件。商店使用配置中的 `id` 标识应用，同一个源内的 ID 必须唯一。顶层 `enabled` 默认为 `true`。设为 `false` 后，下次成功同步时该应用会从可选应用列表隐藏，主机上已有的文件和数据会保留。
 
-原生 CLI 等通过本机命令安装的工具可用 `catalog_only: true` 发布展示卡片。文件可位于任意目录，卡片读取 `id`、`name`、`summary`、`category` 以及可选的 `icon`。图标路径相对于该配置文件所在目录。此模式仅展示说明，安装命令由用户在目标主机执行。Maestro 的完整展示配置如下。
+展示条目和 macOS 原生安装条目都可位于任意目录。两者共用 `id`、`name`、`summary`、`category`、`enabled` 和可选的 `icon`。图标路径相对于配置文件所在目录。每份配置选择一种模式。
+
+- `catalog_only: true` 发布展示卡片，适用于通过其他方式安装的工具。
+- `native_install: macos_homebrew` 允许在已配对的 Mac 上调用 EasyHostAgent 内置的 Homebrew 安装器。当前支持的应用 ID 为 `maestro`。安装器由 Agent 决定依赖与配方，清单只声明安装能力。
+
+Maestro 的完整原生安装配置如下。
 
 ```yaml
-catalog_only: true
+native_install: macos_homebrew
 enabled: true
 id: maestro
 name: Maestro
-summary: Android 界面自动化工具。在 Mac 上进入 deploy 仓库目录，运行 bash deploy.sh maestro install 即可通过 Homebrew 原生安装。
+summary: Android 界面自动化工具，通过 Homebrew 安装在所选 Mac 上，可使用 ADB 连接安卓设备并执行 YAML 流程。
 category: developer
 ```
 

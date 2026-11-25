@@ -220,12 +220,16 @@ def read_manifest(manifest: Path, root: Path) -> dict:
     return data
 
 
+def is_catalog_entry(data: dict) -> bool:
+    return "catalog_only" in data or "native_install" in data
+
+
 def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None = None) -> dict:
     root = root.resolve(strict=True)
     data = read_manifest(manifest, root)
     version = data.get("schema_version")
-    catalog_only = data.get("catalog_only") is True
-    if catalog_only:
+    catalog_entry = is_catalog_entry(data)
+    if catalog_entry:
         schema_path = schema_path or root / "schema/app-catalog-entry.schema.json"
     else:
         require(version in (1, 2), "不支持的应用清单版本")
@@ -245,11 +249,12 @@ def validate(manifest: Path, root: Path = DEFAULT_ROOT, schema_path: Path | None
         # Avoid echoing secret default values from validator diagnostics.
         raise ManifestError(f"Schema validation failed at {location}: {err.validator}")
     app = data["id"]
-    if catalog_only:
-        require(manifest.name in ("app.yaml", "app.yml"), "展示配置文件名应为 app.yaml 或 app.yml")
+    if catalog_entry:
+        require(manifest.name in ("app.yaml", "app.yml"), "商店配置文件名应为 app.yaml 或 app.yml")
         if data.get("icon"):
             validate_icon(manifest.parent, data["icon"])
-        return {"id": app, "catalog_only": True, "enabled": data.get("enabled", True)}
+        mode = "native_install" if "native_install" in data else "catalog_only"
+        return {"id": app, mode: data[mode], "enabled": data.get("enabled", True)}
     data["config"] = resolve_config(data, root)
     # Contract fixtures live under schema/examples; production must be <id>/app.yaml.
     is_fixture = (manifest.parent.resolve() == (root / "schema/examples").resolve()
@@ -490,7 +495,7 @@ def main(argv=None) -> int:
         try:
             if args.write_defaults:
                 data = read_manifest(path, args.root.resolve(strict=True))
-                if data.get("schema_version") == 2 and "catalog_only" not in data:
+                if data.get("schema_version") == 2 and not is_catalog_entry(data):
                     require(path.name == "app.yaml" and path.parent.name == data.get("id")
                             and path.parent.parent == args.root.resolve(),
                             "仅支持为 <应用ID>/app.yaml 的部署清单写入配置模板")

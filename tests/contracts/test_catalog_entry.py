@@ -1,4 +1,4 @@
-"""商店展示条目与既有部署清单的兼容性测试。"""
+"""商店展示、macOS 原生安装条目与既有部署清单的兼容性测试。"""
 import io
 import shutil
 import subprocess
@@ -21,7 +21,10 @@ class CatalogEntryTests(unittest.TestCase):
         self.root = Path(temporary.name)
         (self.root / "schema").mkdir()
         shutil.copy(ROOT / "schema/app-catalog-entry.schema.json", self.root / "schema")
-        self.entry = yaml.safe_load((ROOT / "maestro/app.yaml").read_text())
+        self.native_entry = yaml.safe_load((ROOT / "maestro/app.yaml").read_text())
+        self.entry = self.native_entry.copy()
+        del self.entry["native_install"]
+        self.entry["catalog_only"] = True
         self.path = self.root / "工具/mac/app.yml"
         self.path.parent.mkdir(parents=True)
 
@@ -29,7 +32,6 @@ class CatalogEntryTests(unittest.TestCase):
         self.path.write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
 
     def test_nested_entry_and_switch(self):
-        self.assertTrue(validate(ROOT / "maestro/app.yaml", ROOT)["enabled"])
         del self.entry["enabled"]
         self.write(self.entry)
         self.assertEqual(validate(self.path, self.root), {
@@ -43,6 +45,20 @@ class CatalogEntryTests(unittest.TestCase):
                         {"actions": {}}, {"schema_version": 2}, {"runtime": {}}):
             with self.subTest(changes=changes):
                 self.write({**self.entry, **changes})
+                with self.assertRaises(ManifestError):
+                    validate(self.path, self.root)
+
+    def test_native_install_mode_uses_known_platform_and_app(self):
+        self.assertEqual(validate(ROOT / "maestro/app.yaml", ROOT), {
+            "id": "maestro", "enabled": True, "native_install": "macos_homebrew",
+        })
+        self.write({**self.native_entry, "enabled": False})
+        self.assertFalse(validate(self.path, self.root)["enabled"])
+        for changes in ({"id": "another-tool"}, {"native_install": "brew install foo"},
+                        {"catalog_only": True}, {"catalog_only": False},
+                        {"runtime": {}}, {"actions": {}}, {"formula": "other/tap/maestro"}):
+            with self.subTest(changes=changes):
+                self.write({**self.native_entry, **changes})
                 with self.assertRaises(ManifestError):
                     validate(self.path, self.root)
 

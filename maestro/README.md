@@ -24,7 +24,9 @@ export JAVA_HOME="$(brew --prefix openjdk)/libexec/openjdk.jdk/Contents/Home"
 
 ## 4. 安装、检查与可选 Codex 接入
 
-在包含该功能的 deploy 仓库根目录运行以下命令。第一条应列出 `maestro`。
+Deploy 的 EasyHostAgent 安装脚本目前支持 Apple Silicon（arm64）Mac。通过 EasyNetTopo 安装时，先将控制台和目标 Mac 的 EasyHostAgent 更新到支持 `macos_homebrew` 的版本，并在控制台刷新 Deploy 应用源。为已配对的 Mac 选择 Maestro 并点击「安装」。Agent 以登录用户身份使用本机 Homebrew 安装配方、补齐 ADB 并验证 CLI 能启动。目标 Mac 可以在没有本地 Deploy 代码检出的情况下接受安装任务。
+
+也可以在包含该功能的 deploy 仓库根目录运行以下命令。第一条应列出 `maestro`。
 
 ```bash
 bash deploy.sh list
