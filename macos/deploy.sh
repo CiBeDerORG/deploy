@@ -1,21 +1,12 @@
 #!/usr/bin/env bash
-# macOS Docker Desktop 部署入口。使用系统自带 Bash 3.2，不通过 sudo 调用 Docker。
+# macOS 原生工具与 Docker Desktop 部署入口，使用系统自带 Bash 3.2。
 set -euo pipefail
-umask 077
 
 die() { printf 'macOS 部署：%s\n' "$*" >&2; exit 1; }
 [[ "$(uname -s)" == Darwin ]] || die "本入口仅支持 macOS"
-[[ "$(id -u)" -ne 0 ]] || die "请用普通登录用户执行 bash deploy.sh，不要 sudo（Docker Desktop 属于用户会话）"
+[[ "$(id -u)" -ne 0 ]] || die "请用普通登录用户执行 bash deploy.sh，不要 sudo"
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SOFTWARE_ROOT="${SOFTWARE_ROOT:-/opt/software}"
-[[ "$SOFTWARE_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]] || die "SOFTWARE_ROOT 必须是无空格的安全绝对路径"
-case "$SOFTWARE_ROOT" in */../*|*/./*|*//*|*/..|*/.) die "SOFTWARE_ROOT 包含非规范化路径" ;; esac
-[[ "$SOFTWARE_ROOT" != / ]] || die "不能将软件根目录设为 /"
-[[ ! -L "$SOFTWARE_ROOT" ]] || die "SOFTWARE_ROOT 不能是符号链接"
-ENV_DIR="$SOFTWARE_ROOT/deploy"
-ENV_FILE="$ENV_DIR/.env"
-SECRETS_FILE="$ENV_DIR/.secrets"
 
 usage() {
     cat <<'HELP'
@@ -25,6 +16,7 @@ macOS 通用部署命令（请用普通用户运行，不要 sudo）：
   bash deploy.sh <应用> sync
   bash deploy.sh easynettopo install|update|uninstall
   bash deploy.sh portainer install|update|uninstall
+  bash deploy.sh maestro install|update|uninstall
   bash deploy.sh easyhostagent install|update|force-update|uninstall|status|identity|pairing
 
 默认 SOFTWARE_ROOT=/opt/software，可用 SOFTWARE_ROOT=/绝对路径 覆盖。
@@ -114,6 +106,7 @@ task_exists() {
 list_tasks() {
     local installer task available
     printf '%-28s %s\n' '应用' 'macOS 支持'
+    printf '%-28s %s\n' maestro 'Homebrew 原生 CLI 安装/更新/卸载'
     for installer in "$ROOT_DIR"/*/deploy/install.sh; do
         [[ -f "$installer" ]] || continue
         task="$(basename "$(dirname "$(dirname "$installer")")")"
@@ -124,6 +117,48 @@ list_tasks() {
         esac
         printf '%-28s %s\n' "$task" "$available"
     done
+}
+
+maestro_lifecycle() {
+    local action="$1" formula="mobile-dev-inc/tap/maestro" installed prefix jdk_prefix adb_bin
+    case "$action" in
+        install|update|uninstall) ;;
+        *) die "Maestro 仅支持 install/update/uninstall" ;;
+    esac
+    command -v brew >/dev/null 2>&1 || die "Maestro 需要 Homebrew，请先安装 brew 并加入 PATH"
+    installed="$(brew list --formula --full-name)"
+
+    if [[ "$action" == uninstall ]]; then
+        if grep -Fxq "$formula" <<< "$installed"; then
+            HOMEBREW_NO_AUTOREMOVE=1 brew uninstall --formula "$formula"
+        fi
+        echo "Maestro 官方 Homebrew 包已卸载或未安装，保留 ADB、Java 和用户流程。"
+        return
+    fi
+
+    # 使用完整配方名，避免接管其他 tap 中的同名工具。
+    if grep -Fxq "$formula" <<< "$installed"; then
+        if [[ "$action" == update ]]; then
+            HOMEBREW_NO_INSTALL_CLEANUP=1 brew upgrade --formula "$formula"
+        fi
+    else
+        if grep -Eq '(^|/)maestro$' <<< "$installed"; then
+            die "Homebrew 已安装其他来源的同名 maestro，请先核对安装来源"
+        fi
+        HOMEBREW_NO_INSTALL_CLEANUP=1 brew install --formula "$formula"
+    fi
+
+    prefix="$(brew --prefix)"
+    # Android SDK 已提供 adb 时沿用原安装。补装失败后可从同一入口重试。
+    adb_bin="$(command -v adb)" || adb_bin="$prefix/bin/adb"
+    if [[ ! -x "$adb_bin" ]]; then
+        HOMEBREW_NO_INSTALL_CLEANUP=1 brew install --cask android-platform-tools
+        adb_bin="$prefix/bin/adb"
+    fi
+    "$adb_bin" version
+    jdk_prefix="$(brew --prefix openjdk)"
+    JAVA_HOME="$jdk_prefix/libexec/openjdk.jdk/Contents/Home" "$prefix/bin/maestro" --version
+    printf 'Maestro 已就绪。当前终端可运行：export JAVA_HOME=%q\n' "$jdk_prefix/libexec/openjdk.jdk/Contents/Home"
 }
 
 sync_task() {
@@ -152,6 +187,22 @@ sync_task() {
 }
 
 action="${2:-install}"
+if [[ "${1:-}" == maestro ]]; then
+    [[ "$#" -le 2 ]] || die "参数过多"
+    maestro_lifecycle "$action"
+    exit
+fi
+
+umask 077
+SOFTWARE_ROOT="${SOFTWARE_ROOT:-/opt/software}"
+[[ "$SOFTWARE_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]] || die "SOFTWARE_ROOT 必须是无空格的安全绝对路径"
+case "$SOFTWARE_ROOT" in */../*|*/./*|*//*|*/..|*/.) die "SOFTWARE_ROOT 包含非规范化路径" ;; esac
+[[ "$SOFTWARE_ROOT" != / ]] || die "不能将软件根目录设为 /"
+[[ ! -L "$SOFTWARE_ROOT" ]] || die "SOFTWARE_ROOT 不能是符号链接"
+ENV_DIR="$SOFTWARE_ROOT/deploy"
+ENV_FILE="$ENV_DIR/.env"
+SECRETS_FILE="$ENV_DIR/.secrets"
+
 case "${1:-}" in
     ''|-h|--help|help) usage ;;
     list)

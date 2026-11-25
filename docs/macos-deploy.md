@@ -12,13 +12,14 @@
 | `bash deploy.sh easynettopo install/update/uninstall` | Docker Desktop 模式，适配中；卸载只删除项目容器 |
 | `bash deploy.sh portainer install/update/uninstall` | Docker Desktop 模式，适配中；需配置管理员密码与 Docker Socket |
 | `bash deploy.sh easyhostagent install/update/uninstall/status/identity/pairing` | macOS ARM64 LaunchAgent、Docker Desktop 资源管理及应用市场安装/更新/卸载 |
+| `bash deploy.sh maestro install/update/uninstall` | Homebrew 原生 CLI，可连接 Android 真机 |
 | 其他应用的 `install/update/uninstall` | 暂不支持，明确报错，不调用 Linux 原生脚本 |
 
 ## 运行要求
 
 - macOS 自带 Bash 3.2、`rsync`、`lockf` 即可运行 Mac 安装入口，不需要额外安装 GNU sed、flock 或 Bash 5。
-- 需要已安装并启动 Docker Desktop，且 Docker Compose v2 可用。**不要在 Mac 上使用 sudo 运行部署命令**：Docker Desktop 绑定当前登录用户的 Docker Context。
-- 默认与 Linux 统一使用 `/opt/software`。首次配置前，手工授权该目录给当前用户：
+- 部署 Docker 应用需要已安装并启动 Docker Desktop，且 Docker Compose v2 可用。**不要在 Mac 上使用 sudo 运行部署命令**：Docker Desktop 绑定当前登录用户的 Docker Context。
+- 使用 deploy 配置与运行目录的应用默认与 Linux 统一使用 `/opt/software`。首次配置前，手工授权该目录给当前用户：
 
 ```bash
 sudo mkdir -p /opt/software
@@ -28,6 +29,17 @@ sudo chown "$(id -u):$(id -g)" /opt/software
 - 在 Docker Desktop → Settings → Resources → File Sharing 中确保 `/opt/software` 可被共享。Portainer 必须另外在 Docker Desktop → Settings → Advanced 中启用默认 `/var/run/docker.sock`；未启用时安装会提前中止。Docker Desktop 的 Docker Engine 位于 Linux 虚拟机内，所以 Mac 上的 Agent 容器不能天然管理 macOS 宿主机进程、LaunchAgents 或硬件状态。
 
 ## 使用
+
+Maestro 安装在当前用户的 Homebrew 前缀下。只部署 Maestro 时，无需初始化 `/opt/software`、运行 `deploy.sh env` 或启动 Docker Desktop。
+
+```bash
+bash deploy.sh list
+bash deploy.sh maestro install
+```
+
+已安装的 Maestro 使用 `bash deploy.sh maestro update` 更新，使用 `bash deploy.sh maestro uninstall` 卸载。真机调试授权、配置和可选 Codex MCP 注册步骤见 [Maestro 部署说明](../maestro/README.md)。
+
+### Docker Desktop 应用
 
 ```bash
 # 克隆（或切换到已合并的主分支）

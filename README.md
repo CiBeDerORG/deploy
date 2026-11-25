@@ -5,11 +5,13 @@
 
 统一管理 Linux / fnOS 上的常用服务部署，并提供 EasyTier OpenWrt 原生安装脚本。
 
-## macOS Docker Desktop（适配中）
+## macOS 原生工具与 Docker Desktop
 
-在 Mac 上可继续使用 `bash deploy.sh`，入口自动分流到系统自带 Bash 3.2 兼容的 `macos/deploy.sh`。**不要在 Mac 上使用 sudo 运行 Docker 部署**。目前通用 `list/env/sync` 可用；已适配 `easynettopo`、`portainer` 的 Docker Desktop 安装/更新/卸载。其他应用暂只支持同步，EasyHostAgent 原生 systemd 安装不支持 macOS。
+在 Mac 上以当前登录用户运行 `bash deploy.sh list` 查看支持的应用和操作。入口自动分流到兼容系统 Bash 3.2 的 `macos/deploy.sh`。EasyNetTopo 和 Portainer 使用 Docker Desktop，EasyHostAgent 使用原生 LaunchAgent。
 
-macOS 默认 `SOFTWARE_ROOT=/opt/software`，首次需给当前用户设置目录所有权并配置 Docker Desktop 文件共享。具体安装步骤、安全边界、受限功能和测试范围见 [macOS 部署说明](docs/macos-deploy.md)。
+Maestro 使用 Homebrew 安装为原生 CLI。在仓库根目录运行 `bash deploy.sh maestro install` 安装，`bash deploy.sh maestro update` 更新，`bash deploy.sh maestro uninstall` 卸载。仅需 Homebrew，无需初始化 deploy 配置、运行 Docker 或使用 `sudo`。[Maestro 安装、真机检查与 Codex 接入](./maestro/README.md)
+
+macOS 上的 Docker 部署默认使用 `SOFTWARE_ROOT=/opt/software`，首次需给当前用户设置目录所有权并配置 Docker Desktop 文件共享。具体安装步骤、安全边界、受限功能和测试范围见 [macOS 部署说明](docs/macos-deploy.md)。
 
 仓库本身可以放在任意目录；真正运行的服务文件会由根目录 `deploy.sh` 同步到：
 
@@ -111,6 +113,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1 list
 | FRPS | `7000/TCP`，后台 `7001/TCP` | Docker Compose | [frps/README.md](./frps/README.md) |
 | EasyTier | Core `7005`，RPC `7006`，Web `7007`，Config `7008/UDP` | Docker / OpenWrt | [easytier/README.md](./easytier/README.md) |
 | EasyTier 手机执行器 | `8766/TCP`（默认仅本机监听） | 独立 Docker Compose，Linux amd64 | [easytier-automation-executor/README.md](./easytier-automation-executor/README.md) |
+| Maestro | 本机 CLI，可选 MCP（stdio） | macOS 原生 Homebrew | [Maestro 部署说明](./maestro/README.md) |
 | Portainer CE | `7004/TCP` | Docker Compose | [portainer/README.md](./portainer/README.md) |
 | FlatNas | `7009/TCP` | Docker Compose | [flatnas/README.md](./flatnas/README.md) |
 | Sub2API | `7010/TCP` | Docker Compose（含 PostgreSQL、Redis） | [sub2api/README.md](./sub2api/README.md) |

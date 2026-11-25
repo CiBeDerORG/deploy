@@ -13,6 +13,8 @@ bash -n deploy.sh macos/deploy.sh macos/compose-install.sh macos/agent-install.s
 LIST_OUTPUT="$(bash deploy.sh list)"
 grep -q 'easynettopo' <<< "$LIST_OUTPUT"
 grep -q 'portainer' <<< "$LIST_OUTPUT"
+grep -Fq 'maestro' <<< "$LIST_OUTPUT"
+grep -Fq 'maestro' <<< "$(bash deploy.sh --help)"
 bash deploy.sh env
 [[ -f "$SOFTWARE_ROOT/deploy/.env" && -f "$SOFTWARE_ROOT/deploy/.secrets" ]]
 [[ "$(stat -f '%Lp' "$SOFTWARE_ROOT/deploy/.env")" == 600 ]]
@@ -135,4 +137,119 @@ fi
 bash deploy.sh easynettopo uninstall
 [[ "$(cat "$MIRROR_STATE")" == ghproxy ]]
 grep -Fxq 'KEEP-ME' "$SOFTWARE_ROOT/easynettopo/data/sentinel"
-echo "macOS deployment entry smoke checks passed"
+
+# 在独立前缀内模拟 Homebrew，防止测试读到 Runner 预装的 SDK 或修改真实软件。
+(
+    export MAESTRO_FIXTURE="$RUNNER_TEMP/maestro-fixture"
+    prefix="$MAESTRO_FIXTURE/brew"
+    fixture_bin="$MAESTRO_FIXTURE/bin"
+    fixture_home="$MAESTRO_FIXTURE/home"
+    export SOFTWARE_ROOT="$MAESTRO_FIXTURE/未使用的 deploy 目录"
+    export PATH="$fixture_bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    mkdir -p "$fixture_bin" "$prefix/bin" "$fixture_home/.maestro"
+    printf '用户流程\n' > "$fixture_home/.maestro/flow.yaml"
+    cat > "$fixture_bin/brew" <<'BREW'
+#!/bin/bash
+set -eu
+prefix="$MAESTRO_FIXTURE/brew"
+printf '%s\n' "$*" >> "$MAESTRO_FIXTURE/brew.log"
+[[ "$*" != "${MOCK_BREW_FAILURE:-}" ]] || exit 17
+case "$*" in
+    '--prefix') echo "$prefix" ;;
+    '--prefix openjdk') echo "$prefix/opt/openjdk" ;;
+    'list --formula --full-name')
+        echo 'unrelated-tool'
+        if [[ -n "${MOCK_OTHER_MAESTRO:-}" ]]; then echo 'other/tap/maestro'; fi
+        if [[ -x "$prefix/bin/maestro" ]]; then echo 'mobile-dev-inc/tap/maestro'; fi ;;
+    'install --cask android-platform-tools') cp "$MAESTRO_FIXTURE/adb" "$prefix/bin/adb" ;;
+    'install --formula mobile-dev-inc/tap/maestro') cp "$MAESTRO_FIXTURE/maestro" "$prefix/bin/maestro" ;;
+    'upgrade --formula mobile-dev-inc/tap/maestro') [[ -x "$prefix/bin/maestro" ]] ;;
+    'uninstall --formula mobile-dev-inc/tap/maestro')
+        [[ "${HOMEBREW_NO_AUTOREMOVE:-}" == 1 ]]
+        rm "$prefix/bin/maestro" ;;
+    *) echo "意外的 Homebrew 调用：$*" >&2; exit 2 ;;
+esac
+BREW
+    cat > "$MAESTRO_FIXTURE/maestro" <<'MAESTRO'
+#!/bin/bash
+set -eu
+[[ "$*" == "--version" ]]
+[[ "$JAVA_HOME" == "$MAESTRO_FIXTURE/brew/opt/openjdk/libexec/openjdk.jdk/Contents/Home" ]]
+echo "$*" >> "$MAESTRO_FIXTURE/maestro.log"
+echo 'Maestro 测试版本'
+MAESTRO
+    cat > "$MAESTRO_FIXTURE/adb" <<'ADB'
+#!/bin/bash
+set -eu
+[[ "$*" == "version" ]]
+echo "$0" >> "$MAESTRO_FIXTURE/adb.log"
+echo 'Android Debug Bridge 测试版本'
+ADB
+    cat > "$fixture_bin/docker" <<'NO_DOCKER'
+#!/bin/bash
+touch "$MAESTRO_FIXTURE/docker-called"
+exit 1
+NO_DOCKER
+    chmod +x "$fixture_bin/brew" "$fixture_bin/docker" "$MAESTRO_FIXTURE/adb" "$MAESTRO_FIXTURE/maestro"
+    run_maestro() { env HOME="$fixture_home" /bin/bash deploy.sh maestro "$@"; }
+
+    if MOCK_OTHER_MAESTRO=1 run_maestro install; then
+        echo '安装应拒绝接管其他 tap 的同名公式' >&2; exit 1
+    fi
+    MOCK_OTHER_MAESTRO=1 run_maestro uninstall
+    if grep -Eq '^(install|upgrade|uninstall) ' "$MAESTRO_FIXTURE/brew.log"; then
+        echo '其他来源的同名公式被修改' >&2; exit 1
+    fi
+
+    # 已有 SDK 优先使用 PATH 中的 adb；公式安装失败后可重试，重复安装不得升级。
+    cp "$MAESTRO_FIXTURE/adb" "$fixture_bin/adb"
+    if MOCK_BREW_FAILURE='install --formula mobile-dev-inc/tap/maestro' run_maestro install; then
+        echo 'Maestro 安装应传递 Homebrew 失败' >&2; exit 1
+    fi
+    : > "$MAESTRO_FIXTURE/brew.log"
+    run_maestro install
+    run_maestro install
+    [[ "$(grep -c '^install --formula ' "$MAESTRO_FIXTURE/brew.log")" == 1 ]]
+    if grep -Eq '^(install --cask|upgrade) ' "$MAESTRO_FIXTURE/brew.log"; then
+        echo '重复安装误触发了升级或替换已有 ADB' >&2; exit 1
+    fi
+    grep -Fxq "$fixture_bin/adb" "$MAESTRO_FIXTURE/adb.log"
+    grep -Fxq -- '--version' "$MAESTRO_FIXTURE/maestro.log"
+    run_maestro update
+    grep -Fxq 'upgrade --formula mobile-dev-inc/tap/maestro' "$MAESTRO_FIXTURE/brew.log"
+    run_maestro uninstall
+    [[ -x "$fixture_bin/adb" && ! -e "$prefix/bin/maestro" ]]
+
+    # 未安装时 update 补装公式；补装 ADB 失败后可安全重试。
+    rm "$fixture_bin/adb"
+    : > "$MAESTRO_FIXTURE/brew.log"
+    if MOCK_BREW_FAILURE='install --cask android-platform-tools' run_maestro update; then
+        echo 'Maestro 首次更新应传递 ADB 安装失败' >&2; exit 1
+    fi
+    [[ ! -e "$prefix/bin/adb" && -x "$prefix/bin/maestro" ]]
+    run_maestro update
+    [[ "$(grep -Fc 'install --cask android-platform-tools' "$MAESTRO_FIXTURE/brew.log")" == 2 ]]
+    [[ "$(grep -c '^install --formula ' "$MAESTRO_FIXTURE/brew.log")" == 1 ]]
+    grep -Fxq "$prefix/bin/adb" "$MAESTRO_FIXTURE/adb.log"
+    run_maestro uninstall
+    run_maestro uninstall
+    [[ -x "$prefix/bin/adb" && ! -e "$prefix/bin/maestro" ]]
+    [[ "$(grep -c '^uninstall ' "$MAESTRO_FIXTURE/brew.log")" == 1 ]]
+
+    # Linux 通过 */deploy/install.sh 发现应用；这里同时核对该入口及 Linux 帮助。
+    cat > "$fixture_bin/uname" <<'LINUX'
+#!/bin/bash
+[[ "$*" == "-s" ]] && { echo Linux; exit 0; }
+exec /usr/bin/uname "$@"
+LINUX
+    chmod +x "$fixture_bin/uname"
+    : > "$MAESTRO_FIXTURE/brew.log"
+    linux_help="$(env HOME="$fixture_home" /bin/bash deploy.sh --help)"
+    if grep -Fq 'maestro' <<< "$linux_help" || [[ -e maestro/deploy/install.sh ]]; then
+        echo 'Linux 入口误暴露了 macOS 专用的 Maestro 安装能力' >&2; exit 1
+    fi
+    [[ ! -s "$MAESTRO_FIXTURE/brew.log" && ! -e "$MAESTRO_FIXTURE/docker-called" ]]
+    grep -Fxq '用户流程' "$fixture_home/.maestro/flow.yaml"
+    [[ ! -e "$SOFTWARE_ROOT" ]]
+)
+echo "macOS 部署入口冒烟检查通过"
