@@ -15,10 +15,15 @@ sudo bash deploy.sh env
 
 | 系统 | 普通配置 | 初始凭据 |
 | --- | --- | --- |
-| Linux | `/software/deploy/.env` | `/software/deploy/.secrets` |
+| 新装 Linux | `/opt/software/deploy/.env` | `/opt/software/deploy/.secrets` |
+| 沿用旧根目录的 Linux | `/software/deploy/.env` | `/software/deploy/.secrets` |
 | fnOS 使用 `/vol3/1000` 时 | `/vol3/1000/software/deploy/.env` | `/vol3/1000/software/deploy/.secrets` |
 
-用 `sudoedit` 打开这两个文件，修改已有的同名行。相关普通配置的默认值如下。
+Linux 和 fnOS 的脚本先读取全局 `<SOFTWARE_ROOT>/deploy/.env`，再用 `<SOFTWARE_ROOT>/easynettopo/config/.env` 中已填写的同名项覆盖以下四个设置：`EASYNETTOPO_HTTP_PORT`、`EASYNETTOPO_BIND_IP`、`EASYNETTOPO_GIT_ALLOWED_HOSTS`、`EASYNETTOPO_GIT_ALLOW_HTTP`。直接运行应用脚本时，缺少应用文件或其中某项会沿用对应全局值。`TZ` 和镜像源由全局配置管理，管理员凭据及 Hook Token 从全局 `.secrets` 读取。
+
+**已有安装升级前请核对两个文件的绑定地址和端口。** 旧版 `deploy.sh` 可能已经把当时的全局值写入应用文件。后续修改全局文件不会改写这份快照。脚本保留已有应用设置，包括曾自动写入的值；若全局后来改成 `127.0.0.1` 而应用仍是 `0.0.0.0`，先用 `sudoedit` 将应用文件改为期望的绑定地址，再执行更新。
+
+相关普通配置的默认值如下。
 
 ```dotenv
 TZ=Asia/Shanghai
@@ -34,7 +39,7 @@ DOCKER_IMAGE_MIRRORS=dockerproxy,ghproxy
 
 ## 2. 运行要求
 
-Linux 或 fnOS，amd64 或 arm64，运行中的 Docker Engine，支持 `up --wait`、`--pull never` 的 Docker Compose，以及 Bash、`flock` 和常用 Linux 工具。安装脚本使用 root，应用容器以 UID/GID `10001:10001` 运行。容器内 Go 进程通过 `EASYNETTOPO_ALLOW_CONTAINER_BIND=true` 显式允许监听 `0.0.0.0:8080`；宿主机发布地址由统一 `.env` 的 `EASYNETTOPO_BIND_IP` 控制：设置 `0.0.0.0` 时监听所有 IPv4 网卡，局域网及具备网络路由/防火墙放行条件的远端设备可以用服务器真实 IP 的 `7017` 端口访问；设置 `127.0.0.1` 时只允许宿主机本地访问。**0.0.0.0 不代表只开放内网，也不代表自动获得公网访问权限。当前服务直接提供 HTTP，账号密码会经明文链路传输，严禁无保护地暴露公网；请通过防火墙限制可信来源，并为公网入口配置 HTTPS 反向代理。**
+Linux 或 fnOS，amd64 或 arm64，运行中的 Docker Engine，支持 `up --wait`、`--pull never` 的 Docker Compose，以及 Bash、`flock` 和常用 Linux 工具。安装脚本使用 root，应用容器以 UID/GID `10001:10001` 运行。容器内 Go 进程通过 `EASYNETTOPO_ALLOW_CONTAINER_BIND=true` 显式允许监听 `0.0.0.0:8080`。宿主机发布地址使用上述配置合并后的 `EASYNETTOPO_BIND_IP`。`0.0.0.0` 监听所有 IPv4 网卡，`127.0.0.1` 仅允许宿主机本地访问。当前服务直接提供 HTTP，请通过防火墙限制可信来源，并为公网入口配置 HTTPS 反向代理。
 
 数据库及控制端状态保存在 `<SOFTWARE_ROOT>/easynettopo/data/`，私有 Git 源的 SSH 配置在 `<SOFTWARE_ROOT>/easynettopo/ssh/`，只读挂入容器。安装脚本会为新目录设置 `10001:10001`、权限 `0700`。对私有仓库，需要给该目录配置只读 SSH 凭据和经核对的 `known_hosts`。
 
@@ -52,8 +57,8 @@ EASYNETTOPO_ADMIN_PASSWORD=
 数据库尚无管理员且密码留空时，脚本生成 48 位十六进制随机密码，先写回 `.secrets`，再通过标准输入初始化。已经有管理员时，重装或更新沿用原账号和密码。只在可信终端查看自动生成的密码，避免分享输出。
 
 ```bash
-# Linux。fnOS 请将路径改为 /vol3/1000/software/deploy/.secrets
-sudo sed -n 's/^EASYNETTOPO_ADMIN_PASSWORD=//p' /software/deploy/.secrets
+# 新装 Linux；其他安装根目录见第 1 节。
+sudo sed -n 's/^EASYNETTOPO_ADMIN_PASSWORD=//p' /opt/software/deploy/.secrets
 ```
 
 ## 4. 安装和检查
@@ -91,14 +96,14 @@ git pull --ff-only origin main
 sudo bash deploy.sh easynettopo update
 ```
 
-从最新 deploy 运行更新，会自动读取仓库 `lib/versions.env` 的镜像版本并同步到软件目录；旧 `.env` 的 `EASYNETTOPO_IMAGE` 字段会被忽略，不会覆盖仓库版本。更新保留数据库及凭据，并按当前 `.env` 中的 `EASYNETTOPO_BIND_IP` 重新绑定宿主机端口。GitHub Actions 发布的默认 GHCR 分支镜像无需在目标机器编译，更新命令会直接重新拉取；如选用自建 `easynettopo:local`，则需自行更新该镜像。
+从最新 deploy 运行更新，会自动读取仓库 `lib/versions.env` 的镜像版本并同步到软件目录；旧 `.env` 的 `EASYNETTOPO_IMAGE` 字段会被忽略，不会覆盖仓库版本。更新保留数据库及凭据，并采用第 1 节说明的应用和全局配置来绑定宿主机地址及端口。GitHub Actions 发布的默认 GHCR 分支镜像无需在目标机器编译，更新命令会直接重新拉取；如选用自建 `easynettopo:local`，则需自行更新该镜像。
 
 ## 7. GitHub Actions 更新 Hook
 
 Hook Token 由全局敏感配置管理，不放在应用普通 `.env`，也不放入仓库：
 
 ```bash
-sudoedit /software/deploy/.secrets
+sudoedit /opt/software/deploy/.secrets
 ```
 
 添加一行至少 32 个字符的随机密钥：

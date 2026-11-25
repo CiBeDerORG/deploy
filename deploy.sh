@@ -86,7 +86,15 @@ read_env_software_root() {
     local file="$1"
     local line value
 
-    line="$(grep -E '^SOFTWARE_ROOT=' "$file" 2>/dev/null | tail -n 1 || true)"
+    [[ -r "$file" ]] || return 0
+    # 旧版把每个业务的整份 .env 追加到了文件末尾。定位时只读全局部分，
+    # 否则追加的过期根目录会在 ensure_global_env 有机会修复前中止启动。
+    line="$(DEPLOY_MERGE_ROOT="$SOFTWARE_ROOT" awk '
+        BEGIN { prefix="# migrated from " ENVIRON["DEPLOY_MERGE_ROOT"] "/" }
+        index($0,prefix)==1 && substr($0,length(prefix)+1) ~ /^[^/]+\/deploy\/\.env\r?$/ { exit }
+        /^[[:space:]]*SOFTWARE_ROOT[[:space:]]*=/ { root=$0 }
+        END { print root }
+    ' "$file" 2>/dev/null)" || return 1
     [ -n "$line" ] || return 0
 
     value="${line#*=}"
@@ -119,7 +127,7 @@ initialize_paths() {
     fi
 
     if [ -f "$GLOBAL_ENV" ]; then
-        configured_root="$(read_env_software_root "$GLOBAL_ENV")"
+        configured_root="$(read_env_software_root "$GLOBAL_ENV")" || return 1
         if [ -n "$configured_root" ] && [ "$configured_root" != "$SOFTWARE_ROOT" ]; then
             echo "配置错误：$GLOBAL_ENV 中 SOFTWARE_ROOT=$configured_root，但 .env 当前位于 $SOFTWARE_ROOT/deploy/.env。" >&2
             echo "请先迁移整个软件根目录，确保 .env 位于 <SOFTWARE_ROOT>/deploy/.env。" >&2
@@ -180,14 +188,12 @@ run_root() {
 }
 
 migrate_global_env_path() {
-    run_root mkdir -p "$GLOBAL_ENV_DIR"
-
     if [ ! -f "$GLOBAL_ENV" ] && [ -f "$LEGACY_GLOBAL_ENV" ]; then
         echo "发现旧全局配置：$LEGACY_GLOBAL_ENV"
         echo "迁移到新位置：$GLOBAL_ENV"
-        run_root mv "$LEGACY_GLOBAL_ENV" "$GLOBAL_ENV"
-        run_root chown root:root "$GLOBAL_ENV"
-        run_root chmod 0600 "$GLOBAL_ENV"
+        run_root mv "$LEGACY_GLOBAL_ENV" "$GLOBAL_ENV" || return 1
+        run_root chown root:root "$GLOBAL_ENV" || return 1
+        run_root chmod 0600 "$GLOBAL_ENV" || return 1
         GLOBAL_ENV_UPDATED=1
         return 0
     fi
@@ -198,22 +204,81 @@ migrate_global_env_path() {
 }
 
 migrate_legacy_envs() {
-    local legacy found=0
-
-    for legacy in "$SOFTWARE_ROOT"/*/deploy/.env; do
-        [ -f "$legacy" ] || continue
-        found=1
-        echo "发现旧配置，迁移到统一文件：$legacy"
-        run_root sh -c '
-            printf "\n# migrated from %s\n" "$1" >> "$2"
-            cat "$1" >> "$2"
-            printf "\n" >> "$2"
-        ' sh "$legacy" "$GLOBAL_ENV"
-    done
-
-    if [ "$found" -eq 1 ]; then
-        echo "旧业务 .env 已迁移；旧文件暂时保留作回滚备份，但后续脚本不再读取它们。"
-    fi
+    local result
+    result="$(run_root bash -s -- "$GLOBAL_ENV" "$GLOBAL_ENV_EXAMPLE" "$SOFTWARE_ROOT" "${DEPRECATED_ENV_KEYS[*]}" <<'MERGE_ENV'
+set -eu
+target=$1 template=$2 root=$3 deprecated=$4
+files=("$template")
+if [[ -f "$target" ]]; then
+    mode=repair
+    files+=("$target")
+else
+    mode=create
+    shopt -s nullglob
+    for file in "$root"/*/deploy/.env; do [[ ! -f "$file" ]] || files+=("$file"); done
+fi
+umask 077
+staged=$(mktemp "$target.tmp.XXXXXXXX")
+trap 'rm -f -- "$staged"' EXIT
+DEPLOY_MERGE_ROOT="$root" awk -v mode="$mode" -v deprecated="$deprecated" '
+    function fail(key) {
+        print "配置迁移失败：变量 " key " 的定义不明确，请核对旧配置（值不打印）" > "/dev/stderr"
+        failed=1; exit 1
+    }
+    function literal(value,    first) {
+        first=substr(value,1,1)
+        if ((first=="\"" || first==sprintf("%c",39)) && length(value)>=2 && substr(value,length(value))==first)
+            value=substr(value,2,length(value)-2)
+        return "v" value
+    }
+    BEGIN {
+        root=ENVIRON["DEPLOY_MERGE_ROOT"]
+        prefix="# migrated from " root "/"
+        split(deprecated,removed," "); for (i in removed) obsolete[removed[i]]=1
+    }
+    {
+        line=$0; sub(/\r$/, "", line)
+        istemplate=(FILENAME==ARGV[1])
+        if (!istemplate && mode=="repair" && index(line,prefix)==1 &&
+            substr(line,length(prefix)+1) ~ /^[^/]+\/deploy\/\.env$/) {
+            section=line
+            lines[++n]="# 已导入旧配置：" substr(line,length("# migrated from ")+1)
+            next
+        }
+        imported=(!istemplate && (mode=="create" || section!=""))
+        source=(mode=="create" ? FILENAME : section)
+        trimmed=line; sub(/^[ \t]+/,"",trimmed)
+        if (trimmed=="" || substr(trimmed,1,1)=="#") {
+            if (!istemplate || mode=="create") lines[++n]=$0
+            next
+        }
+        at=index(trimmed,"="); key=substr(trimmed,1,at-1); sub(/[ \t]+$/,"",key)
+        if (!at || key !~ /^[A-Za-z_][A-Za-z0-9_]*$/) fail("（格式错误）")
+        # 业务旧文件不可改变统一 .env 自身的定位；首次创建时由模板写入选定目录。
+        if (key in obsolete || (imported && key=="SOFTWARE_ROOT")) next
+        value=substr(trimmed,at+1)
+        if (istemplate && key=="SOFTWARE_ROOT") { line=key "=" root; value=root }
+        if (istemplate) defaults[key]=literal(value)
+        if (istemplate && mode=="repair") next
+        if (seen[source SUBSEP key]++) fail(key)
+        if (imported) {
+            if (key in inherited) { if (inherited[key] != literal(value)) fail(key); next }
+            if (mode=="repair" && key in base && base[key]!=defaults[key] && base[key]!=literal(value)) fail(key)
+            inherited[key]=literal(value)
+        } else base[key]=literal(value)
+        if (!(key in position)) position[key]=++n
+        lines[position[key]]=line
+    }
+    END { if (!failed) for (i=1;i<=n;i++) print lines[i] }
+' "${files[@]}" > "$staged"
+mv -fT -- "$staged" "$target"
+printf '%s\n' "$mode"
+MERGE_ENV
+)" || return 1
+    case "$result" in
+        create) GLOBAL_ENV_CREATED=1; echo "已创建普通配置：$GLOBAL_ENV" ;;
+        repair) GLOBAL_ENV_UPDATED=1; echo "已整理旧版迁移生成的普通配置：$GLOBAL_ENV" ;;
+    esac
 }
 
 remove_deprecated_env_keys() {
@@ -355,58 +420,84 @@ migrate_flatnas_default_port() {
 }
 
 migrate_sensitive_env_keys() {
-    local key line value secret_line secret_value
-    for key in "${SENSITIVE_ENV_KEYS[@]}"; do
-        line="$(run_root grep -E "^$key=" "$GLOBAL_ENV" 2>/dev/null | tail -n 1 || true)"
-        [ -n "$line" ] || continue
-        value="${line#*=}"
-        secret_line="$(run_root grep -E "^$key=" "$GLOBAL_SECRETS" 2>/dev/null | tail -n 1 || true)"
-        secret_value="${secret_line#*=}"
-        if [ -n "$value" ] || [ -z "$secret_line" ] || [ -z "$secret_value" ]; then
-            set_config_line "$GLOBAL_SECRETS" "$key" "$line"
-        fi
-        run_root sed -i "/^$key=/d" "$GLOBAL_ENV"
-        echo "已迁移敏感配置：$key -> .secrets"
+    local result
+    result="$(run_root bash -s -- "$GLOBAL_ENV" "$GLOBAL_SECRETS" "$GLOBAL_SECRETS_EXAMPLE" "${SENSITIVE_ENV_KEYS[*]}" <<'MOVE_SECRETS'
+set -eu
+source_file=$1 target=$2 baseline=$2 template=$3 keys=$4 fresh=0
+if [[ ! -f "$target" ]]; then baseline=$template; fresh=1; fi
+umask 077
+staged_source=$(mktemp "$source_file.tmp.XXXXXXXX")
+staged_secret=""
+trap 'rm -f -- "$staged_source" "${staged_secret:-}"' EXIT
+staged_secret=$(mktemp "$target.tmp.XXXXXXXX")
+# 同时校验两个输入。秘密只在文件间传递，值从不进入命令行或日志。
+if ! migrated=$(DEPLOY_ENV_STAGE="$staged_source" DEPLOY_SECRET_STAGE="$staged_secret" awk -v keys="$keys" -v fresh="$fresh" '
+    function blank(v) { return v=="" || v=="\"\"" || v==sprintf("%c%c",39,39) }
+    BEGIN {
+        plain=ENVIRON["DEPLOY_ENV_STAGE"]; secret=ENVIRON["DEPLOY_SECRET_STAGE"]
+        split(keys,names," "); for (i in names) sensitive[names[i]]=1
+    }
+    {
+        src=(FILENAME==ARGV[1]); line=$0; sub(/\r$/, "", line); sub(/^[ \t]+/,"",line)
+        at=index(line,"="); key=substr(line,1,at-1); sub(/[ \t]+$/,"",key)
+        if (at && key ~ /^[A-Za-z_][A-Za-z0-9_]*$/ && seen[FILENAME SUBSEP key]++) {
+            print "配置错误：变量 " key " 重复定义（值不打印）" > "/dev/stderr"; failed=1; exit 1
+        }
+        if (!at || !(key in sensitive)) { print $0 > (src ? plain : secret); next }
+        value=substr(line,at+1)
+        if (src) { imported[key]=$0; hasvalue[key]=!blank(value); order[++n]=key; next }
+        # 模板的默认值可以由旧用户值覆盖，已有 .secrets 的非空值则始终优先。
+        present[key]=1
+        if (key in imported && (fresh || (hasvalue[key] && blank(value)))) print imported[key] > secret
+        else print $0 > secret
+    }
+    END {
+        if (failed) exit 1
+        for (i=1;i<=n;i++) { key=order[i]; if (!(key in present)) print imported[key] > secret }
+        if (n) print "migrated"
+    }
+' "$source_file" "$baseline"); then exit 1; fi
+if [[ $fresh == 1 || -n $migrated ]]; then
+    mv -fT -- "$staged_secret" "$target"
+fi
+if [[ -n $migrated ]]; then
+    # 即使第二次 rename 失败，来源仍在；重试会保留已经落地的非空目标值。
+    mv -fT -- "$staged_source" "$source_file"
+    echo migrated
+fi
+MOVE_SECRETS
+)" || return 1
+    if [[ -n "$result" ]]; then
         GLOBAL_ENV_UPDATED=1
-    done
+        echo "已将普通配置中的敏感项迁入 .secrets"
+    fi
 }
 
 ensure_global_env() {
-    run_root mkdir -p "$SOFTWARE_ROOT" "$GLOBAL_ENV_DIR"
-    migrate_global_env_path
+    run_root mkdir -p "$SOFTWARE_ROOT" "$GLOBAL_ENV_DIR" || return 1
+    migrate_global_env_path || return 1
 
-    if [ ! -f "$GLOBAL_ENV" ]; then
-        [ -f "$GLOBAL_ENV_EXAMPLE" ] || {
-            echo "统一环境变量模板不存在：$GLOBAL_ENV_EXAMPLE" >&2
-            return 1
-        }
-
-        run_root cp "$GLOBAL_ENV_EXAMPLE" "$GLOBAL_ENV"
-        run_root sed -i "s#^SOFTWARE_ROOT=.*#SOFTWARE_ROOT=$SOFTWARE_ROOT#" "$GLOBAL_ENV"
-        run_root chmod 0600 "$GLOBAL_ENV"
-        migrate_legacy_envs
-
-        echo "已创建普通配置：$GLOBAL_ENV"
-        GLOBAL_ENV_CREATED=1
+    # 只有首次创建及历史拼接文件需要合并；已有统一配置旁的旧文件只是备份。
+    if [[ ! -f "$GLOBAL_ENV" ]] || run_root grep -Fq -- "# migrated from $SOFTWARE_ROOT/" "$GLOBAL_ENV"; then
+        migrate_legacy_envs || return 1
+    else
+        [[ $? == 1 ]] || return 1
     fi
 
     if [ ! -f "$GLOBAL_SECRETS" ]; then
         [ -f "$GLOBAL_SECRETS_EXAMPLE" ] || { echo "敏感配置模板不存在：$GLOBAL_SECRETS_EXAMPLE" >&2; return 1; }
-        run_root cp "$GLOBAL_SECRETS_EXAMPLE" "$GLOBAL_SECRETS"
-        echo "已创建敏感配置：$GLOBAL_SECRETS"
         GLOBAL_SECRETS_CREATED=1
     fi
 
     # Remove old IMAGE/RELEASE keys before the duplicate-key scan.
-    remove_deprecated_env_keys
+    remove_deprecated_env_keys || return 1
     sync_template_keys "$GLOBAL_ENV_EXAMPLE" "$GLOBAL_ENV" ".env" || return $?
+    migrate_sensitive_env_keys || return 1
     sync_template_keys "$GLOBAL_SECRETS_EXAMPLE" "$GLOBAL_SECRETS" ".secrets" || return $?
-    migrate_easytier_default_ports
-    migrate_flatnas_default_port
-    migrate_sensitive_env_keys
-    remove_deprecated_env_keys
-    run_root chown root:root "$GLOBAL_ENV" "$GLOBAL_SECRETS"
-    run_root chmod 0600 "$GLOBAL_ENV" "$GLOBAL_SECRETS"
+    migrate_easytier_default_ports || return 1
+    migrate_flatnas_default_port || return 1
+    run_root chown root:root "$GLOBAL_ENV" "$GLOBAL_SECRETS" || return 1
+    run_root chmod 0600 "$GLOBAL_ENV" "$GLOBAL_SECRETS" || return 1
     sync_shared_libraries || return $?
 
     if [ "$GLOBAL_ENV_CREATED" -eq 1 ] || [ "$GLOBAL_SECRETS_CREATED" -eq 1 ]; then
@@ -464,72 +555,87 @@ resolve_task() {
     return 1
 }
 
-sync_shared_libraries() {
-    local target_dir="$GLOBAL_ENV_DIR/lib"
-    local source_file target_file staged_file module
-    local -a modules=(image-sources.sh release-sources.sh source-migration.sh app-config.sh versions.sh)
-    run_root mkdir -p "$target_dir" || return $?
-
+sync_shared_libraries() (
+    local target_dir="$GLOBAL_ENV_DIR/lib" module source_file target_file stage i
+    local -a modules=(image-sources.sh release-sources.sh source-migration.sh app-config.sh platform.sh versions.sh versions.env)
+    local -a published=()
+    local -A changes=()
+    # 整套输入和目标先检查完，再写运行目录。
     for module in "${modules[@]}"; do
         source_file="$ROOT_DIR/lib/$module"
         target_file="$target_dir/$module"
-        [ -f "$source_file" ] && [ ! -L "$source_file" ] || {
-            echo "公共下载模块缺失或是符号链接：$source_file，请完整更新 deploy 仓库。" >&2
+        if [[ ! -f "$source_file" || -L "$source_file" ]]; then
+            echo "共享文件缺失或是符号链接：$source_file，请完整更新 deploy 仓库。" >&2
             return 1
-        }
-        [ ! -L "$target_file" ] || {
-            echo "公共下载模块目标不能是符号链接：$target_file" >&2
-            return 1
-        }
-        # 仓库本身位于 <SOFTWARE_ROOT>/deploy 时，文件即目标路径。
-        # 不能覆盖自身，但需要恢复 root:root/0644，保证高权限 Agent 自更新可验证可信脚本。
-        if [ -e "$target_file" ] && [ "$source_file" -ef "$target_file" ]; then
-            if ! run_root chown root:root "$target_file" ||
-               ! run_root chmod 0644 "$target_file"; then
-                echo "调整公共下载模块权限失败：$target_file" >&2
-                return 1
-            fi
-            continue
         fi
-        staged_file="$(run_root mktemp "$target_dir/.shared-library.XXXXXXXX")" || return $?
-        if ! run_root cp -- "$source_file" "$staged_file" ||
-           ! run_root chown root:root "$staged_file" ||
-           ! run_root chmod 0644 "$staged_file" ||
-           ! run_root mv -f -- "$staged_file" "$target_file"; then
-            run_root rm -f -- "$staged_file"
-            echo "同步公共下载模块失败：$target_file" >&2
+        if [[ -L "$target_file" || ( -e "$target_file" && ! -f "$target_file" ) ]]; then
+            echo "共享文件目标必须是普通文件：$target_file" >&2
             return 1
         fi
     done
-
-    # versions.env is tracked in Git, not a user-editable .env.example.
-    # Always sync it automatically before installing/updating any application.
-    source_file="$ROOT_DIR/lib/versions.env"
-    target_file="$GLOBAL_ENV_DIR/lib/versions.env"
-    [ -f "$source_file" ] && [ ! -L "$source_file" ] && [ ! -L "$target_file" ] || {
-        echo "仓库版本文件缺失或是符号链接：$source_file / $target_file" >&2
-        return 1
-    }
-    if [ -e "$target_file" ] && [ "$source_file" -ef "$target_file" ]; then
-        run_root chown root:root "$target_file" &&
-            run_root chmod 0644 "$target_file" || return 1
-    else
-        staged_file="$(run_root mktemp "$GLOBAL_ENV_DIR/.versions.XXXXXXXX")" || return $?
-        if ! run_root cp -- "$source_file" "$staged_file" ||
-           ! run_root chown root:root "$staged_file" ||
-           ! run_root chmod 0644 "$staged_file" ||
-           ! run_root mv -f -- "$staged_file" "$target_file"; then
-            run_root rm -f -- "$staged_file"
-            echo "同步仓库版本文件失败" >&2
-            return 1
+    run_root mkdir -p -- "$target_dir" || return $?
+    stage="$(run_root mktemp -d "$target_dir/.shared-library.XXXXXXXX")" || return $?
+    finish_shared_sync() {
+        local status=$? restored=1
+        if (( status != 0 )); then
+            for ((i=${#published[@]}-1; i>=0; i--)); do
+                module="${published[i]}"
+                target_file="$target_dir/$module"
+                case "${changes[$module]}" in
+                    create) run_root rm -f -- "$target_file" || restored=0 ;;
+                    replace) run_root mv -fT -- "$stage/old-$module" "$target_file" || restored=0 ;;
+                    metadata)
+                        run_root chown --reference="$stage/old-$module" -- "$target_file" || restored=0
+                        run_root chmod --reference="$stage/old-$module" -- "$target_file" || restored=0
+                        ;;
+                esac
+            done
         fi
-    fi
-}
+        if (( restored )); then
+            run_root rm -rf -- "$stage" || exit 1
+        else
+            echo "恢复共享库失败，备份保留在 $stage" >&2
+        fi
+        exit "$status"
+    }
+    trap finish_shared_sync EXIT
+    for module in "${modules[@]}"; do
+        source_file="$ROOT_DIR/lib/$module"
+        target_file="$target_dir/$module"
+        if [[ -f "$target_file" ]]; then
+            if [[ "$(run_root stat -c %u:%g:%a -- "$target_file")" == 0:0:644 ]] &&
+                run_root cmp -s -- "$source_file" "$target_file"; then
+                continue
+            fi
+            run_root cp -a -- "$target_file" "$stage/old-$module" || return $?
+            # 仓库与安装目录重合时，保留原文件，只修正所有者和权限。
+            if [[ "$source_file" -ef "$target_file" ]]; then
+                changes[$module]=metadata
+                continue
+            fi
+            changes[$module]=replace
+        else
+            changes[$module]=create
+        fi
+        run_root install -o root -g root -m 0644 -- "$source_file" "$stage/new-$module" || return $?
+    done
+
+    for module in "${modules[@]}"; do
+        [[ ${changes[$module]+changed} ]] || continue
+        target_file="$target_dir/$module"
+        if [[ ${changes[$module]} == metadata ]]; then
+            published+=("$module")
+            run_root chown root:root -- "$target_file" && run_root chmod 0644 -- "$target_file" || return $?
+        else
+            run_root mv -fT -- "$stage/new-$module" "$target_file" || return $?
+            published+=("$module")
+        fi
+    done
+)
 sync_task() {
     local task="$1"
     local source_dir="$ROOT_DIR/$task"
     local target_dir="$SOFTWARE_ROOT/$task"
-    local archive
     local -a sync_excludes=(
         --exclude='./deploy/.env'
         --exclude='./deploy/.secrets'
@@ -552,71 +658,142 @@ sync_task() {
         return 1
     fi
 
-    sync_shared_libraries || return $?
-
-    archive="$(mktemp "/tmp/deploy-${task}.XXXXXX.tar")"
-    trap "rm -f '$archive'" EXIT
-
-    # 仓库只是安装源；运行时敏感配置和持久化数据不从仓库覆盖。
-    tar "${sync_excludes[@]}" -C "$source_dir" -cf "$archive" .
-
-    run_root mkdir -p "$target_dir"
-    run_root tar -C "$target_dir" -xf "$archive"
-
-    # 原生配置模板只补缺失文件，运行时 .env/.secrets 永远不从仓库复制。
-    if [ -d "$source_dir/config" ] && [ ! -L "$source_dir/config" ]; then
-        local config_source relative destination parent current part
-        local -a config_parts
-        while IFS= read -r -d '' config_source; do
-            relative="${config_source#"$source_dir/"}"
-            destination="$target_dir/$relative"
-            parent="${relative%/*}"; current="$target_dir"
-            IFS=/ read -r -a config_parts <<< "$parent"
-            for part in "${config_parts[@]}"; do
-                current="$current/$part"
-                if run_root test -L "$current"; then
-                    echo "配置目录不能经过符号链接" >&2; return 1
+    # 先在私有目录完整解包。发布时只替换归档中的文件，保留运行目录和挂载点。
+    (
+        local work stage='' entry relative dest backup i sync_lock script mode
+        local -a published=() backups=() added_dirs=()
+        local -A previous_modes=()
+        work="$(mktemp -d "/tmp/deploy-${task}.XXXXXXXX")" || exit $?
+        # 只为本次会写入或移除的文件留备份，运行中的数据目录不参与复制。
+        remember_file() {
+            local relative="$1" dest="$target_dir/$1" backup="$stage/old/${#published[@]}/$1"
+            if run_root test -e "$dest" || run_root test -L "$dest"; then
+                if ! run_root test -f "$dest" && ! run_root test -L "$dest"; then
+                    echo "无法替换已有的非普通部署文件：$dest" >&2
+                    return 1
                 fi
-                run_root mkdir -p "$current" || return $?
+                run_root mkdir -p -- "${backup%/*}" || return $?
+                run_root cp -a --reflink=auto -- "$dest" "$backup" || return $?
+            else
+                backup=''
+            fi
+            published+=("$relative")
+            backups+=("$backup")
+        }
+        finish_sync() {
+            local status=$? restored=1
+            if (( status != 0 )); then
+                for script in "${!previous_modes[@]}"; do
+                    mode="${previous_modes[$script]}"
+                    if [[ "$(run_root stat -Lc %a -- "$script")" != "$mode" ]]; then
+                        run_root chmod "$mode" -- "$script" || restored=0
+                    fi
+                done
+                for ((i=${#published[@]}-1; i>=0; i--)); do
+                    relative="${published[i]}"
+                    dest="$target_dir/$relative"
+                    backup="${backups[i]}"
+                    if [[ -n "$backup" ]]; then
+                        run_root mv -fT -- "$backup" "$dest" || restored=0
+                    else
+                        run_root rm -f -- "$dest" || restored=0
+                    fi
+                done
+                for ((i=${#added_dirs[@]}-1; i>=0; i--)); do
+                    run_root rmdir -- "${added_dirs[i]}" || restored=0
+                done
+            fi
+            if (( ! restored )); then
+                echo "恢复部署文件失败，已保留备份：$stage/old" >&2
+            elif [[ -n "$stage" ]]; then
+                run_root rm -rf -- "$stage" || exit 1
+            fi
+            rm -rf -- "$work" || exit 1
+            exit "$status"
+        }
+        trap finish_sync EXIT
+        tar "${sync_excludes[@]}" -C "$source_dir" -cf "$work/app.tar" . || exit $?
+        run_root mkdir -p -- "$SOFTWARE_ROOT" || exit $?
+        stage="$(run_root mktemp -d "$SOFTWARE_ROOT/.deploy-${task}.XXXXXXXX")" || exit $?
+        run_root mkdir -- "$stage/new" "$stage/old" || exit $?
+        run_root tar -C "$stage/new" -xf "$work/app.tar" || exit $?
+        run_root find "$stage/new" -mindepth 1 -print0 > "$work/entries" || exit $?
+
+        exec {sync_lock}<"$SOFTWARE_ROOT" || exit $?
+        flock -x "$sync_lock" || exit $?
+        if ! run_root test -d "$target_dir"; then
+            run_root mkdir -- "$target_dir" || exit $?
+            added_dirs+=("$target_dir")
+            run_root chown --reference="$stage/new" -- "$target_dir" || exit $?
+            run_root chmod --reference="$stage/new" -- "$target_dir" || exit $?
+        fi
+        while IFS= read -r -d '' entry; do
+            relative="${entry#"$stage/new/"}"
+            dest="$target_dir/$relative"
+            if run_root test -d "$entry" && ! run_root test -L "$entry"; then
+                if ! run_root test -L "$dest" && run_root test -d "$dest"; then continue; fi
+                run_root mkdir -- "$dest" || exit $?
+                added_dirs+=("$dest")
+                run_root chown --reference="$entry" -- "$dest" || exit $?
+                run_root chmod --reference="$entry" -- "$dest" || exit $?
+                continue
+            fi
+            remember_file "$relative" || exit $?
+            run_root mv -fT -- "$entry" "$dest" || exit $?
+        done < "$work/entries"
+
+        # 原生配置模板只补缺失文件，运行时 .env/.secrets 永远不从仓库复制。
+        if [ -d "$source_dir/config" ] && [ ! -L "$source_dir/config" ]; then
+            local config_source destination parent current part
+            local -a config_parts
+            find "$source_dir/config" -type f ! -name '.env' ! -name '.secrets' -print0 > "$work/templates" || exit $?
+            while IFS= read -r -d '' config_source; do
+                relative="${config_source#"$source_dir/"}"
+                destination="$target_dir/$relative"
+                parent="${relative%/*}"; current="$target_dir"
+                IFS=/ read -r -a config_parts <<< "$parent"
+                for part in "${config_parts[@]}"; do
+                    current="$current/$part"
+                    if run_root test -L "$current"; then
+                        echo "配置目录不能经过符号链接" >&2; exit 1
+                    fi
+                    if ! run_root test -d "$current"; then
+                        run_root mkdir -- "$current" || exit $?
+                        added_dirs+=("$current")
+                    fi
+                done
+                if ! run_root test -e "$destination" && ! run_root test -L "$destination"; then
+                    remember_file "$relative" || exit $?
+                    run_root cp -n -- "$config_source" "$destination" || exit $?
+                fi
+            done < "$work/templates"
+        fi
+
+        # Mihomo 升级仅清理旧版遗留的固定文件，保留用户配置和数据。
+        if [ "$task" = mihomo ]; then
+            local obsolete
+            for obsolete in \
+                deploy/lib.sh \
+                deploy/config.example.yaml \
+                deploy/profile.example.yaml \
+                tests/password-config.sh \
+                tests/all-in-one.sh; do
+                if ! run_root test -e "$target_dir/$obsolete" && ! run_root test -L "$target_dir/$obsolete"; then continue; fi
+                remember_file "$obsolete" || exit $?
+                run_root rm -f -- "$target_dir/$obsolete" || exit $?
             done
-            if ! run_root test -e "$destination" && ! run_root test -L "$destination"; then
-                run_root cp -n -- "$config_source" "$destination" || return $?
-            fi
-        done < <(find "$source_dir/config" -type f ! -name '.env' ! -name '.secrets' -print0)
-    fi
+        fi
 
-    # Mihomo was fully rebuilt as official MetaCubeXD All-in-One. tar extraction
-    # does not delete obsolete files in the NAS mirror, so prune ONLY the known
-    # legacy source files. Never remove data/, .env, .secrets, or user profiles.
-    if [ "$task" = mihomo ]; then
-        local obsolete
-        for obsolete in \
-            deploy/lib.sh \
-            deploy/config.example.yaml \
-            deploy/profile.example.yaml \
-            tests/password-config.sh \
-            tests/all-in-one.sh; do
-            run_root rm -f -- "$target_dir/$obsolete"
+        local -a launchers=("$target_dir/deploy/install.sh" "$target_dir/deploy/update.sh")
+        if [ "$task" = mihomo ]; then launchers+=("$target_dir/deploy"/host-*.sh); fi
+        for script in "${launchers[@]}"; do
+            [ -f "$script" ] || continue
+            mode="$(run_root stat -Lc %a -- "$script")" || exit $?
+            previous_modes["$script"]="$mode"
+            run_root chmod +x "$script" || exit $?
         done
-    fi
-
-    if [ -f "$target_dir/deploy/install.sh" ]; then
-        run_root chmod +x "$target_dir/deploy/install.sh"
-    fi
-    if [ -f "$target_dir/deploy/update.sh" ]; then
-        run_root chmod +x "$target_dir/deploy/update.sh"
-    fi
-    if [ "$task" = mihomo ]; then
-        local native_script
-        for native_script in "$target_dir/deploy"/host-*.sh; do
-            if [ -f "$native_script" ]; then
-                run_root chmod +x "$native_script"
-            fi
-        done
-    fi
-
-    rm -f "$archive"
-    trap - EXIT
+        sync_shared_libraries || exit $?
+    ) || return $?
 
     echo "已同步：$source_dir -> $target_dir"
 }
@@ -665,19 +842,26 @@ run_task() {
             [ "$task" = mihomo ] || { echo "host/host-update 仅支持 mihomo" >&2; return 1; }
             script="$target_dir/deploy/host-install.sh"
             ;;
-        status|start|stop|restart|logs)
-            [ "$task" = fnos-desktop ] || { echo "管理操作仅支持 fnos-desktop" >&2; return 1; }
-            script="$target_dir/deploy/manage.sh"
-            ;;
-        uninstall)
+        status|start|stop|restart|logs|uninstall)
             if [ "$task" = fnos-desktop ]; then
                 script="$target_dir/deploy/manage.sh"
-            elif [ -f "$ROOT_DIR/$task/deploy/uninstall.sh" ]; then
-                script="$target_dir/deploy/uninstall.sh"
-            else
+                run_root test -f "$target_dir/state/owned-units" || {
+                    echo "未发现 fnos-desktop 安装记录，请先运行 sudo bash deploy.sh fnos-desktop install。" >&2
+                    return 1
+                }
+                run_root test -f "$script" || {
+                    echo "已安装的 fnos-desktop 缺少管理脚本：$script" >&2
+                    return 1
+                }
+                run_root bash "$script" "$action"
+                return $?
+            fi
+            [ "$action" = uninstall ] || { echo "管理操作仅支持 fnos-desktop" >&2; return 1; }
+            if [ ! -f "$ROOT_DIR/$task/deploy/uninstall.sh" ]; then
                 echo "$task 尚未提供标准卸载脚本，请查看其 README 中的卸载说明。" >&2
                 return 1
             fi
+            script="$target_dir/deploy/uninstall.sh"
             ;;
         sync)
             sync_task "$task" || return $?
@@ -714,8 +898,6 @@ run_task() {
         run_root bash "$script" update
     elif [ "$action" = force-update ]; then
         run_root bash "$script" force-update
-    elif [ "$task" = fnos-desktop ] && [[ "$action" =~ ^(status|start|stop|restart|logs|uninstall)$ ]]; then
-        run_root bash "$script" "$action"
     else
         run_root bash "$script"
     fi

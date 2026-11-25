@@ -15,11 +15,17 @@ ENV_FILE="$SOFTWARE_ROOT/deploy/.env"
 SECRETS_FILE="$SOFTWARE_ROOT/deploy/.secrets"
 source "$DEPLOY_DIR/config.sh"
 
-# 凭据只从 .secrets 读取；普通设置只从统一 .env 读取。
+# 全局普通配置提供基线。应用 .env 只覆盖清单中声明的四项，凭据由全局 .secrets 管理。
 unset EASYNETTOPO_ADMIN_USERNAME EASYNETTOPO_ADMIN_PASSWORD EASYNETTOPO_HOOK_TOKEN EASYNETTOPO_IMAGE EASYNETTOPO_HTTP_PORT EASYNETTOPO_BIND_IP
 unset EASYNETTOPO_GIT_ALLOWED_HOSTS EASYNETTOPO_GIT_ALLOW_HTTP TZ
 [[ -f "$ENV_FILE" ]] || fail "请先执行 sudo bash deploy.sh env"
 load_settings "$ENV_FILE" env
+app_env="$BASE_DIR/config/.env"
+[[ ! -L "$BASE_DIR/config" && ! -L "$app_env" ]] || fail "应用配置目录及 .env 不得是符号链接"
+if [[ -e "$app_env" ]]; then
+    [[ -f "$app_env" ]] || fail "应用 .env 必须是普通文件"
+    load_settings "$app_env" app
+fi
 # Hook Token 仅从受保护的全局 .secrets 读取，不允许普通 .env 覆盖。
 if [[ -f "$SECRETS_FILE" ]]; then
     [[ ! -L "$SECRETS_FILE" && "$(stat -c '%u:%g:%a' "$SECRETS_FILE")" == 0:0:600 ]] ||

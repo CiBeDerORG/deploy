@@ -38,6 +38,14 @@ jobs:
       - name: Verify default software root and legacy path compatibility
         run: bash tests/software-root-default.sh
 
+      - name: 检查同步失败传播与重试
+        run: bash tests/sync-task.sh
+
+      - name: 检查共享库发布和旧配置迁移
+        run: |
+          sudo bash tests/shared-libraries.sh
+          bash tests/env-migration.sh
+
       - name: Set up native adapter test runtime
         uses: actions/setup-node@v6
         with:
